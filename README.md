@@ -59,6 +59,11 @@ See [examples/sample.brief.md](examples/sample.brief.md) for a complete example.
 
 As AI agents handle more technical execution, the human→agent interface becomes the bottleneck. Existing approaches are either too unstructured (prose CLAUDE.md files) or too programmatic (YAML prompt languages). `brief` sits in the gap: a format any developer can write in 60 seconds that any agent runtime can consume.
 
+## See Also
+
+Simon Willison's [Showboat](https://github.com/simonw/showboat), which effectively solves the inverse of what I am 
+trying to solve here, which is to ease the burden of human's communicating with agents.
+
 ## License
 
 MIT
