@@ -18,6 +18,8 @@ mod tests {
                 context: vec!["./README.md".into()],
                 model: Some("claude-sonnet-4-20250514".into()),
                 version: "1".into(),
+                skill_name: None,
+                skill_description: None,
             },
             goal: "Build feature".into(),
             constraints: Constraints {

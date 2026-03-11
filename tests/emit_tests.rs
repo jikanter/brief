@@ -98,6 +98,60 @@ fn emit_json_from_full_fixture_is_valid() {
     assert!(value["deliverable"].is_string());
 }
 
+// -- Skill emitter --
+
+#[test]
+fn emit_skill_from_skill_fixture() {
+    let brief = parse_brief(&fixture("skill.brief.md")).unwrap();
+    let output = emit::emit_skill(&brief);
+
+    // Frontmatter
+    assert!(output.starts_with("---\n"));
+    assert!(output.contains("name: review\n"));
+    assert!(output.contains("description: Review code changes following team standards\n"));
+
+    // Stack woven into opening
+    assert!(output.contains("Python 3.12, PostgreSQL 16"));
+
+    // Context
+    assert!(output.contains("`./docs/api-spec.yaml`"));
+
+    // Rules
+    assert!(output.contains("## Rules"));
+    assert!(output.contains("You MUST"));
+    assert!(output.contains("All SQL must target PostgreSQL 16"));
+
+    // Preferences
+    assert!(output.contains("Prefer async patterns"));
+
+    // Ask first
+    assert!(output.contains("Ask the user before"));
+    assert!(output.contains("Database schema changes"));
+
+    // Protected regions
+    assert!(output.contains("## Protected regions"));
+    assert!(output.contains("`src/auth/**`"));
+
+    // Verification (only unvalidated)
+    assert!(output.contains("## Verify before proceeding"));
+    assert!(output.contains("Current tests cover critical paths"));
+    assert!(!output.contains("CI pipeline runs on every PR"));
+
+    // Deliverable
+    assert!(output.contains("## Expected output"));
+    assert!(output.contains("Clear review comments"));
+}
+
+#[test]
+fn emit_skill_from_full_fixture_derives_name() {
+    let brief = parse_brief(&fixture("full.brief.md")).unwrap();
+    let output = emit::emit_skill(&brief);
+
+    // Should slugify the goal since no skill_name in frontmatter
+    assert!(output.contains("name: build-real-time-collaborative-document-editor\n"));
+    assert!(output.contains("description: Build real-time collaborative document editor\n"));
+}
+
 // -- Round-trip test --
 
 #[test]

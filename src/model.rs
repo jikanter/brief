@@ -23,6 +23,10 @@ pub struct Frontmatter {
     pub model: Option<String>,
     #[serde(default = "default_version")]
     pub version: String,
+    #[serde(default)]
+    pub skill_name: Option<String>,
+    #[serde(default)]
+    pub skill_description: Option<String>,
 }
 
 fn default_version() -> String {
@@ -36,6 +40,8 @@ impl Default for Frontmatter {
             context: Vec::new(),
             model: None,
             version: default_version(),
+            skill_name: None,
+            skill_description: None,
         }
     }
 }

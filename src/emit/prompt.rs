@@ -13,6 +13,14 @@ pub fn emit_prompt(brief: &Brief) -> String {
         ));
     }
 
+    if !brief.frontmatter.context.is_empty() {
+        out.push_str("REFERENCE CONTEXT:\n");
+        for ctx in &brief.frontmatter.context {
+            out.push_str(&format!("- {ctx}\n"));
+        }
+        out.push('\n');
+    }
+
     if !brief.constraints.hard.is_empty() {
         out.push_str("HARD CONSTRAINTS:\n");
         for c in &brief.constraints.hard {

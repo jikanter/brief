@@ -13,6 +13,15 @@ pub fn emit_agents_md(brief: &Brief) -> String {
         ));
     }
 
+    // Context
+    if !brief.frontmatter.context.is_empty() {
+        out.push_str("## Context\n\nRefer to these files for background:\n");
+        for ctx in &brief.frontmatter.context {
+            out.push_str(&format!("- `{ctx}`\n"));
+        }
+        out.push('\n');
+    }
+
     // Instructions section — merge all constraints
     let has_constraints = !brief.constraints.hard.is_empty()
         || !brief.constraints.soft.is_empty()

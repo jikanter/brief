@@ -98,6 +98,8 @@ mod tests {
                 context: vec![],
                 model: None,
                 version: "1".to_string(),
+                skill_name: None,
+                skill_description: None,
             },
             goal: "Fix the bug".to_string(),
             constraints: Constraints {

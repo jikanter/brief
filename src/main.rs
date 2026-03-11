@@ -40,6 +40,10 @@ enum Commands {
         /// Path to the .brief.md file
         #[arg(default_value = ".brief.md")]
         file: PathBuf,
+
+        /// For skill target: install directly to .claude/skills/<name>/SKILL.md
+        #[arg(long)]
+        install: bool,
     },
 
     /// Check if a file path falls within a sacred region
@@ -71,6 +75,8 @@ enum EmitTarget {
     AgentsMd,
     /// Emit structured JSON
     Json,
+    /// Emit a Claude Code SKILL.md file
+    Skill,
 }
 
 fn main() {
@@ -86,7 +92,11 @@ fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Init => cmd_init(),
         Commands::Validate { file } => cmd_validate(&file),
-        Commands::Emit { target, file } => cmd_emit(target, &file),
+        Commands::Emit {
+            target,
+            file,
+            install,
+        } => cmd_emit(target, &file, install),
         Commands::Check { path, file } => cmd_check(&path, &file),
         Commands::Diff { file1, file2 } => cmd_diff(&file1, &file2),
     }
@@ -162,7 +172,7 @@ fn cmd_validate(file: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cmd_emit(target: EmitTarget, file: &PathBuf) -> Result<()> {
+fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
     let content = std::fs::read_to_string(file)
         .with_context(|| format!("Failed to read {}", file.display()))?;
 
@@ -173,9 +183,29 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf) -> Result<()> {
         EmitTarget::Prompt => emit::emit_prompt(&brief),
         EmitTarget::AgentsMd => emit::emit_agents_md(&brief),
         EmitTarget::Json => emit::emit_json(&brief),
+        EmitTarget::Skill => emit::emit_skill(&brief),
     };
 
-    print!("{output}");
+    if install {
+        if !matches!(target, EmitTarget::Skill) {
+            anyhow::bail!("--install is only supported for the skill target");
+        }
+        let name = emit::skill_name(&brief);
+        let skill_dir = PathBuf::from(".claude/skills").join(&name);
+        std::fs::create_dir_all(&skill_dir)
+            .with_context(|| format!("Failed to create {}", skill_dir.display()))?;
+        let skill_path = skill_dir.join("SKILL.md");
+        std::fs::write(&skill_path, &output)
+            .with_context(|| format!("Failed to write {}", skill_path.display()))?;
+        println!(
+            "{} {}",
+            "Installed".green().bold(),
+            skill_path.display()
+        );
+    } else {
+        print!("{output}");
+    }
+
     Ok(())
 }
 

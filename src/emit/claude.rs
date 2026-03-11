@@ -14,6 +14,15 @@ pub fn emit_claude(brief: &Brief) -> String {
         ));
     }
 
+    // Context
+    if !brief.frontmatter.context.is_empty() {
+        out.push_str("## Reference Context\n\nRead these files for background before starting work:\n");
+        for ctx in &brief.frontmatter.context {
+            out.push_str(&format!("- `{ctx}`\n"));
+        }
+        out.push('\n');
+    }
+
     // Constraints
     let has_constraints = !brief.constraints.hard.is_empty()
         || !brief.constraints.soft.is_empty()
@@ -139,5 +148,48 @@ mod tests {
         let output = emit_claude(&brief);
         assert!(output.contains("`src/auth/**`"));
         assert!(output.contains("Auth logic"));
+    }
+
+    #[test]
+    fn emit_contains_context() {
+        let brief = Brief {
+            frontmatter: Frontmatter {
+                stack: vec!["Rust".into()],
+                context: vec![
+                    "./docs/architecture.md".into(),
+                    "./performance-baseline.csv".into(),
+                ],
+                ..Default::default()
+            },
+            goal: "Optimize queries".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_claude(&brief);
+        assert!(output.contains("## Reference Context"));
+        assert!(output.contains("`./docs/architecture.md`"));
+        assert!(output.contains("`./performance-baseline.csv`"));
+    }
+
+    #[test]
+    fn emit_omits_context_when_empty() {
+        let brief = Brief {
+            frontmatter: Frontmatter {
+                stack: vec!["Rust".into()],
+                context: vec![],
+                ..Default::default()
+            },
+            goal: "Do stuff".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_claude(&brief);
+        assert!(!output.contains("Reference Context"));
     }
 }
