@@ -33,7 +33,7 @@ pub struct ParsedBody {
 pub fn parse_body(input: &str) -> ParsedBody {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TASKLISTS);
-    let parser = Parser::new_ext(input, options);
+    let parser = Parser::new_ext(input, options).into_offset_iter();
 
     let mut goal: Option<String> = None;
     let mut unknown_sections: Vec<UnknownSection> = Vec::new();
@@ -42,7 +42,6 @@ pub fn parse_body(input: &str) -> ParsedBody {
         sacred: Vec::new(),
         assumptions: Vec::new(),
         deliverable_parts: Vec::new(),
-        unknown_content: String::new(),
     };
 
     let mut current_section = Section::None;
@@ -57,26 +56,32 @@ pub fn parse_body(input: &str) -> ParsedBody {
     let mut item_texts: Vec<ItemSegment> = Vec::new();
     let mut task_marker: Option<bool> = None;
 
-    // Content collection for deliverable and unknown sections
+    // Content collection for deliverable paragraphs
     let mut in_paragraph = false;
 
-    for event in parser {
+    // Raw Markdown capture for unknown sections: byte offset where content starts
+    let mut unknown_section_start: Option<usize> = None;
+
+    for (event, range) in parser {
         match event {
             Event::Start(Tag::Heading { level, .. }) => {
                 in_heading = true;
                 heading_text.clear();
 
-                // If we were collecting deliverable text, a new heading ends it
-                if matches!(current_section, Section::Deliverable) && level <= HeadingLevel::H2 {
-                    // deliverable collection continues until next H2+
-                }
-                // Finalize unknown section on new H2
+                // Finalize unknown section on new H1/H2
                 if level <= HeadingLevel::H2 {
-                    finalize_unknown_section(
-                        &current_section,
-                        &mut state.unknown_content,
-                        &mut unknown_sections,
-                    );
+                    if let (Section::Unknown(ref name), Some(start)) =
+                        (&current_section, unknown_section_start)
+                    {
+                        let raw = input[start..range.start].trim();
+                        if !raw.is_empty() {
+                            unknown_sections.push(UnknownSection {
+                                heading: name.clone(),
+                                content: raw.to_string(),
+                            });
+                        }
+                        unknown_section_start = None;
+                    }
                 }
             }
 
@@ -101,7 +106,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
                             }
                             _ => {
                                 current_section = Section::Unknown(text);
-                                state.unknown_content.clear();
+                                unknown_section_start = Some(range.end);
                             }
                         }
                         current_constraint_type = None;
@@ -124,13 +129,13 @@ pub fn parse_body(input: &str) -> ParsedBody {
                 heading_text.push_str(&text);
             }
 
-            Event::Start(Tag::Item) => {
+            Event::Start(Tag::Item) if !matches!(current_section, Section::Unknown(_)) => {
                 in_item = true;
                 item_texts.clear();
                 task_marker = None;
             }
 
-            Event::TaskListMarker(checked) => {
+            Event::TaskListMarker(checked) if in_item => {
                 task_marker = Some(checked);
             }
 
@@ -146,7 +151,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
                 item_texts.push(ItemSegment::Text(" ".to_string()));
             }
 
-            Event::End(TagEnd::Item) => {
+            Event::End(TagEnd::Item) if in_item => {
                 in_item = false;
                 process_item(
                     &current_section,
@@ -158,46 +163,50 @@ pub fn parse_body(input: &str) -> ParsedBody {
             }
 
             // Content outside list items (e.g., deliverable paragraphs)
-            Event::Start(Tag::Paragraph) if !in_item && !in_heading => {
+            Event::Start(Tag::Paragraph)
+                if !in_item
+                    && !in_heading
+                    && !matches!(current_section, Section::Unknown(_)) =>
+            {
                 in_paragraph = true;
             }
 
-            Event::End(TagEnd::Paragraph) if !in_item && !in_heading => {
+            Event::End(TagEnd::Paragraph) if in_paragraph => {
                 in_paragraph = false;
             }
 
-            Event::Text(text) if in_paragraph && !in_item && !in_heading => {
-                match &current_section {
-                    Section::Deliverable => state.deliverable_parts.push(text.to_string()),
-                    Section::Unknown(_) => {
-                        state.unknown_content.push_str(&text);
-                    }
-                    _ => {}
+            Event::Text(text) if in_paragraph => {
+                if matches!(current_section, Section::Deliverable) {
+                    state.deliverable_parts.push(text.to_string());
                 }
             }
 
-            Event::Code(code) if in_paragraph && !in_item && !in_heading => {
+            Event::Code(code) if in_paragraph => {
                 if matches!(current_section, Section::Deliverable) {
                     state.deliverable_parts.push(format!("`{code}`"));
                 }
             }
 
-            Event::SoftBreak if in_paragraph && !in_item && !in_heading => match &current_section {
-                Section::Deliverable => state.deliverable_parts.push("\n".to_string()),
-                Section::Unknown(_) => state.unknown_content.push('\n'),
-                _ => {}
-            },
+            Event::SoftBreak if in_paragraph => {
+                if matches!(current_section, Section::Deliverable) {
+                    state.deliverable_parts.push("\n".to_string());
+                }
+            }
 
             _ => {}
         }
     }
 
     // Finalize any trailing unknown section
-    finalize_unknown_section(
-        &current_section,
-        &mut state.unknown_content,
-        &mut unknown_sections,
-    );
+    if let (Section::Unknown(ref name), Some(start)) = (&current_section, unknown_section_start) {
+        let raw = input[start..].trim();
+        if !raw.is_empty() {
+            unknown_sections.push(UnknownSection {
+                heading: name.clone(),
+                content: raw.to_string(),
+            });
+        }
+    }
 
     let deliverable = if state.deliverable_parts.is_empty() {
         None
@@ -227,30 +236,12 @@ enum ItemSegment {
     Code(String),
 }
 
-fn finalize_unknown_section(
-    current_section: &Section,
-    unknown_content: &mut String,
-    unknown_sections: &mut Vec<UnknownSection>,
-) {
-    if let Section::Unknown(ref name) = current_section {
-        let trimmed = unknown_content.trim().to_string();
-        if !trimmed.is_empty() {
-            unknown_sections.push(UnknownSection {
-                heading: name.clone(),
-                content: trimmed,
-            });
-        }
-        unknown_content.clear();
-    }
-}
-
 /// Mutable state accumulated during body parsing.
 struct ParseState {
     constraints: Constraints,
     sacred: Vec<SacredEntry>,
     assumptions: Vec<Assumption>,
     deliverable_parts: Vec<String>,
-    unknown_content: String,
 }
 
 fn process_item(
@@ -260,30 +251,25 @@ fn process_item(
     task_marker: Option<bool>,
     state: &mut ParseState,
 ) {
-    let constraints = &mut state.constraints;
-    let sacred = &mut state.sacred;
-    let assumptions = &mut state.assumptions;
-    let deliverable_parts = &mut state.deliverable_parts;
-    let unknown_content = &mut state.unknown_content;
     match section {
         Section::Constraints => {
             let text = segments_to_plain_text(segments);
             if !text.is_empty() {
                 match constraint_type {
-                    Some(ConstraintType::Hard) => constraints.hard.push(text),
-                    Some(ConstraintType::Soft) => constraints.soft.push(text),
-                    Some(ConstraintType::AskFirst) => constraints.ask_first.push(text),
+                    Some(ConstraintType::Hard) => state.constraints.hard.push(text),
+                    Some(ConstraintType::Soft) => state.constraints.soft.push(text),
+                    Some(ConstraintType::AskFirst) => state.constraints.ask_first.push(text),
                     None => {} // no recognized H3 — validator will catch
                 }
             }
         }
         Section::Sacred => {
-            parse_sacred_item(segments, sacred);
+            parse_sacred_item(segments, &mut state.sacred);
         }
         Section::Assumptions => {
             let text = segments_to_plain_text(segments);
             if !text.is_empty() {
-                assumptions.push(Assumption {
+                state.assumptions.push(Assumption {
                     text,
                     validated: task_marker.unwrap_or(false),
                     has_checkbox: task_marker.is_some(),
@@ -291,14 +277,10 @@ fn process_item(
             }
         }
         Section::Deliverable => {
-            deliverable_parts.push(segments_to_plain_text(segments));
+            state.deliverable_parts.push(segments_to_plain_text(segments));
         }
-        Section::Unknown(_) => {
-            unknown_content.push_str("- ");
-            unknown_content.push_str(&segments_to_plain_text(segments));
-            unknown_content.push('\n');
-        }
-        Section::None => {}
+        // Unknown sections use raw Markdown capture, not event-based accumulation
+        Section::Unknown(_) | Section::None => {}
     }
 }
 
@@ -485,5 +467,35 @@ mod tests {
         assert!(body.unknown_sections[0]
             .content
             .contains("Some custom content"));
+    }
+
+    #[test]
+    fn unknown_sections_preserve_raw_markdown() {
+        let md = "## Commands\n\n- Build: `cargo build`\n- Test: `cargo test`\n\n## Style\n\n- Use **strict** mode\n- Prefer `thiserror`\n\n### Sub-heading\n\nMore content with [links](http://example.com).\n";
+        let body = parse_body(md);
+        assert_eq!(body.unknown_sections.len(), 2);
+        // Commands section preserves list with code spans
+        assert_eq!(body.unknown_sections[0].heading, "Commands");
+        assert!(body.unknown_sections[0].content.contains("- Build: `cargo build`"));
+        assert!(body.unknown_sections[0].content.contains("- Test: `cargo test`"));
+        // Style section preserves emphasis, code, sub-headings, and links
+        assert_eq!(body.unknown_sections[1].heading, "Style");
+        assert!(body.unknown_sections[1].content.contains("**strict**"));
+        assert!(body.unknown_sections[1].content.contains("`thiserror`"));
+        assert!(body.unknown_sections[1].content.contains("### Sub-heading"));
+        assert!(body.unknown_sections[1].content.contains("[links](http://example.com)"));
+    }
+
+    #[test]
+    fn multiple_unknown_sections_between_known() {
+        let md = "# Goal\n\n## Custom One\n\nContent one.\n\n## Constraints\n\n### Hard\n- Rule\n\n## Custom Two\n\nContent two.\n";
+        let body = parse_body(md);
+        assert_eq!(body.goal, Some("Goal".to_string()));
+        assert_eq!(body.constraints.hard, vec!["Rule"]);
+        assert_eq!(body.unknown_sections.len(), 2);
+        assert_eq!(body.unknown_sections[0].heading, "Custom One");
+        assert!(body.unknown_sections[0].content.contains("Content one"));
+        assert_eq!(body.unknown_sections[1].heading, "Custom Two");
+        assert!(body.unknown_sections[1].content.contains("Content two"));
     }
 }

@@ -78,6 +78,15 @@ pub fn emit_prompt(brief: &Brief) -> String {
         out.push('\n');
     }
 
+    // Unknown sections (passthrough)
+    for section in &brief.unknown_sections {
+        out.push_str(&format!(
+            "\n{}:\n{}\n",
+            section.heading.to_uppercase(),
+            section.content
+        ));
+    }
+
     out
 }
 
@@ -103,6 +112,24 @@ mod tests {
         let output = emit_prompt(&brief);
         assert!(output.starts_with("GOAL: Redesign pipeline"));
         assert!(output.contains("STACK: Python, PostgreSQL"));
+    }
+
+    #[test]
+    fn prompt_emits_unknown_sections() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![UnknownSection {
+                heading: "Commands".into(),
+                content: "- Build: `cargo build`".into(),
+            }],
+        };
+        let output = emit_prompt(&brief);
+        assert!(output.contains("COMMANDS:\n- Build: `cargo build`"));
     }
 
     #[test]

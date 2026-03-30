@@ -67,6 +67,11 @@ pub fn emit_agents_md(brief: &Brief) -> String {
         out.push('\n');
     }
 
+    // Unknown sections (passthrough)
+    for section in &brief.unknown_sections {
+        out.push_str(&format!("\n## {}\n\n{}\n", section.heading, section.content));
+    }
+
     out
 }
 
@@ -92,6 +97,25 @@ mod tests {
         };
         let output = emit_agents_md(&brief);
         assert!(output.contains("Must pass CI **(REQUIRED)**"));
+    }
+
+    #[test]
+    fn agents_md_emits_unknown_sections() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![UnknownSection {
+                heading: "Commands".into(),
+                content: "- Build: `cargo build`".into(),
+            }],
+        };
+        let output = emit_agents_md(&brief);
+        assert!(output.contains("## Commands"));
+        assert!(output.contains("- Build: `cargo build`"));
     }
 
     #[test]

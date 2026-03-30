@@ -107,6 +107,11 @@ pub fn emit_skill(brief: &Brief) -> String {
         }
     }
 
+    // Unknown sections (passthrough)
+    for section in &brief.unknown_sections {
+        out.push_str(&format!("\n## {}\n\n{}\n", section.heading, section.content));
+    }
+
     out
 }
 
@@ -283,6 +288,25 @@ mod tests {
         let output = emit_skill(&brief);
         assert!(output.contains("## Expected output"));
         assert!(output.contains("Working code with tests."));
+    }
+
+    #[test]
+    fn emit_includes_unknown_sections() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Task".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![UnknownSection {
+                heading: "Commands".into(),
+                content: "- Build: `cargo build`".into(),
+            }],
+        };
+        let output = emit_skill(&brief);
+        assert!(output.contains("## Commands"));
+        assert!(output.contains("- Build: `cargo build`"));
     }
 
     #[test]

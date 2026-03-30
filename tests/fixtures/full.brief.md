@@ -42,3 +42,16 @@ version: "1"
 Working collaborative editor with real-time cursor presence, conflict-free
 concurrent editing, offline support with sync-on-reconnect, and comprehensive
 test coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.
+
+## Commands
+
+- Build: `npm run build`
+- Test: `npm test`
+- Lint: `npm run lint`
+- Type Check: `tsc --noEmit`
+
+## Code Style
+
+- Use TypeScript strict mode for all new files
+- Prefer functional components with hooks over class components
+- Use `zod` for runtime type validation at API boundaries

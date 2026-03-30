@@ -18,7 +18,8 @@ pub fn emit_claude(brief: &Brief) -> String {
     if !brief.frontmatter.context.is_empty() {
         out.push_str("## Reference Context\n\nRead these files for background before starting work:\n");
         for ctx in &brief.frontmatter.context {
-            out.push_str(&format!("- `{ctx}`\n"));
+            let clean = ctx.strip_prefix("./").unwrap_or(ctx);
+            out.push_str(&format!("- @{clean}\n"));
         }
         out.push('\n');
     }
@@ -34,7 +35,7 @@ pub fn emit_claude(brief: &Brief) -> String {
         if !brief.constraints.hard.is_empty() {
             out.push_str("### Hard (Non-negotiable)\n");
             for c in &brief.constraints.hard {
-                out.push_str(&format!("- {c}\n"));
+                out.push_str(&format!("- **IMPORTANT:** {c}\n"));
             }
             out.push('\n');
         }
@@ -82,6 +83,11 @@ pub fn emit_claude(brief: &Brief) -> String {
         out.push('\n');
     }
 
+    // Unknown sections (passthrough)
+    for section in &brief.unknown_sections {
+        out.push_str(&format!("\n## {}\n\n{}\n", section.heading, section.content));
+    }
+
     out
 }
 
@@ -125,7 +131,7 @@ mod tests {
         };
         let output = emit_claude(&brief);
         assert!(output.contains("Non-negotiable"));
-        assert!(output.contains("No breaking changes"));
+        assert!(output.contains("**IMPORTANT:** No breaking changes"));
         assert!(output.contains("Prefer async"));
         assert!(output.contains("Schema changes"));
     }
@@ -170,8 +176,35 @@ mod tests {
         };
         let output = emit_claude(&brief);
         assert!(output.contains("## Reference Context"));
-        assert!(output.contains("`./docs/architecture.md`"));
-        assert!(output.contains("`./performance-baseline.csv`"));
+        assert!(output.contains("@docs/architecture.md"));
+        assert!(output.contains("@performance-baseline.csv"));
+    }
+
+    #[test]
+    fn emit_contains_unknown_sections() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![
+                UnknownSection {
+                    heading: "Commands".into(),
+                    content: "- Build: `cargo build`\n- Test: `cargo test`".into(),
+                },
+                UnknownSection {
+                    heading: "Code Style".into(),
+                    content: "- Use thiserror for errors".into(),
+                },
+            ],
+        };
+        let output = emit_claude(&brief);
+        assert!(output.contains("## Commands"));
+        assert!(output.contains("- Build: `cargo build`"));
+        assert!(output.contains("## Code Style"));
+        assert!(output.contains("- Use thiserror for errors"));
     }
 
     #[test]

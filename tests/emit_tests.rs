@@ -16,7 +16,7 @@ fn emit_claude_from_full_fixture() {
     assert!(output.contains("# Briefing: Build real-time collaborative document editor"));
     assert!(output.contains("TypeScript 5.4"));
     assert!(output.contains("Non-negotiable"));
-    assert!(output.contains("WebSocket"));
+    assert!(output.contains("**IMPORTANT:** WebSocket"));
     assert!(output.contains("Preferred"));
     assert!(output.contains("Yjs"));
     assert!(output.contains("Requires approval"));
@@ -27,6 +27,14 @@ fn emit_claude_from_full_fixture() {
     assert!(output.contains("[ ] Redis pub/sub"));
     assert!(output.contains("[x] Existing REST API"));
     assert!(output.contains("Deliverable"));
+    // Context files as @ references
+    assert!(output.contains("@docs/architecture.md"));
+    assert!(output.contains("@docs/api-spec.yaml"));
+    // Unknown sections emitted
+    assert!(output.contains("## Commands"));
+    assert!(output.contains("- Build: `npm run build`"));
+    assert!(output.contains("## Code Style"));
+    assert!(output.contains("- Use TypeScript strict mode"));
 }
 
 #[test]
@@ -55,6 +63,9 @@ fn emit_prompt_from_full_fixture() {
     assert!(output.contains("ASSUMPTIONS (UNVALIDATED):"));
     assert!(output.contains("ASSUMPTIONS (VALIDATED):"));
     assert!(output.contains("DELIVERABLE:"));
+    // Unknown sections emitted with uppercase labels
+    assert!(output.contains("COMMANDS:"));
+    assert!(output.contains("CODE STYLE:"));
 }
 
 // -- AGENTS.md emitter --
@@ -71,6 +82,9 @@ fn emit_agents_md_from_full_fixture() {
     assert!(output.contains("**(ASK FIRST)**"));
     assert!(output.contains("## Protected Files"));
     assert!(output.contains("`src/core/crdt-engine/**`"));
+    // Unknown sections emitted
+    assert!(output.contains("## Commands"));
+    assert!(output.contains("## Code Style"));
 }
 
 // -- JSON emitter --
@@ -96,6 +110,11 @@ fn emit_json_from_full_fixture_is_valid() {
     assert_eq!(value["sacred"].as_array().unwrap().len(), 4);
     assert_eq!(value["assumptions"].as_array().unwrap().len(), 4);
     assert!(value["deliverable"].is_string());
+    // Unknown sections preserved in JSON
+    let unknown = value["unknown_sections"].as_array().unwrap();
+    assert_eq!(unknown.len(), 2);
+    assert_eq!(unknown[0]["heading"], "Commands");
+    assert_eq!(unknown[1]["heading"], "Code Style");
 }
 
 // -- Skill emitter --
