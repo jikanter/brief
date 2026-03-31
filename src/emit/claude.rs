@@ -1,4 +1,9 @@
+use std::path::Path;
+
 use crate::model::Brief;
+
+const MARKER_START: &str = "<!-- brief:start -->";
+const MARKER_END: &str = "<!-- brief:end -->";
 
 /// Emit a CLAUDE.md-compatible section from a Brief.
 pub fn emit_claude(brief: &Brief) -> String {
@@ -89,6 +94,59 @@ pub fn emit_claude(brief: &Brief) -> String {
     }
 
     out
+}
+
+/// Wrap emitted content in brief markers.
+fn wrap_with_markers(content: &str) -> String {
+    format!("{MARKER_START}\n{content}{MARKER_END}\n")
+}
+
+/// Inject a briefing section into an existing CLAUDE.md, or create one.
+///
+/// If the file contains `<!-- brief:start -->` / `<!-- brief:end -->` markers,
+/// the content between them is replaced. Otherwise the marked section is
+/// appended to the end of the file.
+pub fn install_claude(brief: &Brief, claude_md_path: &Path) -> Result<String, std::io::Error> {
+    let section = emit_claude(brief);
+    let wrapped = wrap_with_markers(&section);
+
+    let output = if claude_md_path.exists() {
+        let existing = std::fs::read_to_string(claude_md_path)?;
+        inject_section(&existing, &wrapped)
+    } else {
+        wrapped
+    };
+
+    std::fs::write(claude_md_path, &output)?;
+    Ok(output)
+}
+
+/// Replace content between markers, or append if no markers found.
+fn inject_section(existing: &str, wrapped_section: &str) -> String {
+    if let (Some(start_idx), Some(end_idx)) = (existing.find(MARKER_START), existing.find(MARKER_END)) {
+        let end_idx = end_idx + MARKER_END.len();
+        // Consume a trailing newline after the end marker if present
+        let end_idx = if existing[end_idx..].starts_with('\n') {
+            end_idx + 1
+        } else {
+            end_idx
+        };
+        let mut out = String::with_capacity(existing.len());
+        out.push_str(&existing[..start_idx]);
+        out.push_str(wrapped_section);
+        out.push_str(&existing[end_idx..]);
+        out
+    } else {
+        let mut out = existing.to_string();
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push('\n');
+        }
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(wrapped_section);
+        out
+    }
 }
 
 #[cfg(test)]
@@ -224,5 +282,51 @@ mod tests {
         };
         let output = emit_claude(&brief);
         assert!(!output.contains("Reference Context"));
+    }
+
+    #[test]
+    fn inject_replaces_existing_markers() {
+        let existing = "# My Project\n\nSome intro.\n\n<!-- brief:start -->\nold content\n<!-- brief:end -->\n\n## Other Stuff\n";
+        let section = "<!-- brief:start -->\nnew content\n<!-- brief:end -->\n";
+        let result = inject_section(existing, section);
+        assert!(result.contains("# My Project"));
+        assert!(result.contains("new content"));
+        assert!(!result.contains("old content"));
+        assert!(result.contains("## Other Stuff"));
+    }
+
+    #[test]
+    fn inject_appends_when_no_markers() {
+        let existing = "# My Project\n\nSome intro.\n";
+        let section = "<!-- brief:start -->\nbriefing here\n<!-- brief:end -->\n";
+        let result = inject_section(existing, section);
+        assert!(result.starts_with("# My Project"));
+        assert!(result.contains("<!-- brief:start -->"));
+        assert!(result.contains("briefing here"));
+        assert!(result.ends_with("<!-- brief:end -->\n"));
+    }
+
+    #[test]
+    fn inject_appends_to_empty() {
+        let section = "<!-- brief:start -->\ncontent\n<!-- brief:end -->\n";
+        let result = inject_section("", section);
+        assert_eq!(result, section);
+    }
+
+    #[test]
+    fn inject_preserves_content_around_markers() {
+        let existing = "before\n<!-- brief:start -->\nold\n<!-- brief:end -->\nafter\n";
+        let section = "<!-- brief:start -->\nnew\n<!-- brief:end -->\n";
+        let result = inject_section(existing, section);
+        assert_eq!(result, "before\n<!-- brief:start -->\nnew\n<!-- brief:end -->\nafter\n");
+    }
+
+    #[test]
+    fn wrap_with_markers_produces_valid_output() {
+        let content = "# Briefing: Test\n\n**Stack:** Rust\n\n";
+        let result = wrap_with_markers(content);
+        assert!(result.starts_with("<!-- brief:start -->"));
+        assert!(result.contains(content));
+        assert!(result.ends_with("<!-- brief:end -->\n"));
     }
 }

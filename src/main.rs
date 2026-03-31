@@ -187,21 +187,35 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
     };
 
     if install {
-        if !matches!(target, EmitTarget::Skill) {
-            anyhow::bail!("--install is only supported for the skill target");
+        match target {
+            EmitTarget::Skill => {
+                let name = emit::skill_name(&brief);
+                let skill_dir = PathBuf::from(".claude/skills").join(&name);
+                std::fs::create_dir_all(&skill_dir)
+                    .with_context(|| format!("Failed to create {}", skill_dir.display()))?;
+                let skill_path = skill_dir.join("SKILL.md");
+                std::fs::write(&skill_path, &output)
+                    .with_context(|| format!("Failed to write {}", skill_path.display()))?;
+                println!(
+                    "{} {}",
+                    "Installed".green().bold(),
+                    skill_path.display()
+                );
+            }
+            EmitTarget::Claude => {
+                let claude_md = PathBuf::from("CLAUDE.md");
+                emit::install_claude(&brief, &claude_md)
+                    .with_context(|| "Failed to install briefing into CLAUDE.md")?;
+                println!(
+                    "{} briefing into {}",
+                    "Installed".green().bold(),
+                    claude_md.display()
+                );
+            }
+            _ => {
+                anyhow::bail!("--install is only supported for the claude and skill targets");
+            }
         }
-        let name = emit::skill_name(&brief);
-        let skill_dir = PathBuf::from(".claude/skills").join(&name);
-        std::fs::create_dir_all(&skill_dir)
-            .with_context(|| format!("Failed to create {}", skill_dir.display()))?;
-        let skill_path = skill_dir.join("SKILL.md");
-        std::fs::write(&skill_path, &output)
-            .with_context(|| format!("Failed to write {}", skill_path.display()))?;
-        println!(
-            "{} {}",
-            "Installed".green().bold(),
-            skill_path.display()
-        );
     } else {
         print!("{output}");
     }
