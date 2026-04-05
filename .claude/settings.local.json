@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:anthropic.com)",
+      "WebFetch(domain:www.agentrulegen.com)",
+      "WebFetch(domain:www.xda-developers.com)",
+      "WebFetch(domain:news.ycombinator.com)",
+      "WebFetch(domain:uxplanet.org)"
+    ]
+  }
+}
