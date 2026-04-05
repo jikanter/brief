@@ -2,7 +2,7 @@
 
 Structured briefing format for AI coding agents.
 
-`brief` provides a fast, familiar format (`.brief.md`) for humans to express intent, constraints, and sacred code regions to AI agents — and a CLI to validate, compose, and emit those briefings to multiple agent runtimes.
+`brief` provides a fast, familiar format (`.brief.md`) for humans to express intent, constraints, commands, and sacred code regions to AI agents — and a CLI to validate, compose, and emit those briefings to multiple agent runtimes.
 
 ## Quick Start
 
@@ -53,16 +53,18 @@ context: [./docs/architecture.md]
 Architecture doc + implementation plan + working code
 ```
 
-See [examples/sample.brief.md](examples/sample.brief.md) for a complete example.
+See [examples/sample.brief.md](examples/sample.brief.md) for a complete example. Also see [tests/fixtures](tests/fixtures/) for the tested examples of well-formed and malformed brief documents.
 
 ## Why?
 
-As AI agents handle more technical execution, the human→agent interface becomes the bottleneck. Existing approaches are either too unstructured (prose CLAUDE.md files) or too programmatic (YAML prompt languages). `brief` sits in the gap: a format any developer can write in 60 seconds that any agent runtime can consume.
+As AI agents handle more technical execution, the human→agent interface becomes the bottleneck. Existing approaches are either too unstructured (prose CLAUDE.md files) or too programmatic (YAML prompt languages). `brief` sits in the gap: a format any developer can write in 60 seconds that any agent runtime can consume. If built correctly, brief should enhance the implementation of existing formats without impeding their inherent structure.
 
 ## See Also
 
 Simon Willison's [Showboat](https://github.com/simonw/showboat), which effectively solves the inverse of what I am 
-trying to solve here, which is to ease the burden of human's communicating with agents.
+trying to solve here, which is to ease the burden of human's communicating with agents but in reverse.
+
+
 
 ## License
 

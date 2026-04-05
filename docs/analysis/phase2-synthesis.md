@@ -31,6 +31,8 @@ With Tier 0 complete and `--install` working, the project's priorities shift sig
 
 The original synthesis framed the gap as "brief captures ~50% of what makes a CLAUDE.md useful" and tracked progress via fidelity percentages (35% → 70% → 85%). This metric is retired. Structural coverage of CLAUDE.md sections does not correlate with agent task quality. With unknown section passthrough working, brief no longer drops content — fidelity is limited only by what the user writes.
 
+### 1. Unknown sections must be emitted - DONE - See [demos/2026-03-29-unknown-sections.md](../demos/2026-03-29-unknown-sections.md)
+
 The actual remaining gaps are:
 
 1. **Enforcement** — Constraints and sacred regions are advisory text. Nothing prevents an agent from violating them, especially when contradicted by user instructions.
