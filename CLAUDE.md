@@ -18,6 +18,9 @@ These decisions were reached through extensive design analysis. Do not revisit t
 
 4. **Format-first architecture.** The `.brief.md` format is the product. Runtime integrations (Claude Code, AGENTS.md, system prompts, MCP) are emit targets — plugins, not the core.
 
+5. **Extend, do not replace** The `.brief.md` should extend, but not replace, existing well established conventions for agentic coding. In particular, brief 
+should be an asset to the Claude Code ecosystem.
+
 ## .brief.md Format Specification
 
 A `.brief.md` file has two parts:
