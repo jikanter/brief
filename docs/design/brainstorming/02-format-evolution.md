@@ -36,6 +36,18 @@ Output: a structured report (clean / warnings / violations) emittable as text, J
 
 **Complexity: Moderate.** Sacred batch-check is trivial. Constraint heuristics are individually small but need a pluggable design.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 4 | Sacred batch-check is trivial extension of existing `check_path`; prose constraint heuristics are individually small |
+| Market Demand | 4 | CI integration is table stakes; "brief as contract" is a compelling pitch |
+| Competitive Moat | 4 | No competing tool offers constraint verification against diffs |
+| Implementation Risk (5=safe) | 3 | Sacred checking is reliable; prose constraint heuristics will produce false positives until tuned |
+| ROI | 5 | Builds directly on existing `check_path`; natural CI story |
+| Enterprise Readiness | 5 | Audit trails and automated compliance checking are enterprise requirements |
+| **Overall** | **4.2** | **Highest-value Phase 2 feature. Start with sacred-region-only auditing (reliable, high signal) and layer in heuristic constraint checking incrementally** |
+
 ---
 
 ### 2. Cascading brief inheritance (`.brief.team.md` + `.brief.md`)
@@ -64,6 +76,18 @@ This enables a three-tier model: `.brief.org.md` (company-wide: "all code must h
 
 **Complexity: Moderate.** File loading chain is straightforward. The design challenge is merge semantics -- particularly defining "override" vs "extend" for soft constraints. Testing the combinatorics thoroughly is the real work.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 4 | File loading chain and merge logic are well-understood patterns from CSS/config cascading |
+| Market Demand | 4 | Teams need organizational defaults; "forgot to protect auth" is a real and costly failure mode |
+| Competitive Moat | 4 | Creates ecosystem stickiness; once org/team/task hierarchy is established, switching costs rise |
+| Implementation Risk (5=safe) | 3 | Merge semantics are the real challenge -- "override vs extend" for soft constraints requires careful specification |
+| ROI | 4 | Moderate effort with clear, measurable value for teams |
+| Enterprise Readiness | 5 | Organizational policy inheritance is exactly how enterprises think about governance |
+| **Overall** | **4.0** | **Core enterprise feature. Write the merge semantics specification BEFORE implementing. Test the combinatorics thoroughly -- this is where subtle bugs will hide** |
+
 ---
 
 ### 3. `brief infer` -- Single-sentence-to-full-brief expansion
@@ -86,6 +110,18 @@ The existing `scaffold_brief` becomes the "no LLM" fallback path. The key archit
 The `Frontmatter` could gain a `source` field tracking provenance: `source: inferred-from "Make the search faster"`, so humans know what was auto-generated vs hand-authored.
 
 **Complexity: Ambitious.** The LLM integration is a new architectural capability. Prompt engineering for reliable structured output is iterative work. But the friction reduction is transformative -- going from 60 seconds to 5 seconds to create a brief.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 3 | LLM-powered NL to structured output works 70-80% reliably; the remaining 20% creates frustrating edge cases |
+| Market Demand | 4 | The appeal of typing one sentence is undeniable |
+| Competitive Moat | 2 | Any tool with LLM access can replicate this; the prompt engineering is not defensible IP |
+| Implementation Risk (5=safe) | 2 | Introduces network dependency, API key management, and LLM cost into a previously offline tool. "No network calls in Phase 1" exists for good reason |
+| ROI | 3 | High value when it works, but LLM integration is architecturally expensive for this codebase |
+| Enterprise Readiness | 3 | Enterprises worry about sending code context to external LLM APIs; on-prem LLM support would be needed |
+| **Overall** | **2.8** | **Strategically important but the complexity estimate of "Ambitious" understates the architectural disruption. This turns brief from a deterministic tool into a probabilistic one. Ship it as an opt-in experimental feature, not a core command** |
 
 ---
 
@@ -119,6 +155,18 @@ The non-interactive path (`brief init` without `-i`) remains unchanged, preservi
 
 **Complexity: Moderate.** All detection logic exists. The work is the TUI flow, edge cases (terminals without TTY), and making each question feel fast. Adding a crate like `inquire` is one dependency.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 4 | All detection logic exists; the work is the TUI flow using `inquire` or `dialoguer` |
+| Market Demand | 4 | Interactive scaffolding is a proven UX pattern (npm init, cargo init) |
+| Competitive Moat | 2 | Low defensibility; any competitor can add an interactive mode |
+| Implementation Risk (5=safe) | 4 | Low risk; TTY detection for non-interactive environments is the main edge case |
+| ROI | 4 | One new dependency, clear improvement to first-use experience |
+| Enterprise Readiness | 3 | Enterprise value is neutral; useful for individual developers |
+| **Overall** | **3.8** | **Solid, well-scoped feature. The "from-clipboard" flag is a nice touch. Ship this alongside `brief new` for a comprehensive onboarding experience** |
+
 ---
 
 ### 5. Voice memo intake via `brief hear`
@@ -139,6 +187,18 @@ The `Frontmatter` would carry `source: voice-memo standup-notes.m4a` for provena
 
 **Complexity: Ambitious.** Audio processing is a significant new dependency surface. Whisper.cpp can run locally but requires model download (~1.5GB). API-based transcription is simpler but adds network dependency. The ROI depends on how often users are at a keyboard vs on the go.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 2 | Audio processing requires either a 1.5GB local model (whisper.cpp) or cloud API; both add significant dependency surface |
+| Market Demand | 2 | Developers are keyboard-centric; voice input is a solution looking for a problem in coding workflows |
+| Competitive Moat | 1 | Voice-to-text is a commodity capability; no moat here |
+| Implementation Risk (5=safe) | 2 | Audio transcoding, model management, API costs, and microphone access are all friction points that compound |
+| ROI | 1 | Enormous engineering surface area for a feature that maybe 5% of users would try and 1% would use regularly |
+| Enterprise Readiness | 1 | Enterprise security teams will not approve a CLI tool that processes audio recordings |
+| **Overall** | **1.5** | **Classic brainstorm idea that sounds exciting but fails every practical test. The document's own friction math ("speaking is 3x faster than typing") ignores that developers are already at a keyboard. Save this for Phase Never** |
+
 ---
 
 ### 6. Screenshot/whiteboard intake via `brief see`
@@ -155,6 +215,18 @@ Uses a vision-capable model (Claude, GPT-4V) to interpret visual input:
 The `context` frontmatter field would support image paths: `context: [./architecture.png]`. Emit targets would need to decide how to handle image context -- JSON can include base64-encoded images, while CLAUDE.md would reference the file path.
 
 **Complexity: Ambitious.** Vision model integration plus the harder problem of reliable structured extraction from visual noise. Whiteboard photos are notoriously hard to parse. Best as an experimental/beta feature.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 2 | Vision model integration works for clean diagrams; whiteboard photos are notoriously noisy |
+| Market Demand | 1 | The intersection of "people who use brief" and "people who photograph whiteboards for agent input" is vanishingly small |
+| Competitive Moat | 1 | Vision API wrapping is not defensible |
+| Implementation Risk (5=safe) | 1 | "Whiteboard photos are notoriously hard to parse" -- the document acknowledges this and still proposes it |
+| ROI | 1 | Maximum effort, minimum addressable use case |
+| Enterprise Readiness | 1 | Sending whiteboard photos (potentially containing proprietary architecture) to vision APIs raises data governance concerns |
+| **Overall** | **1.2** | **The document correctly labels this "experimental/beta" but even that is generous. This is a demo feature, not a product feature. Do not invest engineering time here** |
 
 ---
 
@@ -173,6 +245,18 @@ A persistent process that monitors both the brief file and the codebase:
 The brief file itself becomes writable -- the `Assumption.validated` field gets toggled, and the `.brief.md` is re-serialized. This requires a `brief -> markdown` round-trip serializer (the reverse of the parser), which does not currently exist. The existing emitters (`emit_claude`, etc.) are one-way transforms to different formats, not faithful round-trips to `.brief.md`.
 
 **Complexity: Ambitious.** File watching is easy (`notify` crate). The round-trip serializer (parse -> modify -> write back as `.brief.md` preserving formatting) is moderate. Automated assumption validation is the genuinely hard problem -- it requires semantic understanding of what constitutes "proof."
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 3 | File watching is easy (`notify` crate); the round-trip serializer (parse->modify->write preserving formatting) is the real challenge |
+| Market Demand | 3 | Auto-validating assumptions and real-time sacred violation alerts are genuinely useful |
+| Competitive Moat | 3 | Living documents that self-update is a differentiating capability |
+| Implementation Risk (5=safe) | 2 | "Automated assumption validation requires semantic understanding of what constitutes proof" -- this is an unsolved problem. The feature scope is enormous |
+| ROI | 2 | The round-trip serializer alone is significant work, and it's only infrastructure for the actual features |
+| Enterprise Readiness | 3 | Real-time monitoring aligns with enterprise observability culture |
+| **Overall** | **2.3** | **Interesting concept buried under prohibitive implementation cost. The round-trip serializer is prerequisite infrastructure that benefits other features (any command that modifies the brief). Build the serializer, defer the daemon** |
 
 ---
 
@@ -201,6 +285,18 @@ The `cmd_diff` function already produces semantic diffs between two `Brief` stru
 
 **Complexity: Moderate.** The diff logic exists. Git integration is shell-out work. The main challenge is formatting the output readably when there are many commits.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 4 | Git integration via shell-out is straightforward; diff logic already exists |
+| Market Demand | 3 | Useful for teams tracking brief evolution; niche for individual developers |
+| Competitive Moat | 3 | Semantic changelog of intent changes is novel and useful |
+| Implementation Risk (5=safe) | 4 | Low risk; worst case is verbose output for long histories |
+| ROI | 4 | Leverages existing `cmd_diff`; mostly formatting work |
+| Enterprise Readiness | 4 | Audit trail of intent changes is valuable for compliance |
+| **Overall** | **3.5** | **Good Phase 2 feature. Low effort, clear value for teams. The format challenge (readable output for many commits) is a UX problem, not an engineering problem** |
+
 ---
 
 ### 9. Adaptive templates from historical patterns
@@ -221,6 +317,18 @@ No LLM required. This is frequency analysis over structured data. The existing `
 
 **Complexity: Moderate.** Indexing is simple. Pattern matching needs care -- matching by directory prefix, branch name regex, and stack overlap. The UX challenge is presenting suggestions without being annoying.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 4 | Frequency analysis over structured data requires no LLM; scanning git history for past briefs is straightforward |
+| Market Demand | 3 | Valuable for teams with established brief usage; useless until adoption reaches critical mass (chicken-and-egg problem) |
+| Competitive Moat | 3 | Learning from user patterns creates mild lock-in |
+| Implementation Risk (5=safe) | 3 | Cold-start problem: the feature is useless until there's history, and users won't create history until the feature exists |
+| ROI | 3 | Moderate effort with value that grows over time; the compound return is the appeal |
+| Enterprise Readiness | 4 | Organizational pattern learning from actual usage data resonates with enterprise improvement culture |
+| **Overall** | **3.3** | **Good idea with a timing problem. This becomes valuable after 20+ briefs in a repo. Ship it as a quiet enhancement to `brief init` rather than a standalone feature, so it "just works" once enough history exists** |
+
 ---
 
 ### 10. `brief emit mcp` -- MCP tool server target
@@ -237,6 +345,18 @@ The emitter outputs an MCP server configuration JSON (tool definitions + descrip
 The existing `emit/mod.rs` pattern makes this trivial to add as a new target. The harder work is the runtime server component.
 
 **Complexity: Moderate.** The emitter JSON is trivial. A minimal MCP server (using stdio transport) that wraps the existing `check_path` and `validate` functions is moderate. The conceptual importance is high -- this positions brief as infrastructure, not just a document format.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 4 | MCP server using stdio transport is well-documented; wrapping existing `check_path` and constraint functions is straightforward |
+| Market Demand | 3 | MCP adoption is growing but not yet universal among agent runtimes |
+| Competitive Moat | 5 | This transforms brief from a document format into runtime infrastructure -- a category-defining move |
+| Implementation Risk (5=safe) | 3 | The emitter JSON is trivial; the runtime server requires careful state management |
+| ROI | 4 | Strategic value exceeds immediate user value; positions brief for the "infrastructure" phase |
+| Enterprise Readiness | 4 | Runtime constraint enforcement (not just advisory) is an enterprise requirement |
+| **Overall** | **3.8** | **Strategically the most important feature on this list. The shift from "agent reads passive text" to "agent calls active tools" is the difference between advisory and enforceable constraints. Prioritize this for Phase 2** |
 
 ---
 
@@ -272,6 +392,18 @@ context: [./src/search/**, !./src/search/legacy/**]
 Token counting would use `tiktoken-rs` for accurate estimates per model. The output helps humans understand what the agent will "see" and adjust the context field accordingly. Combined with `brief infer`, this enables automatic context optimization: "These 3 files are most relevant to your goal, skip the other 47."
 
 **Complexity: Moderate.** Token counting requires a new dependency. File discovery uses existing glob infrastructure. The prioritization heuristic (which files are "most relevant" to the goal) is the design challenge.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 4 | Token counting via `tiktoken-rs` is reliable; file discovery uses existing glob infrastructure |
+| Market Demand | 3 | Useful for power users optimizing context usage; most developers won't think about token budgets |
+| Competitive Moat | 2 | Token counting is a commodity feature available in many tools |
+| Implementation Risk (5=safe) | 4 | Low risk; the main design challenge is the file relevance heuristic |
+| ROI | 3 | Moderate effort for a "nice to have" feature |
+| Enterprise Readiness | 3 | Cost-conscious enterprises care about token usage optimization |
+| **Overall** | **3.0** | **Useful but not critical. The "recommended model" output is a nice touch. Consider making this a flag on `brief validate` rather than a standalone command to reduce command surface area** |
 
 ---
 
@@ -311,6 +443,18 @@ The key design principle: the syntax must remain Markdown-native. A constraint w
 
 **Complexity: Moderate.** The DSL design is the hard part -- it must be minimal enough to type quickly but expressive enough to be useful. Each checker type is individually small. The parser changes are contained (detect `[type: ...]` prefix in list items).
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 3 | Individual checkers are small; the DSL design (the `[pattern:...]` syntax) is the hard part |
+| Market Demand | 3 | Enterprises want verifiable constraints but developers resist learning new syntax |
+| Competitive Moat | 3 | A constraint DSL embedded in Markdown is novel but adds learning curve |
+| Implementation Risk (5=safe) | 2 | The design surface area is large -- each constraint type needs its own checker, error handling, and documentation. Scope creep risk is high |
+| ROI | 2 | High engineering investment for incremental value over prose constraints. The claim that syntax "degrades gracefully in Markdown" is true but the mental model doesn't degrade -- users need to learn the DSL |
+| Enterprise Readiness | 4 | Machine-verifiable constraints align with enterprise compliance needs |
+| **Overall** | **2.5** | **Fights the core value proposition of "zero learning curve." The `[pattern: ...]` syntax is a mini-DSL that users must learn, which contradicts the "Markdown is the format because it's familiar" argument. Start with 2-3 constraint types max; resist the urge to build a full constraint language** |
+
 ---
 
 ### 13. `brief pin` -- Named snapshots
@@ -337,6 +481,18 @@ Use case: "What happens if I remove the test coverage constraint and let the age
 
 **Complexity: Trivial.** File copy operations with a naming convention. The diff comparison is already implemented.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 5 | File copy with naming convention; trivially implementable |
+| Market Demand | 3 | Useful for constraint experimentation; niche but real use case |
+| Competitive Moat | 1 | Easily replicated; essentially a convenience wrapper around file operations |
+| Implementation Risk (5=safe) | 5 | Near-zero risk; the existing diff comparison handles named files |
+| ROI | 5 | Minimal effort for a complete, self-contained feature |
+| Enterprise Readiness | 3 | Snapshots for audit purposes have some enterprise value |
+| **Overall** | **4.0** | **Ship this immediately. The effort-to-value ratio is the best on this list. It's a complete feature in 50 lines of code** |
+
 ---
 
 ### 14. `brief merge` -- Multi-brief composition
@@ -362,6 +518,18 @@ Conflict detection: if `frontend.brief.md` has soft constraint "Prefer client-si
 This enables a workflow where architects write a structural brief and individual developers write component briefs. `brief merge` produces the agent's working brief.
 
 **Complexity: Moderate.** The parsing exists. Merge semantics design is the work -- particularly conflict detection for natural-language constraints (requires fuzzy matching or keyword overlap detection). Goal composition into a coherent sentence might benefit from an LLM, but a simple concatenation works as a baseline.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 3 | Structural merge (stacks, sacred regions) is straightforward; semantic conflict detection for natural-language constraints is unreliable |
+| Market Demand | 2 | Multi-brief composition assumes a workflow that most teams haven't adopted |
+| Competitive Moat | 2 | Composability is nice in theory but adoption-limited in practice |
+| Implementation Risk (5=safe) | 2 | "If contradictory soft constraints, escalate to ask-first" sounds clean but detecting contradiction in prose constraints requires NLP or fuzzy matching |
+| ROI | 2 | Significant engineering effort for a workflow most teams won't use |
+| Enterprise Readiness | 3 | Cross-team brief composition has enterprise appeal but unproven demand |
+| **Overall** | **2.5** | **Solving a problem that doesn't exist yet. Cascading inheritance (feature #2) covers the dominant use case (org defaults + task overrides). Merge is only needed when two equal-priority briefs collide, which is rare** |
 
 ---
 
@@ -397,6 +565,18 @@ The existing `check_path` function is the engine. This feature is purely distrib
 
 **Complexity: Trivial.** Hook script generation, file write to `.git/hooks/`, chmod +x. The check logic already works.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 5 | Shell script generation, file write, chmod +x; already implemented in concept |
+| Market Demand | 4 | Developers want automated protection; git hooks are the natural enforcement point |
+| Competitive Moat | 2 | Any tool can install git hooks; no defensibility |
+| Implementation Risk (5=safe) | 5 | Near-zero risk; the check logic already works end-to-end |
+| ROI | 5 | The highest ROI feature on this entire list; distribution of an existing capability |
+| Enterprise Readiness | 5 | Automated enforcement via git hooks is an enterprise-standard pattern |
+| **Overall** | **4.5** | **Ship yesterday. This is pure distribution of existing functionality. The `--warn` vs blocking mode and `--pre-push` for audit are smart graduated enforcement options** |
+
 ---
 
 ### 16. `brief explain` -- Natural language brief summary
@@ -425,6 +605,18 @@ Use cases:
 - Accessibility for stakeholders who won't read YAML frontmatter
 
 **Complexity: Trivial.** Template-based string formatting. Every field in the `Brief` struct gets a sentence template. The output is deterministic.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 5 | Template-based string formatting over existing Brief struct; deterministic output |
+| Market Demand | 4 | "Did I mean this?" confirmation is valuable before expensive agent runs; onboarding aid for new users |
+| Competitive Moat | 2 | Low defensibility; trivially replicated |
+| Implementation Risk (5=safe) | 5 | Near-zero risk; deterministic template-based formatting |
+| ROI | 5 | Minimal effort; useful for confirmation and onboarding |
+| Enterprise Readiness | 4 | Stakeholder-readable summaries have enterprise value for review workflows |
+| **Overall** | **4.0** | **Ship this week. Useful as both a confirmation step and an onboarding tool. The "no LLM needed" aspect is important -- this is deterministic, fast, and reliable** |
 
 ---
 
@@ -458,6 +650,18 @@ Combines `validate` output with git metadata:
 - Present as a color-coded dashboard
 
 **Complexity: Trivial.** All validation checks exist. The work is formatting and the staleness heuristic (which is just timestamp comparison).
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 5 | Combines existing validation with git metadata; all checks already exist |
+| Market Demand | 4 | Developers want at-a-glance health checks; the staleness indicator is a novel and useful signal |
+| Competitive Moat | 3 | The combination of validation + staleness + assumption tracking is differentiated |
+| Implementation Risk (5=safe) | 5 | Near-zero risk; repackaging existing functionality with better UX |
+| ROI | 5 | Trivial to build, immediate value for daily use |
+| Enterprise Readiness | 4 | Health dashboards align with enterprise monitoring culture |
+| **Overall** | **4.2** | **Another "ship this week" candidate. The staleness heuristic is the novel addition -- briefs that haven't been updated while the codebase has changed significantly deserve a warning** |
 
 ---
 
@@ -497,6 +701,18 @@ This positions brief as a coordination protocol: the human writes one intent sta
 
 **Complexity: Ambitious.** Automatic decomposition requires understanding the task and codebase structure. Likely needs an LLM for goal decomposition and file relevance scoring. The format extension (sub-task tracking) is straightforward.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 2 | Automatic task decomposition requires understanding both the codebase structure and the task semantics; this is essentially an AI planning problem |
+| Market Demand | 2 | Multi-agent workflows are nascent; few teams run multiple coordinated agents on one task today |
+| Competitive Moat | 3 | First-mover advantage in agent coordination, but the space is too early to build moats |
+| Implementation Risk (5=safe) | 2 | "Likely needs an LLM for goal decomposition" -- making the tool's core workflow LLM-dependent is a significant architectural risk |
+| ROI | 2 | Enormous effort for a feature that serves a market that barely exists |
+| Enterprise Readiness | 2 | Enterprises haven't adopted multi-agent workflows; building tooling for a non-existent enterprise workflow |
+| **Overall** | **2.0** | **Premature by 12-18 months. Multi-agent coordination standards don't exist yet. Building a decomposition protocol now risks designing for a workflow that never materializes or looks completely different when it does** |
+
 ---
 
 ### 19. `brief import` -- Reverse-engineer existing agent instructions
@@ -523,6 +739,18 @@ Two modes:
 This is the migration path for teams with existing CLAUDE.md or AGENTS.md files. They don't start from scratch -- they upgrade to the structured format and get validation, audit, and all the other tooling for free.
 
 **Complexity: Moderate.** Heuristic mode is regex work with diminishing returns on edge cases. LLM-assisted mode produces much better results but adds the API dependency. The highest-value path is LLM-assisted with heuristic as fallback.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 4 | Heuristic mode (regex pattern matching) is straightforward; LLM-assisted mode produces better results |
+| Market Demand | 4 | Migration path from CLAUDE.md/.cursorrules is essential for adoption; nobody wants to rewrite existing instructions |
+| Competitive Moat | 3 | Smooth migration from competitors is a strategic advantage |
+| Implementation Risk (5=safe) | 3 | Heuristic mode will handle 60% of patterns; LLM mode handles the rest. Graceful degradation is achievable |
+| ROI | 4 | High strategic value -- removes the biggest adoption barrier for existing teams |
+| Enterprise Readiness | 4 | Enterprises won't adopt brief if it means rewriting all existing agent instructions |
+| **Overall** | **3.5** | **Critical adoption feature. This should be prioritized higher than many "cooler" ideas. The migration story is: import your existing CLAUDE.md, get validation for free, then gradually adopt structured sections** |
 
 ---
 
@@ -564,6 +792,18 @@ This is a one-line model change plus a new command.
 
 **Complexity: Trivial to moderate.** The tag field is trivial. Directory walking and parsing is moderate. The index cache for performance in large repos adds complexity. Cross-repo discovery (querying briefs across multiple git repos) would require a registry service, which is a larger scope.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Technical Feasibility | 4 | Tag field is a one-line model change; directory walking and parsing is moderate |
+| Market Demand | 3 | Valuable in monorepos with many active briefs; irrelevant for small projects |
+| Competitive Moat | 2 | Tag-based discovery is a commodity feature |
+| Implementation Risk (5=safe) | 4 | Low risk; the index cache adds optional complexity |
+| ROI | 3 | Low effort for the tag field; moderate effort for the discovery command |
+| Enterprise Readiness | 3 | Cross-team brief visibility has some enterprise value |
+| **Overall** | **3.0** | **The tag frontmatter field is worth adding immediately (one line of code). The discovery command can wait until adoption justifies it. Don't build the index cache until monorepo users report performance issues** |
+
 ---
 
 ## Priority Recommendations
@@ -593,3 +833,13 @@ This is a one-line model change plus a new command.
 - **5, 6:** Voice/vision intake. High friction reduction but heavy dependency surface.
 - **7:** `brief watch` daemon. Requires round-trip serializer and semantic assumption validation.
 - **12:** Machine-verifiable constraints. High design surface area for the constraint DSL.
+
+**Enterprise AI Architect Assessment of Priority Groupings:**
+
+| Group | Agreement | Assessment |
+|-------|:---------:|------------|
+| Ship this week | Strong agree | Features 15 (guard), 16 (explain), 17 (status), and 13 (pin) are correctly identified as trivial, high-value wins. Ship all four in one release |
+| Ship this month | Partial agree | Feature 1 (audit) and 2 (inheritance) are correctly prioritized. Feature 4 (interactive init) belongs here. Feature 8 (log) could wait -- it's useful but not urgent |
+| Strategic bets | Partial agree | Feature 10 (MCP) is the most important strategic bet and should be elevated. Feature 3 (infer) and 18 (split) are correctly flagged as ambitious. Feature 19 (import) should be in "ship this month" -- it's a critical adoption enabler |
+| Defer | Mostly agree | Features 5 (voice) and 6 (vision) should be permanently deprioritized, not deferred. Feature 7 (watch daemon) should be split: build the round-trip serializer (infrastructure), defer the daemon. Feature 12 (verifiable constraints) is correctly deferred |
+| **Missing from priorities** | | **Feature 19 (import) is the most undervalued feature. It directly removes the adoption barrier for teams with existing CLAUDE.md files. It should be Phase 1.5, not deferred** |

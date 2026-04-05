@@ -16,6 +16,17 @@ The developer has a mental image of the finished work -- an architectural shape,
 
 The brief format captures *what* and *constraints*, but not *aesthetic intent* or *reference implementations*. The current `context` field (defined in `/Volumes/ExternalData/admin/Developer/Projects/brief/src/model.rs` as `pub context: Vec<String>`) points at files, but there is no way to say "do it *like this*" with a pointer to a pattern rather than a file. The distinction matters: a context file says "here is information"; a reference pattern says "here is a template for the shape of the solution."
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 4 | Genuine gap between aesthetic intent and structured specification; well-articulated |
+| Solution Viability | 2 | The proposed "reference pattern" concept is vague; how does one programmatically distinguish "do it like this module" from "here is context"? No concrete implementation path |
+| Implementation Complexity | 2 | Requires semantic understanding of code style/patterns -- essentially an unsolved ML problem |
+| Enterprise Relevance | 2 | Enterprises care about correctness and compliance, not aesthetic intent |
+| Priority | 2 | Interesting academic observation but premature to address |
+| **Overall** | **2.3** | **Correctly identifies a real gap but offers no actionable path to filling it. The distinction between "context file" and "reference pattern" needs concrete semantics before it's buildable** |
+
 ---
 
 ### 2. Context is scattered and the human is the only index -- Severity: Critical
@@ -26,6 +37,17 @@ The current `context: [./file1, ./file2]` field requires the human to manually e
 
 Looking at `detect_context` in `/Volumes/ExternalData/admin/Developer/Projects/brief/src/init.rs`, the tool currently checks a static list of five well-known filenames (README.md, docs/architecture.md, etc.). This helps with the first 5% of context discovery. The other 95% -- the files actually relevant to *this specific task* -- is left entirely to the developer.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 5 | "Human as manual RAG pipeline" is the most insightful framing in this document |
+| Solution Viability | 3 | Automated context discovery is real but requires either LLM-powered code analysis or sophisticated heuristics; neither is simple |
+| Implementation Complexity | 2 | Solving the "95% gap" is essentially building a codebase-aware search engine -- a product in itself |
+| Enterprise Relevance | 4 | Relevant to any team using agents at scale |
+| Priority | 3 | Important but the solution is Phase 2+ at minimum |
+| **Overall** | **3.2** | **Brilliant problem analysis paired with an underestimated solution complexity. The 95% gap is real but filling it is closer to a research problem than a feature request** |
+
 ---
 
 ### 3. Constraint granularity mismatch -- Severity: High
@@ -33,6 +55,17 @@ Looking at `detect_context` in `/Volumes/ExternalData/admin/Developer/Projects/b
 The current model has three constraint tiers: Hard, Soft, Ask First. But real constraints have far more dimensions. "Don't break the API" is a hard constraint, but it is also *scoped* (only to v2 endpoints), *conditional* (except during the planned deprecation window), and *verifiable* (run the contract test suite).
 
 The flat list of strings in `constraints.hard: Vec<String>` loses all of this structure. A developer either over-specifies (writing a paragraph per constraint) or under-specifies (writing "backward compatibility" and hoping the agent infers scope). There is no mechanism for a constraint to carry its own verification command, scope boundary, or expiration condition.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 4 | Valid observation that constraints have hidden dimensions (scope, conditions, verification) |
+| Solution Viability | 3 | Adding structured constraint metadata is feasible but fights the "60-second authoring" value prop |
+| Implementation Complexity | 3 | The ConstraintKind enum approach is clean but the DSL surface area grows fast |
+| Enterprise Relevance | 4 | Enterprises love verifiable, scoped constraints |
+| Priority | 3 | Important for Phase 2 but not critical for initial adoption |
+| **Overall** | **3.0** | **Real tension between expressiveness and simplicity that the document doesn't resolve. Adding verification commands to constraints is powerful but risks turning the brief format into the kind of complex spec language it was designed to replace** |
 
 ---
 
@@ -42,6 +75,17 @@ The flat list of strings in `constraints.hard: Vec<String>` loses all of this st
 
 But the transition from auto-detected structure to human-authored content is a cliff. The developer opens the file, sees the placeholders, and has to context-switch from "I want to fix this bug" (action mode) to "let me formally describe what I want" (specification mode). This cognitive mode switch is where authoring stalls. The tool detects *what the project is* but cannot help articulate *what the developer wants to do with it*.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 5 | The "cognitive mode switch" from action to specification is spot-on |
+| Solution Viability | 4 | Progressive disclosure and conversational init are well-understood UX patterns with proven track records |
+| Implementation Complexity | 4 | Most detection logic exists; the work is the TUI flow |
+| Enterprise Relevance | 3 | Affects all users, not enterprise-specific |
+| Priority | 5 | Highest priority -- this is the #1 adoption barrier |
+| **Overall** | **4.2** | **Best-analyzed friction point with the clearest path to resolution. Progressive disclosure should be the top priority feature** |
+
 ---
 
 ### 5. Temporal context is invisible -- Severity: High
@@ -49,6 +93,17 @@ But the transition from auto-detected structure to human-authored content is a c
 A brief is a snapshot. It does not know that this is the third iteration of this task, that the first two attempts failed because of a database locking issue, that the developer tried approach X and it did not work.
 
 The model receives the brief cold every time. Session history, failed approaches, and incremental learning are lost between invocations. There is no field for "what I already tried" or "what the agent did wrong last time." The `Brief` struct in model.rs has `unknown_sections: Vec<UnknownSection>` which could theoretically hold custom sections, but there is no convention for temporal context, no tooling to auto-populate it from git history of the `.brief.md` itself, and no guidance that such a section would be useful.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 4 | Real problem -- briefs are snapshots that lose iteration history |
+| Solution Viability | 3 | Auto-population from git history of `.brief.md` is clever but assumes multiple iterations (which assumes heavy adoption) |
+| Implementation Complexity | 3 | Git history integration is straightforward; meaningful extraction of "what failed" requires NLP |
+| Enterprise Relevance | 3 | Relevant for complex, multi-iteration tasks |
+| Priority | 2 | Nice to have; developers can add a "Prior Attempts" section manually |
+| **Overall** | **2.7** | **Valid observation but the circular dependency (needs adoption to generate history, needs history to drive adoption) limits near-term value. A manual "Prior Attempts" section convention costs zero engineering effort** |
 
 ---
 
@@ -63,6 +118,17 @@ When a developer says "fix the login bug," they might mean "this is blocking pro
 
 These signals dramatically change how an agent should behave. They are currently communicated only through tone in free-text prompts, which models partially decode but imperfectly. The frontmatter in model.rs has `stack`, `context`, `model`, and `version` -- all structural metadata. None of these behavioral/attitudinal metadata fields exist.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 3 | These signals exist but agents can't meaningfully act on most of them |
+| Solution Viability | 2 | Adding urgency/confidence fields is easy; making agents behave differently based on a "confidence: low" flag is not something any current runtime supports |
+| Implementation Complexity | 4 | Simple to add as frontmatter fields |
+| Enterprise Relevance | 2 | Enterprises want consistent agent behavior, not behavior modulated by developer mood |
+| Priority | 2 | Low priority -- these are metadata fields that no consumer currently processes |
+| **Overall** | **2.5** | **Easy to build, hard to make useful. The claim that these signals "dramatically change how an agent should behave" is unsubstantiated -- no current agent runtime has logic for "developer confidence level." This is format bloat disguised as expressiveness** |
+
 ---
 
 ### 7. The assumption validation loop is broken -- Severity: Medium-High
@@ -70,6 +136,17 @@ These signals dramatically change how an agent should behave. They are currently
 The Assumptions section with `- [ ]` / `- [x]` checkboxes is a strong idea. But the loop is entirely manual. Looking at how assumptions flow through the system: they are parsed with `validated: bool` and `has_checkbox: bool`, emitted faithfully by the prompt emitter (which separates validated from unvalidated), and validated only for checkbox syntax.
 
 There is no mechanism for the agent to *challenge* an assumption, *report* that an assumption was tested and found false, or *add new assumptions* it discovered during work. The validation in `/Volumes/ExternalData/admin/Developer/Projects/brief/src/validate.rs` checks that checkboxes are present but not whether the assumptions are *testable* or *tested*. Assumptions are write-once, validate-never in practice.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 4 | "Write-once, validate-never" is an accurate critique |
+| Solution Viability | 3 | Bidirectional assumption flow (agent challenges/validates assumptions) requires deep runtime integration |
+| Implementation Complexity | 2 | Agent-to-brief feedback loop doesn't exist in any current runtime |
+| Enterprise Relevance | 3 | Assumption tracking matters for audit trails |
+| Priority | 3 | Worth solving but blocked by runtime integration maturity |
+| **Overall** | **3.0** | **Correctly identified problem but the solution requires agent runtime capabilities that don't exist yet. The MCP integration path is the most realistic but still Phase 2+** |
 
 ---
 
@@ -79,6 +156,17 @@ The developer writes a `.brief.md` and then runs `brief emit claude` or `brief e
 
 Claude Code can read files, run commands, and ask clarifying questions. A brief optimized for Claude Code (where you can say "look at the test suite") is different from a brief optimized for a stateless API prompt (where you need to inline the relevant test cases). Looking at the emitters: `emit_claude` produces markdown with headings and formatting; `emit_prompt` produces flat uppercase-labeled text. These are surface-level format differences. The deeper issue is that the *content* should differ based on the agent's capabilities, and there is no mechanism for that.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 3 | Valid in theory -- content should vary by target capabilities |
+| Solution Viability | 2 | In practice, the brief format is intentionally target-agnostic; making content target-aware reintroduces platform coupling |
+| Implementation Complexity | 3 | Technically feasible via conditional sections |
+| Enterprise Relevance | 2 | Enterprises standardize on one agent platform, making multi-target a non-issue |
+| Priority | 1 | Lowest priority -- this contradicts the "write once" value proposition |
+| **Overall** | **2.3** | **This friction point argues against the tool's own core value proposition. If briefs should be authored differently per target, the "write once, emit everywhere" pitch collapses. Better to keep briefs target-agnostic and let emitters handle capability differences** |
+
 ---
 
 ### 9. Multi-agent coordination is unaddressed -- Severity: Medium
@@ -87,6 +175,17 @@ As agent-driven workflows become common, a single task may involve multiple agen
 
 The `Brief` struct is monolithic: one goal, one deliverable. A multi-agent workflow would need a brief that decomposes into sub-briefs with dependency relationships.
 
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 4 | Forward-looking and increasingly relevant as agent orchestration matures |
+| Solution Viability | 2 | The multi-agent workflow paradigm is too nascent to standardize coordination protocols |
+| Implementation Complexity | 2 | Task decomposition, dependency management, and handoff protocols are hard distributed systems problems |
+| Enterprise Relevance | 3 | Enterprises are exploring multi-agent but haven't standardized approaches |
+| Priority | 2 | Premature -- the agent ecosystem hasn't stabilized enough to know what coordination looks like |
+| **Overall** | **2.5** | **Correctly anticipates a future need but building for it now is premature engineering. Revisit when 2+ major agent runtimes support multi-agent workflows natively** |
+
 ---
 
 ### 10. The "what I don't want" problem -- Severity: Medium
@@ -94,6 +193,17 @@ The `Brief` struct is monolithic: one goal, one deliverable. A multi-agent workf
 Developers spend significant prompt energy on negative constraints: "don't use ORM magic," "don't add a new dependency for this," "don't refactor the existing tests." The brief format bundles these into Hard constraints alongside positive constraints, but negative intent is qualitatively different from positive intent.
 
 Negative constraints often come from past bad experiences ("last time the agent added lodash for a single function"), and they accumulate across sessions. There is no mechanism for persistent negative preferences that carry across briefs -- each new brief starts from scratch.
+
+**Enterprise AI Architect Assessment:**
+
+| Criterion | Score (1-5) | Assessment |
+|-----------|:-----------:|------------|
+| Problem Identification | 4 | Well-articulated; negative constraints as distinct from positive constraints is a genuine insight |
+| Solution Viability | 4 | Directly solvable via anti-briefs (see radical UX document) and persistent negative preferences |
+| Implementation Complexity | 5 | Simple to implement -- persistent config file for negative preferences, optional goal |
+| Enterprise Relevance | 3 | Maps to compliance requirements ("never do X") |
+| Priority | 4 | High priority because it's cheap to implement and fills a real gap |
+| **Overall** | **3.8** | **Best ratio of insight-to-implementation-cost in this document. Persistent negative preferences + anti-briefs = concrete, buildable, valuable feature** |
 
 ---
 
@@ -169,6 +279,17 @@ The tool watches the developer's editor activity, git history, and issue tracker
 
 As authoring time decreases, the tool must *infer more* and *ask less*. This is a classic explore/exploit tradeoff. The tool needs a model of the developer's persistent preferences, the project's ambient constraints, and the current task context -- all of which must be maintained across sessions. The current `brief init` in init.rs is a one-shot inference at project setup time. The path toward sub-10-second briefs requires *continuous* inference.
 
+**Enterprise AI Architect Assessment of Authoring Time Horizons:**
+
+| Time Horizon | Feasibility | Market Fit | Risk | Assessment |
+|-------------|:-----------:|:-----------:|:----:|------------|
+| 60s (current) | 5 | 4 | 5 | Works. Ship it. Sufficient for most tasks |
+| 30s (voice) | 3 | 2 | 2 | Requires speech-to-text infra; niche demand among keyboard-centric developers |
+| 10s (git-message) | 4 | 4 | 3 | Most promising next step; `brief "fix login"` is natural and buildable |
+| 5s (from-issue) | 3 | 3 | 2 | Requires issue tracker API integration; generated briefs need significant review |
+| Sub-5s (ambient) | 1 | 1 | 1 | Privacy nightmare; inferred intent is unreliable; this is surveillance marketed as convenience |
+| **Key insight validity** | | | | **Partially correct. Continuous inference is the theoretical path, but the document ignores the trust problem: as the tool infers more, the user must verify more. Below 10 seconds, verification time exceeds authoring savings** |
+
 ---
 
 ## Part 4: Asymmetric Information Problems
@@ -208,6 +329,16 @@ A tool sitting between the human and the model could:
 
 4. **Persistent preference learning.** Track patterns across briefs. If the developer always marks `migrations/` as sacred, always adds "no new dependencies" as a hard constraint, always specifies async patterns -- build these into a `.brief-profile` that pre-populates every new brief.
 
+**Enterprise AI Architect Assessment of Mediation Opportunities:**
+
+| Opportunity | Feasibility | Value | Risk | Assessment |
+|------------|:-----------:|:-----:|:----:|------------|
+| Pre-flight analysis | 3 | 4 | 3 | Highest value but requires LLM; start with rule-based checks |
+| Ambiguity scoring | 2 | 3 | 2 | Scoring natural language for ambiguity is genuinely hard; heuristics will be noisy |
+| Counter-briefing | 3 | 4 | 3 | Most promising -- "here's what I think you're asking" is concrete and testable |
+| Persistent preference learning | 4 | 4 | 4 | Lowest risk, highest ROI; frequency analysis over structured data, no LLM needed |
+| **Overall Assessment** | | | | **Persistent preferences should come first (no LLM, high certainty). Counter-briefing second (needs LLM but high impact). Ambiguity scoring last (research-grade problem)** |
+
 ---
 
 ## Part 5: The Feedback Loop Problem
@@ -244,6 +375,17 @@ As the agent works, continuously verify that its actions comply with the brief's
 **Layer 5 -- Post-execution (seconds after completion): Brief-vs-output diff.**
 After the agent finishes, automatically compare the output against the brief. Were all hard constraints satisfied? Were sacred regions untouched? Were assumptions tested? Generate a compliance report that the developer can review in 15 seconds. This also feeds back into the brief: "Your assumption about synchronous DB writes was invalidated by the agent's analysis. Update the brief?"
 
+**Enterprise AI Architect Assessment of Feedback Layers:**
+
+| Layer | Feasibility | Value | Risk | Assessment |
+|-------|:-----------:|:-----:|:----:|------------|
+| Layer 1: Structural validation | 5 | 4 | 5 | Already exists. Working. Table stakes |
+| Layer 2: Semantic pre-flight | 3 | 4 | 3 | Highest marginal value; "is the goal actionable?" is a tractable check |
+| Layer 3: Dry-run preview | 3 | 4 | 3 | Pragmatic -- plan review is cheaper than code review; most agent runtimes support plan mode |
+| Layer 4: Live constraint checking | 2 | 3 | 2 | Requires MCP integration or agent runtime hooks; feasible but Phase 2+ |
+| Layer 5: Brief-vs-output diff | 3 | 4 | 3 | High value for sacred region compliance; constraint compliance is harder to automate |
+| **Stack assessment** | | | | **Don't build all 5 simultaneously. Layer 2 is the highest-leverage addition. Layer 3 can be achieved by convention (ask the agent for a plan first) without tool support. Layers 4-5 require runtime integration that doesn't exist yet** |
+
 ### The compound effect
 
 If you stack all five layers, the developer gets feedback at every stage. The brief becomes a living document that evolves during the task, not a static input that is written once and hoped to be sufficient. The 60-second authoring investment pays off across the entire execution lifecycle instead of being a one-shot gamble.
@@ -261,3 +403,14 @@ If you stack all five layers, the developer gets feedback at every stage. The br
 4. **Temporal context and session memory.** A "Prior Attempts" or "History" section that carries forward what was tried, what failed, and what the developer learned. Could be auto-populated from git history of the `.brief.md` file itself.
 
 5. **Dry-run / plan preview.** Before full execution, ask the agent to produce a 10-line plan from the brief. Developer reviews the plan, not the code. Cuts the feedback loop from 30 minutes to 30 seconds for catching brief-level errors.
+
+**Enterprise AI Architect Assessment of Top 5 Priorities:**
+
+| Priority | Agreement | Assessment |
+|----------|:---------:|------------|
+| #1 Pre-flight semantic analysis | Partial | Overranked. This requires LLM integration. Persistent profiles (#2 here) should be #1 since it requires no LLM and reduces friction for every subsequent brief |
+| #2 Persistent profiles | Agree | Correctly identified. Low effort, high compound value. Should be #1 |
+| #3 LLM-assisted brief generation | Disagree | Too much risk for a Phase 1 priority. The 60→5 second claim requires reliable LLM output, which is unproven for this use case |
+| #4 Temporal context | Partial | Valid but overranked. Manual "Prior Attempts" section costs zero and covers 80% of the value |
+| #5 Dry-run / plan preview | Agree | This can be done by convention today ("brief, then ask agent for plan"). Tool support is nice but not critical |
+| **Revised ranking** | | **1. Persistent profiles (proven, no LLM). 2. Progressive disclosure / brief new (proven UX pattern). 3. Pre-flight analysis (LLM-powered, Phase 2). 4. Dry-run preview (achievable by convention). 5. Temporal context (manual section is sufficient)** |
