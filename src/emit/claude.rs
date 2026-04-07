@@ -112,7 +112,14 @@ pub fn install_claude(brief: &Brief, claude_md_path: &Path) -> Result<String, st
 
     let output = if claude_md_path.exists() {
         let existing = std::fs::read_to_string(claude_md_path)?;
-        inject_section(&existing, &wrapped)
+        let (result, pairs_found) = inject_section(&existing, &wrapped);
+        if pairs_found > 1 {
+            eprintln!(
+                "warning: found {} brief marker pairs; using the first, stripping remaining empty pairs",
+                pairs_found
+            );
+        }
+        result
     } else {
         wrapped
     };
@@ -121,22 +128,42 @@ pub fn install_claude(brief: &Brief, claude_md_path: &Path) -> Result<String, st
     Ok(output)
 }
 
-/// Replace content between markers, or append if no markers found.
-fn inject_section(existing: &str, wrapped_section: &str) -> String {
-    if let (Some(start_idx), Some(end_idx)) = (existing.find(MARKER_START), existing.find(MARKER_END)) {
-        let end_idx = end_idx + MARKER_END.len();
-        // Consume a trailing newline after the end marker if present
-        let end_idx = if existing[end_idx..].starts_with('\n') {
-            end_idx + 1
-        } else {
-            end_idx
+/// Find all brief marker pairs in the text.
+/// Returns tuples of (pair_start, end_marker_start, pair_end) where:
+/// - pair_start: byte offset of the start of MARKER_START
+/// - end_marker_start: byte offset of the start of MARKER_END
+/// - pair_end: byte offset past MARKER_END (including any trailing newline)
+fn find_marker_pairs(text: &str) -> Vec<(usize, usize, usize)> {
+    let mut pairs = Vec::new();
+    let mut search_from = 0;
+
+    while search_from < text.len() {
+        let start = match text[search_from..].find(MARKER_START) {
+            Some(offset) => search_from + offset,
+            None => break,
         };
-        let mut out = String::with_capacity(existing.len());
-        out.push_str(&existing[..start_idx]);
-        out.push_str(wrapped_section);
-        out.push_str(&existing[end_idx..]);
-        out
-    } else {
+        let after_start = start + MARKER_START.len();
+        let end_marker_start = match text[after_start..].find(MARKER_END) {
+            Some(offset) => after_start + offset,
+            None => break,
+        };
+        let mut pair_end = end_marker_start + MARKER_END.len();
+        if pair_end < text.len() && text.as_bytes()[pair_end] == b'\n' {
+            pair_end += 1;
+        }
+        pairs.push((start, end_marker_start, pair_end));
+        search_from = pair_end;
+    }
+
+    pairs
+}
+
+/// Replace content between markers, or append if no markers found.
+/// Returns the resulting content and the number of marker pairs found.
+fn inject_section(existing: &str, wrapped_section: &str) -> (String, usize) {
+    let pairs = find_marker_pairs(existing);
+
+    if pairs.is_empty() {
         let mut out = existing.to_string();
         if !out.is_empty() && !out.ends_with('\n') {
             out.push('\n');
@@ -145,8 +172,37 @@ fn inject_section(existing: &str, wrapped_section: &str) -> String {
             out.push('\n');
         }
         out.push_str(wrapped_section);
-        out
+        return (out, 0);
     }
+
+    let total_pairs = pairs.len();
+    let mut out = String::with_capacity(existing.len());
+    let mut cursor = 0;
+
+    for (i, &(pair_start, end_marker_start, pair_end)) in pairs.iter().enumerate() {
+        out.push_str(&existing[cursor..pair_start]);
+
+        if i == 0 {
+            // First pair: replace with new content
+            out.push_str(wrapped_section);
+        } else {
+            // Subsequent pairs: strip if empty, preserve if not
+            let content_start = pair_start + MARKER_START.len();
+            let between = &existing[content_start..end_marker_start];
+            if between.trim().is_empty() {
+                // Empty pair: skip entirely
+            } else {
+                // Non-empty pair: preserve as-is
+                out.push_str(&existing[pair_start..pair_end]);
+            }
+        }
+
+        cursor = pair_end;
+    }
+
+    out.push_str(&existing[cursor..]);
+
+    (out, total_pairs)
 }
 
 #[cfg(test)]
@@ -288,7 +344,8 @@ mod tests {
     fn inject_replaces_existing_markers() {
         let existing = "# My Project\n\nSome intro.\n\n<!-- brief:start -->\nold content\n<!-- brief:end -->\n\n## Other Stuff\n";
         let section = "<!-- brief:start -->\nnew content\n<!-- brief:end -->\n";
-        let result = inject_section(existing, section);
+        let (result, pairs) = inject_section(existing, section);
+        assert_eq!(pairs, 1);
         assert!(result.contains("# My Project"));
         assert!(result.contains("new content"));
         assert!(!result.contains("old content"));
@@ -299,7 +356,8 @@ mod tests {
     fn inject_appends_when_no_markers() {
         let existing = "# My Project\n\nSome intro.\n";
         let section = "<!-- brief:start -->\nbriefing here\n<!-- brief:end -->\n";
-        let result = inject_section(existing, section);
+        let (result, pairs) = inject_section(existing, section);
+        assert_eq!(pairs, 0);
         assert!(result.starts_with("# My Project"));
         assert!(result.contains("<!-- brief:start -->"));
         assert!(result.contains("briefing here"));
@@ -309,7 +367,8 @@ mod tests {
     #[test]
     fn inject_appends_to_empty() {
         let section = "<!-- brief:start -->\ncontent\n<!-- brief:end -->\n";
-        let result = inject_section("", section);
+        let (result, pairs) = inject_section("", section);
+        assert_eq!(pairs, 0);
         assert_eq!(result, section);
     }
 
@@ -317,7 +376,8 @@ mod tests {
     fn inject_preserves_content_around_markers() {
         let existing = "before\n<!-- brief:start -->\nold\n<!-- brief:end -->\nafter\n";
         let section = "<!-- brief:start -->\nnew\n<!-- brief:end -->\n";
-        let result = inject_section(existing, section);
+        let (result, pairs) = inject_section(existing, section);
+        assert_eq!(pairs, 1);
         assert_eq!(result, "before\n<!-- brief:start -->\nnew\n<!-- brief:end -->\nafter\n");
     }
 
@@ -328,5 +388,99 @@ mod tests {
         assert!(result.starts_with("<!-- brief:start -->"));
         assert!(result.contains(content));
         assert!(result.ends_with("<!-- brief:end -->\n"));
+    }
+
+    #[test]
+    fn inject_multiple_pairs_uses_first_and_strips_empty() {
+        let existing = "\
+header\n\
+<!-- brief:start -->\n\
+old content\n\
+<!-- brief:end -->\n\
+middle\n\
+<!-- brief:start -->\n\
+<!-- brief:end -->\n\
+footer\n";
+        let section = "<!-- brief:start -->\nnew content\n<!-- brief:end -->\n";
+        let (result, pairs) = inject_section(existing, section);
+        assert_eq!(pairs, 2);
+        // First pair replaced
+        assert!(result.contains("new content"));
+        assert!(!result.contains("old content"));
+        // Empty second pair stripped
+        assert_eq!(result.matches("<!-- brief:start -->").count(), 1);
+        assert_eq!(result.matches("<!-- brief:end -->").count(), 1);
+        // Surrounding content preserved
+        assert!(result.contains("header"));
+        assert!(result.contains("middle"));
+        assert!(result.contains("footer"));
+    }
+
+    #[test]
+    fn inject_multiple_pairs_preserves_nonempty_extra() {
+        let existing = "\
+header\n\
+<!-- brief:start -->\n\
+old content\n\
+<!-- brief:end -->\n\
+middle\n\
+<!-- brief:start -->\n\
+manual notes\n\
+<!-- brief:end -->\n\
+footer\n";
+        let section = "<!-- brief:start -->\nnew content\n<!-- brief:end -->\n";
+        let (result, pairs) = inject_section(existing, section);
+        assert_eq!(pairs, 2);
+        // First pair replaced
+        assert!(result.contains("new content"));
+        assert!(!result.contains("old content"));
+        // Non-empty second pair preserved
+        assert!(result.contains("manual notes"));
+        assert_eq!(result.matches("<!-- brief:start -->").count(), 2);
+    }
+
+    #[test]
+    fn inject_three_pairs_strips_all_empty_extras() {
+        let existing = "\
+<!-- brief:start -->\n\
+old\n\
+<!-- brief:end -->\n\
+between1\n\
+<!-- brief:start -->\n\
+<!-- brief:end -->\n\
+between2\n\
+<!-- brief:start -->\n\
+<!-- brief:end -->\n\
+end\n";
+        let section = "<!-- brief:start -->\nnew\n<!-- brief:end -->\n";
+        let (result, pairs) = inject_section(existing, section);
+        assert_eq!(pairs, 3);
+        assert!(result.contains("new"));
+        assert!(!result.contains("old"));
+        // Both empty extras stripped
+        assert_eq!(result.matches("<!-- brief:start -->").count(), 1);
+        assert!(result.contains("between1"));
+        assert!(result.contains("between2"));
+        assert!(result.contains("end"));
+    }
+
+    #[test]
+    fn find_marker_pairs_finds_all() {
+        let text = "a\n<!-- brief:start -->\nb\n<!-- brief:end -->\nc\n<!-- brief:start -->\n<!-- brief:end -->\nd\n";
+        let pairs = find_marker_pairs(text);
+        assert_eq!(pairs.len(), 2);
+    }
+
+    #[test]
+    fn find_marker_pairs_handles_no_markers() {
+        let pairs = find_marker_pairs("just some text\n");
+        assert!(pairs.is_empty());
+    }
+
+    #[test]
+    fn find_marker_pairs_handles_unmatched_start() {
+        let text = "<!-- brief:start -->\nno end marker\n";
+        let pairs = find_marker_pairs(text);
+        assert!(pairs.is_empty());
     }
 }

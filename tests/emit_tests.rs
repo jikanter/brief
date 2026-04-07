@@ -1,5 +1,6 @@
 use brief_cli::emit;
 use brief_cli::parse::parse_brief;
+use std::path::Path;
 
 fn fixture(name: &str) -> String {
     let path = format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
@@ -198,4 +199,84 @@ fn round_trip_json_preserves_structure() {
     assert!(first_sacred.get("path").is_some());
     assert!(first_sacred.get("reason").is_some());
     assert!(first_sacred.get("well_formed").is_some());
+}
+
+// -- install_claude tests with CLAUDE.md fixtures --
+
+/// Copy a fixture CLAUDE.md into a temp directory and return the path to it.
+fn setup_claude_md(fixture_name: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let src = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(fixture_name);
+    let dest = dir.path().join("CLAUDE.md");
+    std::fs::copy(&src, &dest).unwrap();
+    (dir, dest)
+}
+
+#[test]
+fn install_claude_into_one_empty_tag() {
+    let (_dir, claude_md) = setup_claude_md("claude-one-empty-tag.md");
+    let brief = parse_brief(&fixture("minimal.brief.md")).unwrap();
+
+    emit::install_claude(&brief, &claude_md).unwrap();
+
+    let result = std::fs::read_to_string(&claude_md).unwrap();
+    // Briefing inserted inside the markers
+    assert!(result.contains("# Briefing: Fix the login bug"));
+    assert!(result.contains("`src/auth.rs`"));
+    // Surrounding content preserved
+    assert!(result.contains("# My Project"));
+    assert!(result.contains("Some project documentation."));
+    assert!(result.contains("## Other Section"));
+    assert!(result.contains("More content here."));
+    // Exactly one marker pair
+    assert_eq!(result.matches("<!-- brief:start -->").count(), 1);
+    assert_eq!(result.matches("<!-- brief:end -->").count(), 1);
+}
+
+#[test]
+fn install_claude_into_two_empty_tags() {
+    let (_dir, claude_md) = setup_claude_md("claude-two-empty-tags.md");
+    let brief = parse_brief(&fixture("minimal.brief.md")).unwrap();
+
+    emit::install_claude(&brief, &claude_md).unwrap();
+
+    let result = std::fs::read_to_string(&claude_md).unwrap();
+    // Briefing inserted into the first marker pair
+    assert!(result.contains("# Briefing: Fix the login bug"));
+    // Second empty pair stripped
+    assert_eq!(result.matches("<!-- brief:start -->").count(), 1);
+    assert_eq!(result.matches("<!-- brief:end -->").count(), 1);
+    // All surrounding content preserved
+    assert!(result.contains("# My Project"));
+    assert!(result.contains("## Middle Section"));
+    assert!(result.contains("Some middle content."));
+    assert!(result.contains("## Final Section"));
+    assert!(result.contains("End content."));
+}
+
+#[test]
+fn install_claude_into_full_tag_replaces_content() {
+    let (_dir, claude_md) = setup_claude_md("claude-full-tag.md");
+    let brief = parse_brief(&fixture("minimal.brief.md")).unwrap();
+
+    emit::install_claude(&brief, &claude_md).unwrap();
+
+    let result = std::fs::read_to_string(&claude_md).unwrap();
+    // New briefing replaces the old content
+    assert!(result.contains("# Briefing: Fix the login bug"));
+    assert!(result.contains("`src/auth.rs`"));
+    // Old briefing content gone
+    assert!(!result.contains("Old task"));
+    assert!(!result.contains("Python 3.11"));
+    assert!(!result.contains("Do not modify database schema"));
+    // Surrounding content preserved
+    assert!(result.contains("# My Project"));
+    assert!(result.contains("Some project documentation."));
+    assert!(result.contains("## Other Section"));
+    assert!(result.contains("More content here."));
+    // Exactly one marker pair
+    assert_eq!(result.matches("<!-- brief:start -->").count(), 1);
+    assert_eq!(result.matches("<!-- brief:end -->").count(), 1);
 }
