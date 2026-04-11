@@ -12,12 +12,6 @@ use brief_cli::model::{Brief, Severity};
 use brief_cli::parse::parse_brief;
 use brief_cli::validate::validate;
 
-mod skill_scaffold;
-mod skill_validate;
-
-use crate::skill_scaffold::scaffold_skill;
-use crate::skill_validate::validate_skill;
-
 #[derive(Parser)]
 #[command(name = "brief", about = "Structured briefings for AI coding agents")]
 #[command(version)]
@@ -60,54 +54,6 @@ enum Commands {
         file1: PathBuf,
         /// Second briefing file
         file2: PathBuf,
-    },
-
-    /// Manage agent skills
-    ///
-    /// Examples:
-    ///   brief skill scaffold --from-doc <path>
-    ///   brief skill scaffold --from-workflow <path>
-    ///   brief skill scaffold --interactive
-    ///   brief skill validate <path>
-    #[command(verbatim_doc_comment)]
-    Skill {
-        #[command(subcommand)]
-        command: SkillCommands,
-    },
-}
-
-#[derive(Subcommand)]
-#[command(arg_required_else_help = true)]
-pub enum SkillCommands {
-    /// Scaffold a new skill
-    ///
-    /// Examples:
-    ///   brief skill scaffold --from-doc <path>
-    ///   brief skill scaffold --from-workflow <path>
-    ///   brief skill scaffold --interactive
-    #[command(verbatim_doc_comment)]
-    Scaffold {
-        /// Ingest documentation and generate a skill
-        #[arg(long)]
-        from_doc: Option<PathBuf>,
-
-        /// Observe a workflow and codify it
-        #[arg(long)]
-        from_workflow: Option<PathBuf>,
-
-        /// Guided generation with prompts for name, description, instructions
-        #[arg(long)]
-        interactive: bool,
-    },
-
-    /// Validate a skill against the agentskills.io spec
-    ///
-    /// Examples:
-    ///   brief skill validate <path>
-    #[command(verbatim_doc_comment)]
-    Validate {
-        /// Path to the skill (directory or SKILL.md file)
-        path: PathBuf,
     },
 }
 
@@ -182,27 +128,7 @@ fn run(cli: Cli) -> Result<()> {
         Commands::Emit { target } => cmd_emit(target),
         Commands::Check { path, file } => cmd_check(&path, &file),
         Commands::Diff { file1, file2 } => cmd_diff(&file1, &file2),
-        Commands::Skill { command } => match command {
-            SkillCommands::Scaffold {
-                from_doc,
-                from_workflow,
-                interactive,
-            } => cmd_skill_scaffold(from_doc, from_workflow, interactive),
-            SkillCommands::Validate { path } => cmd_skill_validate(&path),
-        },
     }
-}
-
-fn cmd_skill_scaffold(
-    from_doc: Option<PathBuf>,
-    from_workflow: Option<PathBuf>,
-    interactive: bool,
-) -> Result<()> {
-    scaffold_skill(from_doc, from_workflow, interactive)
-}
-
-fn cmd_skill_validate(path: &PathBuf) -> Result<()> {
-    validate_skill(path)
 }
 
 fn cmd_init() -> Result<()> {
