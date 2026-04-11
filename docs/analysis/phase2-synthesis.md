@@ -1,29 +1,14 @@
-# Phase 2 Synthesis: Bridging the CLAUDE.md Flexibility Gap
+# Phase 2 Synthesis: Active Roadmap
 
-**Date:** 2026-03-29 (revised 2026-03-30)
-**Original analysis by:** Four parallel Claude Opus 4.6 agents (Context Engineer, Context Architect, Integration Engineer, DevOps Engineer)
-**Revision by:** Two parallel Claude Opus 4.6 agents:
-- **AI Applications Engineer** — Claude Code integration accuracy, hooks/permissions/skills architecture, `--install` paradigm evaluation
-- **ML Architect** — context engineering, attention dynamics, constraint framing, emit quality as prompt engineering
+**Last updated:** 2026-04-11
+**Original synthesis:** 2026-03-29 (revised 2026-03-30) by multi-agent analysis
+**Historical record:** [archive/obsolete-features.md](./archive/obsolete-features.md) — completed Tier 0 work, removed proposals, and downgraded items from the original synthesis.
 
-Original reports: [flexibility-gap.md](./flexibility-gap.md), [format-expressiveness.md](./format-expressiveness.md), [emit-integration-audit.md](./emit-integration-audit.md), [devops-engineer.md](./devops-engineer.md)
-
----
-
-## Current State (Post-Tier 0)
-
-The following items from the original synthesis have been **completed**:
-
-- Unknown sections emitted in all text emitters (claude, prompt, agents_md, skill)
-- Raw Markdown preserved in unknown sections
-- Context files emitted as `@` references in Claude target
-- Hard constraints get `**IMPORTANT:**` prefix in Claude target
-- `brief emit skill` fully implemented with YAML frontmatter, rules/preferences, verification steps
-- `--install` flag for `brief emit claude` — idempotent injection into existing CLAUDE.md using `<!-- brief:start -->` / `<!-- brief:end -->` markers
-- `--install` flag for `brief emit skill` — writes to `.claude/skills/<name>/SKILL.md`
-- `brief diff` implemented for semantic comparison between briefing files
-
-With Tier 0 complete and `--install` working, the project's priorities shift significantly. The original tier ordering optimized for structural completeness of emitted documents. The revised ordering optimizes for **agent behavioral compliance** and **enforcement capability**.
+This document is the living Phase 2 roadmap for `brief`. It captures the
+problem framing, prioritized work, and guardrails that came out of the
+original multi-agent synthesis and its subsequent revision, minus anything
+that has since been shipped, removed, or downgraded (those live in the
+archived obsolete-features document linked above).
 
 ---
 
@@ -31,52 +16,11 @@ With Tier 0 complete and `--install` working, the project's priorities shift sig
 
 The original synthesis framed the gap as "brief captures ~50% of what makes a CLAUDE.md useful" and tracked progress via fidelity percentages (35% → 70% → 85%). This metric is retired. Structural coverage of CLAUDE.md sections does not correlate with agent task quality. With unknown section passthrough working, brief no longer drops content — fidelity is limited only by what the user writes.
 
-### 1. Unknown sections must be emitted - DONE - See [demos/2026-03-29-unknown-sections.md](../demos/2026-03-29-unknown-sections.md)
-
 The actual remaining gaps are:
 
 1. **Enforcement** — Constraints and sacred regions are advisory text. Nothing prevents an agent from violating them, especially when contradicted by user instructions.
 2. **Emit quality** — The emitter treats constraint rendering as a template problem when it is actually a prompt engineering problem. How constraints are framed, ordered, and positioned in the output directly affects agent compliance rates.
 3. **Integration depth** — `--install` injects into CLAUDE.md, but Claude Code offers deeper integration surfaces (hooks, settings.json) that can make sacred regions deterministic rather than probabilistic.
-
----
-
-## What the Revision Changed
-
-### Items Removed (Technically Wrong or Misguided)
-
-**1. `permissions.deny` from sacred regions — REMOVED**
-
-The original synthesis proposed generating `permissions.deny` rules from sacred entries. This is the wrong abstraction. Claude Code's `permissions.allow` and `permissions.deny` are lists of tool-call patterns (`Bash(cargo build:*)`, `Edit(/path/to/file.rs)`), not file-path ACLs. You cannot write a permission rule that says "deny Edit on any file matching `src/auth/**`" because the pattern matching operates on tool invocation strings, not a glob engine over file paths. Sacred regions require hooks, not permissions.
-
-**2. Subagent definition generation — REMOVED**
-
-Claude Code does not have a declarative "subagent definition" file format. The Agent tool is invoked programmatically during conversations, not configured via files. There is no artifact `brief emit claude-agent` could produce. The closest analog — a skill that reviews constraints — is already covered by `brief emit skill`.
-
-**3. Brief composition/inheritance — REMOVED**
-
-The `extends:` frontmatter proposal creates the CSS specificity problem for AI agents. When a sacred region inherited from an org-level brief conflicts with a team-level constraint, the resolution semantics are ambiguous. In practice, the two-file approach (CLAUDE.md for project context + `.brief.md` for task intent) already provides composition. The `--install` flag makes this concrete: brief injects its section alongside whatever else is in CLAUDE.md.
-
-### Items Downgraded
-
-**4. `## Commands` and `## Style` as first-class parsed sections — DOWNGRADED from Tier 1 to optional**
-
-With unknown section passthrough working, these sections flow through all emitters without any parser changes. The marginal value of first-class parsing is limited to:
-- Auto-detection in `brief init` (can be done independently — just generate the heading as text in the scaffold)
-- Structured data in JSON emit (moderate value)
-- Target-specific reformatting (low value — the raw Markdown is already the right format)
-
-Both reviewers independently concluded these are not worth the parser/model/emitter complexity when passthrough already handles the 80% case.
-
-**5. MCP server — DOWNGRADED from Tier 4 to long-term/on-demand**
-
-Static context injection via `--install` is superior to runtime MCP tools for most brief use cases. The total constraint set is typically small (under 500 tokens), where static injection wins on every axis: no latency, no tool-call budget consumption, no behavioral dependency on the agent knowing when to query. An agent that forgets to call `check_sacred` before editing is no better than one whose attention to the static instruction has decayed.
-
-The sole MCP use case with genuine value — `check_sacred(path)` invoked automatically before every file edit — is better implemented as a PreToolUse hook, which is deterministic and framework-enforced rather than agent-initiated.
-
-**6. Emitter trait refactor — DOWNGRADED to "pay when needed"**
-
-This has zero impact on agent behavior. It should happen organically when the number of emitters justifies the abstraction cost (7+ targets), not as a planned milestone.
 
 ---
 
@@ -212,7 +156,7 @@ A single `brief emit claude --install --full` that:
 
 **Uninstall:**
 
-`brief emit claude --uninstall` to remove the `<!-- brief:start -->` / `<!-- brief:end -->` section from CLAUDE.md, remove hooks from settings.json, remove the skill directory. Users need confidence they can reverse what brief did.
+`brief emit claude --uninstall` to remove the `<brief:generated>` / `</brief:generated>` section from CLAUDE.md (and any legacy `<!-- brief:start -->` / `<!-- brief:end -->` marker pair from older installs), remove hooks from settings.json, and remove the skill directory. Users need confidence they can reverse what brief did.
 
 ### P6: Emit Quality Refinements (effort: ongoing)
 
@@ -250,7 +194,7 @@ Generate a compact constraint summary block (3-5 lines, highest-priority constra
 
 2. **Do not try to replace CLAUDE.md entirely.** Existing CLAUDE.md files often contain project-specific prompt engineering developed through trial and error. Replacing this with generated content discards institutional knowledge about what framing actually works for that codebase and team. Brief augments; it does not replace.
 
-3. **Do not use `permissions.deny` for sacred regions.** The permissions system matches tool invocation patterns, not file paths. Use hooks instead.
+3. **Do not use `permissions.deny` for sacred regions.** The permissions system matches tool invocation patterns, not file paths. Use hooks instead. (See [archive/obsolete-features.md](./archive/obsolete-features.md) for the full reasoning.)
 
 4. **Do not generate subagent definitions.** This is not a Claude Code feature. Use skills for reusable behaviors.
 
@@ -262,13 +206,11 @@ Generate a compact constraint summary block (3-5 lines, highest-priority constra
 
 ---
 
-## The Core Insight (Revised)
+## The Core Insight
 
-The original synthesis concluded: "Brief's format is sound. The bug is that the extensibility mechanism (unknown sections) is broken at the emitter layer."
+The original synthesis concluded: "Brief's format is sound. The bug is that the extensibility mechanism (unknown sections) is broken at the emitter layer." That bug is now fixed. The revised insight:
 
-That bug is now fixed. The revised insight:
-
-> **The emitter is a prompt engineering problem, not a template rendering problem.** How constraints are framed (NEVER/MUST vs. Hard/Soft), where sections are positioned (primacy/recency vs. human reading order), and how sacred regions are enforced (hooks vs. text instructions) matter more than what sections exist in the output. The highest-impact improvements are all in emit quality and tooling integration, not format expansion.**
+> **The emitter is a prompt engineering problem, not a template rendering problem.** How constraints are framed (NEVER/MUST vs. Hard/Soft), where sections are positioned (primacy/recency vs. human reading order), and how sacred regions are enforced (hooks vs. text instructions) matter more than what sections exist in the output. The highest-impact improvements are all in emit quality and tooling integration, not format expansion.
 
 Brief's next phase is not about structural completeness. It is about climbing the enforcement ladder:
 
@@ -282,18 +224,3 @@ Phase 2a:   Optimized constraint framing (~95% compliance, simple cases)
 Phase 2b:   PreToolUse hooks (100% enforcement at dev time)
             Unified --install (CLAUDE.md + hooks + permissions in one command)
 ```
-
----
-
-## Agent Team
-
-| Agent | Focus | Key Contribution |
-|-------|-------|------------------|
-| Context Engineer (original) | Data model, parser, emitters | Identified unknown section passthrough as the critical fix |
-| Context Architect (original) | Format expressiveness, section design | Established augment-not-replace principle |
-| Integration Engineer (original) | Ecosystem emit targets, Claude Code | Audited 5 ecosystems; identified deep integration surfaces |
-| DevOps Engineer (original) | CI/CD, operational context | Designed validate-diff; argued Commands resolves operational gap |
-| AI Applications Engineer (revision) | Claude Code integration accuracy | Corrected permissions/subagent misconceptions; designed hooks integration; identified `--install` as paradigm shift; recalibrated cross-ecosystem effort estimates |
-| ML Architect (revision) | Context engineering, attention dynamics | Reframed emit as prompt engineering; proposed NEVER/MUST/PREFER/STOP constraint language; identified section ordering for attention optimization; added context budget awareness; retired fidelity percentage metric |
-
-Full original analyses are in this directory.

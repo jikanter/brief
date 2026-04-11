@@ -2,8 +2,8 @@
 
 Some project documentation.
 
-<brief:generated>
-# Briefing: Old task
+<!-- brief:start -->
+# Briefing: Old legacy task
 
 **Stack:** Python 3.11
 
@@ -12,7 +12,7 @@ Some project documentation.
 ### Hard (Non-negotiable)
 - **IMPORTANT:** Do not modify database schema
 
-</brief:generated>
+<!-- brief:end -->
 
 ## Other Section
 

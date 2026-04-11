@@ -2,15 +2,15 @@
 
 Some project documentation.
 
-<!-- brief:start -->
-<!-- brief:end -->
+<brief:generated>
+</brief:generated>
 
 ## Middle Section
 
 Some middle content.
 
-<!-- brief:start -->
-<!-- brief:end -->
+<brief:generated>
+</brief:generated>
 
 ## Final Section
 

@@ -230,9 +230,9 @@ fn install_claude_into_one_empty_tag() {
     assert!(result.contains("Some project documentation."));
     assert!(result.contains("## Other Section"));
     assert!(result.contains("More content here."));
-    // Exactly one marker pair
-    assert_eq!(result.matches("<!-- brief:start -->").count(), 1);
-    assert_eq!(result.matches("<!-- brief:end -->").count(), 1);
+    // Exactly one marker pair, in the new format.
+    assert_eq!(result.matches("<brief:generated>").count(), 1);
+    assert_eq!(result.matches("</brief:generated>").count(), 1);
 }
 
 #[test]
@@ -246,8 +246,8 @@ fn install_claude_into_two_empty_tags() {
     // Briefing inserted into the first marker pair
     assert!(result.contains("# Briefing: Fix the login bug"));
     // Second empty pair stripped
-    assert_eq!(result.matches("<!-- brief:start -->").count(), 1);
-    assert_eq!(result.matches("<!-- brief:end -->").count(), 1);
+    assert_eq!(result.matches("<brief:generated>").count(), 1);
+    assert_eq!(result.matches("</brief:generated>").count(), 1);
     // All surrounding content preserved
     assert!(result.contains("# My Project"));
     assert!(result.contains("## Middle Section"));
@@ -276,7 +276,28 @@ fn install_claude_into_full_tag_replaces_content() {
     assert!(result.contains("Some project documentation."));
     assert!(result.contains("## Other Section"));
     assert!(result.contains("More content here."));
-    // Exactly one marker pair
-    assert_eq!(result.matches("<!-- brief:start -->").count(), 1);
-    assert_eq!(result.matches("<!-- brief:end -->").count(), 1);
+    // Exactly one marker pair, in the new format.
+    assert_eq!(result.matches("<brief:generated>").count(), 1);
+    assert_eq!(result.matches("</brief:generated>").count(), 1);
+}
+
+#[test]
+fn install_claude_migrates_legacy_html_comment_markers() {
+    let (_dir, claude_md) = setup_claude_md("claude-legacy-html-comment-tag.md");
+    let brief = parse_brief(&fixture("minimal.brief.md")).unwrap();
+
+    emit::install_claude(&brief, &claude_md).unwrap();
+
+    let result = std::fs::read_to_string(&claude_md).unwrap();
+    // Legacy HTML-comment markers are gone; new tag markers took their place.
+    assert!(!result.contains("<!-- brief:start -->"));
+    assert!(!result.contains("<!-- brief:end -->"));
+    assert_eq!(result.matches("<brief:generated>").count(), 1);
+    assert_eq!(result.matches("</brief:generated>").count(), 1);
+    // New briefing present, old briefing content gone.
+    assert!(result.contains("# Briefing: Fix the login bug"));
+    assert!(!result.contains("Old legacy task"));
+    // Surrounding content preserved.
+    assert!(result.contains("# My Project"));
+    assert!(result.contains("## Other Section"));
 }

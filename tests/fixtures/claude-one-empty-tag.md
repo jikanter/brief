@@ -2,8 +2,8 @@
 
 Some project documentation.
 
-<!-- brief:start -->
-<!-- brief:end -->
+<brief:generated>
+</brief:generated>
 
 ## Other Section
 

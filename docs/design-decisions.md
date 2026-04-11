@@ -100,7 +100,26 @@ Brief augments existing CLAUDE.md files; it does not replace them. This is both 
 - **Scope**: Brief handles task-specific structured intent (goal, constraints, sacred regions, assumptions). Standing project context (architecture, full style guides, project structure) belongs in the CLAUDE.md itself.
 - **ML**: Existing CLAUDE.md files often contain project-specific prompt engineering developed through trial and error. Replacing this with generated content discards institutional knowledge about what framing works for that codebase and team.
 
-The `--install` flag implements this via `<!-- brief:start -->` / `<!-- brief:end -->` markers for idempotent injection. The brief section is placed alongside (not instead of) existing CLAUDE.md content.
+### What belongs in brief vs. CLAUDE.md
+
+The scope split above is the principle. Applied to the content categories users actually encounter:
+
+| Content | Belongs in | Why |
+|---|---|---|
+| Goal of the current task | `.brief.md` | Task-specific intent — the definitional case |
+| Hard/Soft/Ask-First constraints for the task | `.brief.md` | Task-specific constraint spec |
+| Sacred regions (paths not to modify) | `.brief.md` | Task-specific enforcement target |
+| Unvalidated assumptions | `.brief.md` | Task-specific epistemic state |
+| Build/test/run commands | `CLAUDE.md` | Standing operational context, not task-specific |
+| Code style rules (naming, formatting, error handling patterns) | `CLAUDE.md` | Standing conventions — do not re-author per task |
+| Project structure / directory tree | `CLAUDE.md` | Standing spatial context for navigation |
+| Architecture narrative, ADRs | `CLAUDE.md` | Standing project context — too expensive to re-author |
+| Dependency policies ("no tokio", "minimize deps") | `CLAUDE.md` | Standing conventions unless the task is dependency-related |
+| Behavioral instructions ("ask before ambiguous", "prefer small commits") | Skill or `CLAUDE.md` | Agent conduct, not work product spec — see [open-questions.md](open-questions.md) `[format]` Behavioral Instructions |
+
+The common confusion: users try to put standing project conventions into a brief's Soft constraints, and then re-author the same list every task. If it doesn't change task-to-task, it belongs in CLAUDE.md, not brief.
+
+The `--install` flag implements this via `<brief:generated>` / `</brief:generated>` XML-style markers for idempotent injection. The brief section is placed alongside (not instead of) existing CLAUDE.md content. (Earlier versions used HTML-comment markers, but Claude Code strips HTML comments from CLAUDE.md before the model sees it, which rendered briefings invisible to the agent. Legacy markers are still recognized on read and migrated to the new format on the next `--install`.)
 
 ## `--install` as the Integration Paradigm (Phase 2 Decision)
 
