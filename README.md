@@ -1,4 +1,4 @@
-# brief
+# Brief - Structured Briefings for AI Agents
 
 Structured briefing format for AI coding agents.
 
@@ -62,7 +62,7 @@ As AI agents handle more technical execution, the human→agent interface become
 ## See Also
 
 Simon Willison's [Showboat](https://github.com/simonw/showboat), which effectively solves the inverse of what I am 
-trying to solve here, which is to ease the burden of human's communicating with agents but in reverse.
+trying to solve here, which is to ease the burden of human's communicating with agents.
 
 ## License
 
