@@ -70,7 +70,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
 
                 // Finalize unknown section on new H1/H2
                 if level <= HeadingLevel::H2 {
-                    if let (Section::Unknown(ref name), Some(start)) =
+                    if let (Section::Unknown(name), Some(start)) =
                         (&current_section, unknown_section_start)
                     {
                         let raw = input[start..range.start].trim();
@@ -198,7 +198,8 @@ pub fn parse_body(input: &str) -> ParsedBody {
     }
 
     // Finalize any trailing unknown section
-    if let (Section::Unknown(ref name), Some(start)) = (&current_section, unknown_section_start) {
+    if let (Section::Unknown(name), Some(start)) = 
+        (&current_section, unknown_section_start) {
         let raw = input[start..].trim();
         if !raw.is_empty() {
             unknown_sections.push(UnknownSection {
