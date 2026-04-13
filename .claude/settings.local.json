@@ -6,7 +6,10 @@
       "WebFetch(domain:www.agentrulegen.com)",
       "WebFetch(domain:www.xda-developers.com)",
       "WebFetch(domain:news.ycombinator.com)",
-      "WebFetch(domain:uxplanet.org)"
+      "WebFetch(domain:uxplanet.org)",
+      "Bash(cargo build:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo clippy:*)"
     ]
   }
 }

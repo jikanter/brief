@@ -12,11 +12,11 @@ use brief_cli::model::Severity;
 use brief_cli::parse::parse_brief;
 use brief_cli::validate::validate;
 
-mod skill_scaffold;
+mod skill_init;
 mod skill_validate;
 
-use crate::skill_scaffold::scaffold_skill;
-use crate::skill_validate::validate_skill;
+use crate::skill_init::init_skill;
+use crate::skill_validate::{validate_skill, validate_skill_content};
 
 #[derive(Parser)]
 #[command(name = "brief", about = "Structured briefings for AI coding agents")]
@@ -66,9 +66,7 @@ enum Commands {
     /// Manage agent skills
     ///
     /// Examples:
-    ///   brief skill scaffold --from-doc <path>
-    ///   brief skill scaffold --from-workflow <path>
-    ///   brief skill scaffold --interactive
+    ///   brief skill init [name]
     ///   brief skill validate <path>
     ///   brief skill emit [--install]
     #[command(verbatim_doc_comment)]
@@ -81,25 +79,15 @@ enum Commands {
 #[derive(Subcommand, Clone)]
 #[command(arg_required_else_help = true)]
 pub enum SkillCommands {
-    /// Scaffold a new skill
+    /// Initialize an empty skill directory with a valid skeleton
     ///
     /// Examples:
-    ///   brief skill scaffold --from-doc <path>
-    ///   brief skill scaffold --from-workflow <path>
-    ///   brief skill scaffold --interactive
+    ///   brief skill init
+    ///   brief skill init my-skill-name
     #[command(verbatim_doc_comment)]
-    Scaffold {
-        /// Ingest documentation and generate a skill
-        #[arg(long)]
-        from_doc: Option<PathBuf>,
-
-        /// Observe a workflow and codify it
-        #[arg(long)]
-        from_workflow: Option<PathBuf>,
-
-        /// Guided generation with prompts for name, description, instructions
-        #[arg(long)]
-        interactive: bool,
+    Init {
+        /// Skill name (kebab-case, max 64 chars). Defaults to current directory name.
+        name: Option<String>,
     },
 
     /// Validate a skill against the agentskills.io spec
@@ -154,11 +142,7 @@ fn run(cli: Cli) -> Result<()> {
         Commands::Check { path } => cmd_check(&path, &cli.file),
         Commands::Diff { file1, file2 } => cmd_diff(&file1, &file2),
         Commands::Skill { command } => match command {
-            SkillCommands::Scaffold {
-                from_doc,
-                from_workflow,
-                interactive,
-            } => cmd_skill_scaffold(from_doc, from_workflow, interactive),
+            SkillCommands::Init { name } => cmd_skill_init(name),
             SkillCommands::Validate { path } => cmd_skill_validate(&path),
             SkillCommands::Emit { install } => cmd_skill_emit(&cli.file, install),
         },
@@ -169,12 +153,8 @@ fn cmd_skill_emit(file: &PathBuf, install: bool) -> Result<()> {
     cmd_emit_skill_internal(file, install)
 }
 
-fn cmd_skill_scaffold(
-    from_doc: Option<PathBuf>,
-    from_workflow: Option<PathBuf>,
-    interactive: bool,
-) -> Result<()> {
-    scaffold_skill(from_doc, from_workflow, interactive)
+fn cmd_skill_init(name: Option<String>) -> Result<()> {
+    init_skill(name)
 }
 
 fn cmd_skill_validate(path: &PathBuf) -> Result<()> {
@@ -293,6 +273,9 @@ fn cmd_emit_skill_internal(file: &PathBuf, install: bool) -> Result<()> {
 
     let brief = parse_brief(&content).context("Failed to parse briefing")?;
     let output = emit::emit_skill(&brief);
+
+    validate_skill_content(&output)
+        .context("Emitted SKILL.md would not pass agentskills.io validation")?;
 
     if install {
         let name = emit::skill_name(&brief);

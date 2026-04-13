@@ -1,8 +1,7 @@
-use std::process::Command;
 use assert_cmd::prelude::*;
-use assert_cmd::Command as AssertCommand;
 use predicates::prelude::*;
 use std::fs;
+use std::process::Command;
 use tempfile::tempdir;
 
 #[test]
@@ -13,9 +12,9 @@ fn test_skill_validate_help() {
 }
 
 #[test]
-fn test_skill_scaffold_help() {
+fn test_skill_init_help() {
     let mut cmd = Command::cargo_bin("brief").unwrap();
-    cmd.arg("skill").arg("scaffold").arg("--help");
+    cmd.arg("skill").arg("init").arg("--help");
     cmd.assert().success();
 }
 
@@ -23,7 +22,9 @@ fn test_skill_scaffold_help() {
 fn test_skill_validate_fails_on_missing_file() {
     let mut cmd = Command::cargo_bin("brief").unwrap();
     cmd.arg("skill").arg("validate").arg("non_existent_skill.md");
-    cmd.assert().failure().stderr(predicate::str::contains("not found at"));
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("not found at"));
 }
 
 #[test]
@@ -39,7 +40,9 @@ fn test_skill_validate_checks_description_length() {
 
     let mut cmd = Command::cargo_bin("brief").unwrap();
     cmd.arg("skill").arg("validate").arg(&skill_path);
-    cmd.assert().failure().stderr(predicate::str::contains("must be ≤1024 chars"));
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("must be ≤1024 chars"));
 }
 
 #[test]
@@ -54,7 +57,9 @@ fn test_skill_validate_checks_line_count() {
 
     let mut cmd = Command::cargo_bin("brief").unwrap();
     cmd.arg("skill").arg("validate").arg(&skill_path);
-    cmd.assert().failure().stderr(predicate::str::contains("must be < 500 lines"));
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("must be < 500 lines"));
 }
 
 #[test]
@@ -66,25 +71,97 @@ fn test_skill_validate_checks_name_format() {
 
     let mut cmd = Command::cargo_bin("brief").unwrap();
     cmd.arg("skill").arg("validate").arg(&skill_path);
-    cmd.assert().failure().stderr(predicate::str::contains("name format"));
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("name format"));
 }
 
 #[test]
-fn test_skill_scaffold_from_doc_creates_directory() {
+fn test_skill_validate_rejects_leading_hyphen() {
     let dir = tempdir().unwrap();
-    let doc_path = dir.path().join("doc.md");
-    fs::write(&doc_path, "test-skill-name\nInstructions for skill").unwrap();
+    let skill_path = dir.path().join("SKILL.md");
+    let content = "---\nname: -foo\ndescription: test\n---\n\nBody\n";
+    fs::write(&skill_path, content).unwrap();
 
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.arg("skill").arg("validate").arg(&skill_path);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("start or end with a hyphen"));
+}
+
+#[test]
+fn test_skill_validate_rejects_trailing_hyphen() {
+    let dir = tempdir().unwrap();
+    let skill_path = dir.path().join("SKILL.md");
+    let content = "---\nname: foo-\ndescription: test\n---\n\nBody\n";
+    fs::write(&skill_path, content).unwrap();
+
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.arg("skill").arg("validate").arg(&skill_path);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("start or end with a hyphen"));
+}
+
+#[test]
+fn test_skill_validate_rejects_consecutive_hyphens() {
+    let dir = tempdir().unwrap();
+    let skill_path = dir.path().join("SKILL.md");
+    let content = "---\nname: foo--bar\ndescription: test\n---\n\nBody\n";
+    fs::write(&skill_path, content).unwrap();
+
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.arg("skill").arg("validate").arg(&skill_path);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("consecutive hyphens"));
+}
+
+#[test]
+fn test_skill_validate_rejects_name_over_64_chars() {
+    let dir = tempdir().unwrap();
+    let skill_path = dir.path().join("SKILL.md");
+    let long_name = "a".repeat(65);
+    let content = format!(
+        "---\nname: {}\ndescription: test\n---\n\nBody\n",
+        long_name
+    );
+    fs::write(&skill_path, content).unwrap();
+
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.arg("skill").arg("validate").arg(&skill_path);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("too long"));
+}
+
+#[test]
+fn test_skill_validate_rejects_angle_brackets_in_description() {
+    let dir = tempdir().unwrap();
+    let skill_path = dir.path().join("SKILL.md");
+    let content =
+        "---\nname: foo\ndescription: Use <tool> to process input\n---\n\nBody\n";
+    fs::write(&skill_path, content).unwrap();
+
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.arg("skill").arg("validate").arg(&skill_path);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("angle brackets"));
+}
+
+#[test]
+fn test_skill_init_creates_directory_structure() {
     let out_dir = tempdir().unwrap();
     let mut cmd = Command::cargo_bin("brief").unwrap();
     cmd.current_dir(out_dir.path())
         .arg("skill")
-        .arg("scaffold")
-        .arg("--from-doc")
-        .arg(&doc_path);
+        .arg("init")
+        .arg("my-skill-name");
     cmd.assert().success();
 
-    let skill_dir = out_dir.path().join("test-skill-name");
+    let skill_dir = out_dir.path().join("my-skill-name");
     assert!(skill_dir.exists());
     assert!(skill_dir.join("SKILL.md").exists());
     assert!(skill_dir.join("scripts").exists());
@@ -92,114 +169,176 @@ fn test_skill_scaffold_from_doc_creates_directory() {
 }
 
 #[test]
-fn test_skill_scaffold_from_workflow_creates_directory() {
-    let dir = tempdir().unwrap();
-    let workflow_path = dir.path().join("workflow.txt");
-    fs::write(&workflow_path, "step 1\nstep 2").unwrap();
-
+fn test_skill_init_skeleton_is_valid() {
     let out_dir = tempdir().unwrap();
     let mut cmd = Command::cargo_bin("brief").unwrap();
     cmd.current_dir(out_dir.path())
         .arg("skill")
-        .arg("scaffold")
-        .arg("--from-workflow")
-        .arg(&workflow_path);
+        .arg("init")
+        .arg("hello-world");
     cmd.assert().success();
 
-    let skill_dir = out_dir.path().join("workflow-skill");
-    assert!(skill_dir.exists());
+    let skill_dir = out_dir.path().join("hello-world");
     let skill_md = fs::read_to_string(skill_dir.join("SKILL.md")).unwrap();
-    assert!(skill_md.contains("Follow these steps from the observed workflow:"));
-    assert!(skill_md.contains("step 1"));
-    assert!(skill_md.contains("step 2"));
+    assert!(skill_md.starts_with("---\n"));
+    assert!(skill_md.contains("name: hello-world"));
+    assert!(skill_md.contains("description:"));
+    assert!(skill_md.contains("# Hello World"));
+
+    // The freshly initialized skeleton should pass `brief skill validate`.
+    let mut validate_cmd = Command::cargo_bin("brief").unwrap();
+    validate_cmd.arg("skill").arg("validate").arg(&skill_dir);
+    validate_cmd.assert().success();
 }
 
 #[test]
-fn test_skill_scaffold_interactive_creates_directory() {
-    let out_dir = tempdir().unwrap();
-    let mut cmd = AssertCommand::cargo_bin("brief").unwrap();
-    
-    // Simulate interactive input
-    // 1. Skill name: my-cool-skill
-    // 2. Description: A very cool skill
-    // 3. Instructions: Do cool things\n(empty line to end)
-    let input = "my-cool-skill\nA very cool skill\nDo cool things\n\n";
-    
-    cmd.current_dir(out_dir.path())
-        .arg("skill")
-        .arg("scaffold")
-        .arg("--interactive")
-        .write_stdin(input)
-        .assert()
-        .success();
+fn test_skill_init_defaults_to_current_directory_name() {
+    let parent = tempdir().unwrap();
+    let working = parent.path().join("my-default-skill");
+    fs::create_dir(&working).unwrap();
 
-    let skill_dir = out_dir.path().join("my-cool-skill");
-    assert!(skill_dir.exists());
-    let skill_md = fs::read_to_string(skill_dir.join("SKILL.md")).unwrap();
-    assert!(skill_md.contains("name: my-cool-skill"));
-    assert!(skill_md.contains("description: A very cool skill"));
-    assert!(skill_md.contains("Do cool things"));
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.current_dir(&working).arg("skill").arg("init");
+    cmd.assert().success();
+
+    assert!(working.join("my-default-skill").exists());
+    assert!(working.join("my-default-skill").join("SKILL.md").exists());
 }
 
 #[test]
-fn test_skill_scaffold_interactive_validates_input() {
+fn test_skill_init_refuses_to_overwrite() {
     let out_dir = tempdir().unwrap();
-    let mut cmd = AssertCommand::cargo_bin("brief").unwrap();
-    
-    // Simulate invalid input then valid input
-    // 1. Invalid name: "Invalid Name" (has space and caps)
-    // 2. Valid name: "valid-name"
-    // 3. Invalid description: empty
-    // 4. Valid description: "A valid description"
-    // 5. Instructions: "Just do it"\n(empty line)
-    let input = "Invalid Name\nvalid-name\n\nA valid description\nJust do it\n\n";
-    
+    fs::create_dir(out_dir.path().join("existing")).unwrap();
+
+    let mut cmd = Command::cargo_bin("brief").unwrap();
     cmd.current_dir(out_dir.path())
         .arg("skill")
-        .arg("scaffold")
-        .arg("--interactive")
-        .write_stdin(input)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Error: Name must be non-empty"));
+        .arg("init")
+        .arg("existing");
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("already exists"));
+}
 
-    let skill_dir = out_dir.path().join("valid-name");
-    assert!(skill_dir.exists());
+#[test]
+fn test_skill_init_rejects_uppercase_name() {
+    let out_dir = tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.current_dir(out_dir.path())
+        .arg("skill")
+        .arg("init")
+        .arg("BadName");
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("name format"));
+}
+
+#[test]
+fn test_skill_init_rejects_trailing_hyphen() {
+    let out_dir = tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.current_dir(out_dir.path())
+        .arg("skill")
+        .arg("init")
+        .arg("bad-");
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("start or end with a hyphen"));
+}
+
+#[test]
+fn test_skill_init_rejects_consecutive_hyphens() {
+    let out_dir = tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.current_dir(out_dir.path())
+        .arg("skill")
+        .arg("init")
+        .arg("foo--bar");
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("consecutive hyphens"));
+}
+
+#[test]
+fn test_skill_init_rejects_name_over_64_chars() {
+    let out_dir = tempdir().unwrap();
+    let long_name = "a".repeat(65);
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.current_dir(out_dir.path())
+        .arg("skill")
+        .arg("init")
+        .arg(&long_name);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("too long"));
 }
 
 #[test]
 fn test_skill_validate_sample_docx_skill() {
     let mut cmd = Command::cargo_bin("brief").unwrap();
-    cmd.arg("skill").arg("validate").arg("tests/fixtures/sample-skills/docx");
-    
+    cmd.arg("skill")
+        .arg("validate")
+        .arg("tests/fixtures/sample-skills/docx");
+
     // The sample docx skill is intentionally too long (590 lines),
     // so it should FAIL validation.
-    cmd.assert().failure().stderr(predicate::str::contains("SKILL.md is too long"));
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("SKILL.md is too long"));
 }
 
 #[test]
 fn test_skill_emit() {
     let mut cmd = Command::cargo_bin("brief").unwrap();
-    cmd.arg("--file").arg("tests/fixtures/skill.brief.md").arg("skill").arg("emit");
+    cmd.arg("--file")
+        .arg("tests/fixtures/skill.brief.md")
+        .arg("skill")
+        .arg("emit");
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("name: review"))
-        .stdout(predicate::str::contains("description: Review code changes following team standards"));
+        .stdout(predicate::str::contains(
+            "description: Review code changes following team standards",
+        ));
 }
 
 #[test]
 fn test_skill_emit_install() {
     let dir = tempdir().unwrap();
     let mut cmd = Command::cargo_bin("brief").unwrap();
-    
+
     // We need to run in a temp dir to avoid messing with real .claude/skills
     cmd.current_dir(dir.path())
-        .arg("--file").arg(std::env::current_dir().unwrap().join("tests/fixtures/skill.brief.md"))
-        .arg("skill").arg("emit").arg("--install");
-    
+        .arg("--file")
+        .arg(
+            std::env::current_dir()
+                .unwrap()
+                .join("tests/fixtures/skill.brief.md"),
+        )
+        .arg("skill")
+        .arg("emit")
+        .arg("--install");
+
     cmd.assert()
         .success()
-        .stdout(predicate::str::contains("Installed .claude/skills/review/SKILL.md"));
-    
+        .stdout(predicate::str::contains(
+            "Installed .claude/skills/review/SKILL.md",
+        ));
+
     assert!(dir.path().join(".claude/skills/review/SKILL.md").exists());
+}
+
+#[test]
+fn test_skill_emit_fails_when_slugified_name_exceeds_limit() {
+    let dir = tempdir().unwrap();
+    let brief_path = dir.path().join("brief.md");
+    // Goal that slugifies to a name that exceeds 64 characters.
+    let content = "---\nstack: [Rust]\n---\n\n# this is an extremely long goal that when slugified produces a name that definitely exceeds sixty four characters\n\n## Deliverable\nSomething.\n";
+    fs::write(&brief_path, content).unwrap();
+
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.arg("--file").arg(&brief_path).arg("skill").arg("emit");
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("would not pass"));
 }
