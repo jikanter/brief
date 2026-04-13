@@ -1,14 +1,14 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use colored::*;
 
 use brief_cli::check::check_path;
 use brief_cli::emit;
 use brief_cli::init::scaffold_brief;
-use brief_cli::model::{Brief, Severity};
+use brief_cli::model::Severity;
 use brief_cli::parse::parse_brief;
 use brief_cli::validate::validate;
 
@@ -40,7 +40,7 @@ enum Commands {
 
     /// Transform .brief.md into a target format
     Emit {
-        #[command(subcommand)]
+        /// Output target format
         target: EmitTarget,
     },
 
@@ -111,59 +111,18 @@ pub enum SkillCommands {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Clone, ValueEnum)]
 enum EmitTarget {
     /// Emit a CLAUDE.md section
-    Claude {
-        /// Path to the .brief.md file
-        #[arg(default_value = ".brief.md")]
-        file: PathBuf,
-
-        /// Inject the briefing into CLAUDE.md, fenced by
-        /// `<brief:generated>` / `</brief:generated>` markers.
-        ///
-        /// Re-running replaces the section in place, so the rest of
-        /// CLAUDE.md is left untouched. Legacy
-        /// `<!-- brief:start -->` / `<!-- brief:end -->` HTML-comment
-        /// markers from earlier versions are recognized and migrated to
-        /// the new format on the next install (Claude Code strips HTML
-        /// comments from CLAUDE.md before the model sees them, so the
-        /// old markers produced a briefing the agent never actually read).
-        #[arg(long)]
-        install: bool,
-    },
-
+    Claude,
     /// Emit raw system prompt text
-    Prompt {
-        /// Path to the .brief.md file
-        #[arg(default_value = ".brief.md")]
-        file: PathBuf,
-    },
-
+    Prompt,
     /// Emit an AGENTS.md section
-    AgentsMd {
-        /// Path to the .brief.md file
-        #[arg(default_value = ".brief.md")]
-        file: PathBuf,
-    },
-
+    AgentsMd,
     /// Emit structured JSON
-    Json {
-        /// Path to the .brief.md file
-        #[arg(default_value = ".brief.md")]
-        file: PathBuf,
-    },
-
+    Json,
     /// Emit a Claude Code SKILL.md file
-    Skill {
-        /// Path to the .brief.md file
-        #[arg(default_value = ".brief.md")]
-        file: PathBuf,
-
-        /// Write the SKILL.md to `.claude/skills/<name>/SKILL.md`.
-        #[arg(long)]
-        install: bool,
-    },
+    Skill,
 }
 
 fn main() {
@@ -179,7 +138,11 @@ fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Init => cmd_init(),
         Commands::Validate { file } => cmd_validate(&file),
-        Commands::Emit { target } => cmd_emit(target),
+        Commands::Emit {
+            target,
+            file,
+            install,
+        } => cmd_emit(target, &file, install),
         Commands::Check { path, file } => cmd_check(&path, &file),
         Commands::Diff { file1, file2 } => cmd_diff(&file1, &file2),
         Commands::Skill { command } => match command {
@@ -275,11 +238,37 @@ fn cmd_validate(file: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cmd_emit(target: EmitTarget) -> Result<()> {
-    match target {
-        EmitTarget::Claude { file, install } => {
-            let brief = load_brief(&file)?;
-            if install {
+fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
+    let content = std::fs::read_to_string(file)
+        .with_context(|| format!("Failed to read {}", file.display()))?;
+
+    let brief = parse_brief(&content).context("Failed to parse briefing")?;
+
+    let output = match target {
+        EmitTarget::Claude => emit::emit_claude(&brief),
+        EmitTarget::Prompt => emit::emit_prompt(&brief),
+        EmitTarget::AgentsMd => emit::emit_agents_md(&brief),
+        EmitTarget::Json => emit::emit_json(&brief),
+        EmitTarget::Skill => emit::emit_skill(&brief),
+    };
+
+    if install {
+        match target {
+            EmitTarget::Skill => {
+                let name = emit::skill_name(&brief);
+                let skill_dir = PathBuf::from(".claude/skills").join(&name);
+                std::fs::create_dir_all(&skill_dir)
+                    .with_context(|| format!("Failed to create {}", skill_dir.display()))?;
+                let skill_path = skill_dir.join("SKILL.md");
+                std::fs::write(&skill_path, &output)
+                    .with_context(|| format!("Failed to write {}", skill_path.display()))?;
+                println!(
+                    "{} {}",
+                    "Installed".green().bold(),
+                    skill_path.display()
+                );
+            }
+            EmitTarget::Claude => {
                 let claude_md = PathBuf::from("CLAUDE.md");
                 emit::install_claude(&brief, &claude_md)
                     .with_context(|| "Failed to install briefing into CLAUDE.md")?;
@@ -288,47 +277,16 @@ fn cmd_emit(target: EmitTarget) -> Result<()> {
                     "Installed".green().bold(),
                     claude_md.display()
                 );
-            } else {
-                print!("{}", emit::emit_claude(&brief));
+            }
+            _ => {
+                anyhow::bail!("--install is only supported for the claude and skill targets");
             }
         }
-        EmitTarget::Prompt { file } => {
-            let brief = load_brief(&file)?;
-            print!("{}", emit::emit_prompt(&brief));
-        }
-        EmitTarget::AgentsMd { file } => {
-            let brief = load_brief(&file)?;
-            print!("{}", emit::emit_agents_md(&brief));
-        }
-        EmitTarget::Json { file } => {
-            let brief = load_brief(&file)?;
-            print!("{}", emit::emit_json(&brief));
-        }
-        EmitTarget::Skill { file, install } => {
-            let brief = load_brief(&file)?;
-            let output = emit::emit_skill(&brief);
-            if install {
-                let name = emit::skill_name(&brief);
-                let skill_dir = PathBuf::from(".claude/skills").join(&name);
-                std::fs::create_dir_all(&skill_dir)
-                    .with_context(|| format!("Failed to create {}", skill_dir.display()))?;
-                let skill_path = skill_dir.join("SKILL.md");
-                std::fs::write(&skill_path, &output)
-                    .with_context(|| format!("Failed to write {}", skill_path.display()))?;
-                println!("{} {}", "Installed".green().bold(), skill_path.display());
-            } else {
-                print!("{output}");
-            }
-        }
+    } else {
+        print!("{output}");
     }
 
     Ok(())
-}
-
-fn load_brief(file: &Path) -> Result<Brief> {
-    let content = std::fs::read_to_string(file)
-        .with_context(|| format!("Failed to read {}", file.display()))?;
-    parse_brief(&content).context("Failed to parse briefing")
 }
 
 fn cmd_check(path: &str, file: &PathBuf) -> Result<()> {
