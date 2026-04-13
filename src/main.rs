@@ -41,6 +41,7 @@ enum Commands {
     /// Transform .brief.md into a target format
     Emit {
         /// Output target format
+        #[command(subcommand)]
         target: EmitTarget,
     },
 
