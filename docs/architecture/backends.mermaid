@@ -1,0 +1,9 @@
+graph TD
+    backend[Backend] --> claude
+    backend[Backend] --> codex
+    backend[Backend] --> windsurf
+    backend[Backend] --> aider
+
+    claude --> claude_prim[primary backend]
+    claude_prim[primary backend] --> claude_desc[Implemented
+    differently then the other backends]
