@@ -22,37 +22,37 @@ use crate::skill_validate::validate_skill;
 #[command(name = "brief", about = "Structured briefings for AI coding agents")]
 #[command(version)]
 struct Cli {
+    /// Path to the .brief.md file
+    #[arg(long, global = true, default_value = ".brief.md")]
+    file: PathBuf,
+
     #[command(subcommand)]
     command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum Commands {
     /// Analyze the current directory and scaffold a .brief.md
     Init,
 
     /// Validate the current .brief.md against the codebase
-    Validate {
-        /// Path to the .brief.md file
-        #[arg(default_value = ".brief.md")]
-        file: PathBuf,
-    },
+    Validate,
 
     /// Transform .brief.md into a target format
     Emit {
         /// Output target format
-        #[command(subcommand)]
+        #[arg(value_enum)]
         target: EmitTarget,
+
+        /// Install the briefing into the target location
+        #[arg(long)]
+        install: bool,
     },
 
     /// Check if a file path falls within a sacred region
     Check {
         /// The file path to check
         path: String,
-
-        /// Path to the .brief.md file
-        #[arg(long, default_value = ".brief.md")]
-        file: PathBuf,
     },
 
     /// Show semantic differences between two briefing files
@@ -77,7 +77,7 @@ enum Commands {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 #[command(arg_required_else_help = true)]
 pub enum SkillCommands {
     /// Scaffold a new skill
@@ -138,13 +138,9 @@ fn main() {
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Init => cmd_init(),
-        Commands::Validate { file } => cmd_validate(&file),
-        Commands::Emit {
-            target,
-            file,
-            install,
-        } => cmd_emit(target, &file, install),
-        Commands::Check { path, file } => cmd_check(&path, &file),
+        Commands::Validate => cmd_validate(&cli.file),
+        Commands::Emit { target, install } => cmd_emit(target, &cli.file, install),
+        Commands::Check { path } => cmd_check(&path, &cli.file),
         Commands::Diff { file1, file2 } => cmd_diff(&file1, &file2),
         Commands::Skill { command } => match command {
             SkillCommands::Scaffold {

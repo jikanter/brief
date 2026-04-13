@@ -1,5 +1,6 @@
 use std::process::Command;
 use assert_cmd::prelude::*;
+use assert_cmd::Command as AssertCommand;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::tempdir;
@@ -91,10 +92,87 @@ fn test_skill_scaffold_from_doc_creates_directory() {
 }
 
 #[test]
+fn test_skill_scaffold_from_workflow_creates_directory() {
+    let dir = tempdir().unwrap();
+    let workflow_path = dir.path().join("workflow.txt");
+    fs::write(&workflow_path, "step 1\nstep 2").unwrap();
+
+    let out_dir = tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.current_dir(out_dir.path())
+        .arg("skill")
+        .arg("scaffold")
+        .arg("--from-workflow")
+        .arg(&workflow_path);
+    cmd.assert().success();
+
+    let skill_dir = out_dir.path().join("workflow-skill");
+    assert!(skill_dir.exists());
+    let skill_md = fs::read_to_string(skill_dir.join("SKILL.md")).unwrap();
+    assert!(skill_md.contains("Follow these steps from the observed workflow:"));
+    assert!(skill_md.contains("step 1"));
+    assert!(skill_md.contains("step 2"));
+}
+
+#[test]
+fn test_skill_scaffold_interactive_creates_directory() {
+    let out_dir = tempdir().unwrap();
+    let mut cmd = AssertCommand::cargo_bin("brief").unwrap();
+    
+    // Simulate interactive input
+    // 1. Skill name: my-cool-skill
+    // 2. Description: A very cool skill
+    // 3. Instructions: Do cool things\n(empty line to end)
+    let input = "my-cool-skill\nA very cool skill\nDo cool things\n\n";
+    
+    cmd.current_dir(out_dir.path())
+        .arg("skill")
+        .arg("scaffold")
+        .arg("--interactive")
+        .write_stdin(input)
+        .assert()
+        .success();
+
+    let skill_dir = out_dir.path().join("my-cool-skill");
+    assert!(skill_dir.exists());
+    let skill_md = fs::read_to_string(skill_dir.join("SKILL.md")).unwrap();
+    assert!(skill_md.contains("name: my-cool-skill"));
+    assert!(skill_md.contains("description: A very cool skill"));
+    assert!(skill_md.contains("Do cool things"));
+}
+
+#[test]
+fn test_skill_scaffold_interactive_validates_input() {
+    let out_dir = tempdir().unwrap();
+    let mut cmd = AssertCommand::cargo_bin("brief").unwrap();
+    
+    // Simulate invalid input then valid input
+    // 1. Invalid name: "Invalid Name" (has space and caps)
+    // 2. Valid name: "valid-name"
+    // 3. Invalid description: empty
+    // 4. Valid description: "A valid description"
+    // 5. Instructions: "Just do it"\n(empty line)
+    let input = "Invalid Name\nvalid-name\n\nA valid description\nJust do it\n\n";
+    
+    cmd.current_dir(out_dir.path())
+        .arg("skill")
+        .arg("scaffold")
+        .arg("--interactive")
+        .write_stdin(input)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Error: Name must be non-empty"));
+
+    let skill_dir = out_dir.path().join("valid-name");
+    assert!(skill_dir.exists());
+}
+
+#[test]
 fn test_skill_validate_sample_docx_skill() {
     let mut cmd = Command::cargo_bin("brief").unwrap();
-    cmd.arg("skill").arg("validate").arg("tests/fixtures/sample-skill/docx");
+    cmd.arg("skill").arg("validate").arg("tests/fixtures/sample-skills/docx");
     
-    // Now that we've shortened the docx SKILL.md to < 500 lines, it should pass.
-    cmd.assert().success();
+    // The sample docx skill is intentionally too long (590 lines),
+    // so it should FAIL validation.
+    cmd.assert().failure().stderr(predicate::str::contains("SKILL.md is too long"));
 }
