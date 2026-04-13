@@ -42,6 +42,25 @@ enum Commands {
     Emit {
         #[command(subcommand)]
         target: EmitTarget,
+
+        /// Path to the .brief.md file
+        #[arg(default_value = ".brief.md")]
+        file: PathBuf,
+
+        /// Install the emitted output into the target's canonical location.
+        ///
+        /// For `claude`: inject the briefing into CLAUDE.md, fenced by
+        /// `<brief:generated>` / `</brief:generated>` markers. Re-running
+        /// replaces the section in place, so the rest of CLAUDE.md is left
+        /// untouched. Legacy `<!-- brief:start -->` / `<!-- brief:end -->`
+        /// HTML-comment markers from earlier versions are recognized and
+        /// migrated to the new format on the next install (Claude Code strips
+        /// HTML comments from CLAUDE.md before the model sees them, so the
+        /// old markers produced a briefing the agent never actually read).
+        ///
+        /// For `skill`: write the SKILL.md to `.claude/skills/<name>/SKILL.md`.
+        #[arg(long)]
+        install: bool,
     },
 
     /// Check if a file path falls within a sacred region
