@@ -64,6 +64,9 @@ As AI agents handle more technical execution, the human→agent interface become
 Simon Willison's [Showboat](https://github.com/simonw/showboat), which effectively solves the inverse of what I am 
 trying to solve here, which is to ease the burden of human's communicating with agents.
 
+Inspired by the [Claude.md File Format](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md)
+and the agentskills open standard at [Agentskills.io](https://agentskills.io)
+
 ## License
 
 MIT
