@@ -174,7 +174,7 @@ Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest` (no 
 - Lint: `cargo clippy`
 - Format: `cargo fmt`
 
-<!-- brief:start -->
+<brief:generated>
 # Briefing: Brief, a best-in-class structured file format for agents
 
 **Stack:** Rust
@@ -183,6 +183,7 @@ Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest` (no 
 
 Read these files for background before starting work:
 - @README.md
+- @INDEX.md
 
 ## Constraints
 
@@ -192,4 +193,7 @@ Read these files for background before starting work:
 - **IMPORTANT:** Format takes less then sixty seconds to author
 - **IMPORTANT:** Tooling interoprates and does not replace existing file formats (Claude.md, .cursorrules, etc.)
 
-<!-- brief:end -->
+### Soft (Preferred)
+- Tool generates context both via batch and interactively.
+
+</brief:generated>
