@@ -173,3 +173,4 @@ Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest` (no 
 - Run: `cargo run -- <subcommand>`
 - Lint: `cargo clippy`
 - Format: `cargo fmt`
+
