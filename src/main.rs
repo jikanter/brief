@@ -70,6 +70,7 @@ enum Commands {
     ///   brief skill scaffold --from-workflow <path>
     ///   brief skill scaffold --interactive
     ///   brief skill validate <path>
+    ///   brief skill emit [--install]
     #[command(verbatim_doc_comment)]
     Skill {
         #[command(subcommand)]
@@ -110,6 +111,18 @@ pub enum SkillCommands {
         /// Path to the skill (directory or SKILL.md file)
         path: PathBuf,
     },
+
+    /// Emit a skill from the current briefing file
+    ///
+    /// Examples:
+    ///   brief skill emit
+    ///   brief skill emit --install
+    #[command(verbatim_doc_comment)]
+    Emit {
+        /// Install the skill to the agent's skills directory
+        #[arg(long, short)]
+        install: bool,
+    },
 }
 
 #[derive(Clone, ValueEnum)]
@@ -122,8 +135,6 @@ enum EmitTarget {
     AgentsMd,
     /// Emit structured JSON
     Json,
-    /// Emit a Claude Code SKILL.md file
-    Skill,
 }
 
 fn main() {
@@ -149,8 +160,13 @@ fn run(cli: Cli) -> Result<()> {
                 interactive,
             } => cmd_skill_scaffold(from_doc, from_workflow, interactive),
             SkillCommands::Validate { path } => cmd_skill_validate(&path),
+            SkillCommands::Emit { install } => cmd_skill_emit(&cli.file, install),
         },
     }
+}
+
+fn cmd_skill_emit(file: &PathBuf, install: bool) -> Result<()> {
+    cmd_emit_skill_internal(file, install)
 }
 
 fn cmd_skill_scaffold(
@@ -246,25 +262,10 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
         EmitTarget::Prompt => emit::emit_prompt(&brief),
         EmitTarget::AgentsMd => emit::emit_agents_md(&brief),
         EmitTarget::Json => emit::emit_json(&brief),
-        EmitTarget::Skill => emit::emit_skill(&brief),
     };
 
     if install {
         match target {
-            EmitTarget::Skill => {
-                let name = emit::skill_name(&brief);
-                let skill_dir = PathBuf::from(".claude/skills").join(&name);
-                std::fs::create_dir_all(&skill_dir)
-                    .with_context(|| format!("Failed to create {}", skill_dir.display()))?;
-                let skill_path = skill_dir.join("SKILL.md");
-                std::fs::write(&skill_path, &output)
-                    .with_context(|| format!("Failed to write {}", skill_path.display()))?;
-                println!(
-                    "{} {}",
-                    "Installed".green().bold(),
-                    skill_path.display()
-                );
-            }
             EmitTarget::Claude => {
                 let claude_md = PathBuf::from("CLAUDE.md");
                 emit::install_claude(&brief, &claude_md)
@@ -276,9 +277,36 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
                 );
             }
             _ => {
-                anyhow::bail!("--install is only supported for the claude and skill targets");
+                anyhow::bail!("--install is only supported for the claude target");
             }
         }
+    } else {
+        print!("{output}");
+    }
+
+    Ok(())
+}
+
+fn cmd_emit_skill_internal(file: &PathBuf, install: bool) -> Result<()> {
+    let content = std::fs::read_to_string(file)
+        .with_context(|| format!("Failed to read {}", file.display()))?;
+
+    let brief = parse_brief(&content).context("Failed to parse briefing")?;
+    let output = emit::emit_skill(&brief);
+
+    if install {
+        let name = emit::skill_name(&brief);
+        let skill_dir = PathBuf::from(".claude/skills").join(&name);
+        std::fs::create_dir_all(&skill_dir)
+            .with_context(|| format!("Failed to create {}", skill_dir.display()))?;
+        let skill_path = skill_dir.join("SKILL.md");
+        std::fs::write(&skill_path, &output)
+            .with_context(|| format!("Failed to write {}", skill_path.display()))?;
+        println!(
+            "{} {}",
+            "Installed".green().bold(),
+            skill_path.display()
+        );
     } else {
         print!("{output}");
     }

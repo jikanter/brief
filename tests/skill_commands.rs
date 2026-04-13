@@ -176,3 +176,30 @@ fn test_skill_validate_sample_docx_skill() {
     // so it should FAIL validation.
     cmd.assert().failure().stderr(predicate::str::contains("SKILL.md is too long"));
 }
+
+#[test]
+fn test_skill_emit() {
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.arg("--file").arg("tests/fixtures/skill.brief.md").arg("skill").arg("emit");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("name: review"))
+        .stdout(predicate::str::contains("description: Review code changes following team standards"));
+}
+
+#[test]
+fn test_skill_emit_install() {
+    let dir = tempdir().unwrap();
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    
+    // We need to run in a temp dir to avoid messing with real .claude/skills
+    cmd.current_dir(dir.path())
+        .arg("--file").arg(std::env::current_dir().unwrap().join("tests/fixtures/skill.brief.md"))
+        .arg("skill").arg("emit").arg("--install");
+    
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("Installed .claude/skills/review/SKILL.md"));
+    
+    assert!(dir.path().join(".claude/skills/review/SKILL.md").exists());
+}
