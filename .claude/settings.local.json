@@ -9,7 +9,10 @@
       "WebFetch(domain:uxplanet.org)",
       "Bash(cargo build:*)",
       "Bash(cargo test:*)",
-      "Bash(cargo clippy:*)"
+      "Bash(cargo clippy:*)",
+      "Read(//Users/admin/.config/aichat/**)",
+      "Read(//Users/admin/.config/**)",
+      "Read(//Users/admin/**)"
     ]
   }
 }

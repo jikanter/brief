@@ -13,6 +13,7 @@ These docs are **forward-looking design references**. Most backends except `clau
 | GitHub Copilot | [copilot/](copilot/) | Planned (P4). Trivial wrapper for the base case. |
 | Windsurf | [windsurf/](windsurf/) | Planned (P4). Trivial wrapper for the base case. |
 | Aider | [aider/](aider/) | Planned (P4). Two-file emit (CONVENTIONS.md + .aider.conf.yml). |
+| aichat / eridian-ai | [aichat/](aichat/) | Proposed (off-roadmap). Agents-only target — multi-file directory emit + registry append. |
 
 ## Cross-Ecosystem Divergence Matrix
 
