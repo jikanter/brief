@@ -176,6 +176,51 @@ When `--install` injects into an existing CLAUDE.md, scan for potential contradi
 
 Generate a compact constraint summary block (3-5 lines, highest-priority constraints only) suitable for periodic re-injection by agent frameworks. This addresses attention decay in long multi-turn sessions without MCP complexity.
 
+### P7: Skill discovery, scaffold, and install/uninstall — hand-editable across the boundary (effort: 3-5 days)
+
+**The use case.** A user has a skill they can describe in plain English but does not know two things:
+
+1. Whether the skill has already been built somewhere they can reuse — most realistically, somewhere in the local repo or under `~/.claude/skills/`.
+2. How to structure the resulting `SKILL.md` so it conforms to the [agentskills.io spec](../reference/standards/agentskills/specification.md) (cached locally on 2026-05-04).
+
+The existing `brief skill emit [--install]` workflow is *brief-first*: it derives a SKILL.md from a `.brief.md`. The user's authoring need is broader: they may want to start from a description string with no brief at all, or from a brief whose `skill_name` / `skill_description` are already set (per [design/frontmatter-additions.md](../design/frontmatter-additions.md)). P7 makes scaffold accept either, and — more importantly — makes the resulting SKILL.md hand-editable, the same way `brief emit claude --install` lets users hand-edit CLAUDE.md around its fenced region.
+
+**The metadata boundary (read this before designing).** The cached spec defines exactly six recognized frontmatter fields: `name`, `description`, `license`, `compatibility`, `allowed-tools`, and `metadata`. The `metadata:` map is explicitly carved out as the extension point for clients: *"Clients can use this to store additional properties not defined by the Agent Skills spec."* That sentence is brief's seam.
+
+| Region | Owner | brief's behavior |
+|---|---|---|
+| `name`, `description`, `license`, `compatibility`, `allowed-tools` | Spec / user | Write initial values during scaffold. Never overwrite on re-install. |
+| Markdown body, `scripts/`, `references/`, `assets/` | User | Write skeleton during scaffold. Never overwrite on re-install. |
+| `metadata.brief.source` | brief | A pointer back to the originating `.brief.md` (or the literal `--description` argument). The single load-bearing key — it is what re-install reads to find the skill again. Other `metadata.brief.*` keys are out of scope until a concrete consumer demands them, per the YAGNI discipline in [design/frontmatter-additions.md](../design/frontmatter-additions.md). |
+| Optional fenced body region (`<brief:generated>` / `</brief:generated>`) | brief | If brief injects body content, fence it with the same XML-style markers that `brief emit claude --install` migrated to in 2026-04-11 (HTML comments are stripped from CLAUDE.md/SKILL.md before the agent sees them — see [design-decisions.md](../design-decisions.md) "Augment, Not Replace"). Legacy `<!-- brief:start -->` / `<!-- brief:end -->` markers are recognized on read for migration. Content outside the fence is the user's. |
+
+This makes the SKILL.md a true co-edit surface: the user can rename, rewrite, or restructure anything outside `metadata.brief.source` and the optional brief fence, and `brief skill install` re-runs are non-destructive.
+
+**Proposed commands.**
+
+| Command | Purpose |
+|---|---|
+| `brief skill search <query>` | **Discovery, local-only in v1.** Match `query` against `name` + `description` across configured local skill roots (`.claude/skills/`, `.agents/skills/`, `~/.claude/skills/`). Print ranked hits with paths. Exit 0 if any hit, 1 if none. No network access — consistent with the project's "no network calls" rule in CLAUDE.md. A future entry can add public-registry search if and when that constraint is relaxed deliberately. |
+| `brief skill scaffold [--description "<text>"] [--from-brief <file>] [--name <slug>]` | **Structuring.** Generate a spec-compliant skeleton. Source precedence: `--from-brief` (uses `skill_name` / `skill_description` from `.brief.md` frontmatter) → `--description` literal → the active `.brief.md` if one is in scope. Derive a kebab-case `name`, validate it against the spec rules already in `src/skill_validate.rs`, write `SKILL.md` with `metadata.brief.source` stamped, and create empty `scripts/` + `references/`. This subsumes `brief skill init` for new skills. |
+| `brief skill install <path>` | **Install.** Sync a skill directory into the active skills root (default `.claude/skills/<name>/`). Idempotent: re-running replaces only `metadata.brief.source` and any fenced body region. Hand edits to other fields and to body content outside the fence are preserved byte-for-byte. |
+| `brief skill uninstall <name>` | **Uninstall, the canonical surface for skill removal.** Remove the installed skill if it carries the `metadata.brief.source` ownership marker and has no edits outside brief-owned regions; otherwise warn and refuse without `--force`. **P5's planned `brief emit claude --uninstall` must call into this command for skill cleanup rather than removing the skill directory directly** — P5 as currently drafted does an unconditional `rm` of the skill dir, which would clobber hand edits that this boundary is meant to protect. |
+
+**Why this is one work item.** Discovery, scaffold, and install/uninstall share the same load-bearing primitive: a clean separation of brief-owned regions from user-owned regions inside a SKILL.md. Until that separation is encoded, none of the three operations can be re-run safely on a hand-edited skill. Forcing the metadata-boundary decision once — rather than three times — is the whole point of bundling them.
+
+**Out of scope.**
+
+- Generating body *instructions* from anything other than a literal description string or an existing `.brief.md`. Body authorship is the user's job; brief only owns the metadata boundary and the optional fenced region.
+- Public-registry search (e.g., `anthropics/skills`). The agentskills.io quickstart calls that repo "Example skills," not a curated registry, and pulling it would require network access — see the discovery row above. Track separately if/when needed.
+- Semantic / LLM-powered search. v1 is substring + keyword match.
+- Cross-product install targets beyond `.claude/skills/`. The existing `brief skill emit --install` target is the one to mirror first.
+- Additional `metadata.brief.*` keys (e.g., `brief.version`, `brief.installed-at`). They were considered, did not pass the YAGNI bar — `brief.source` alone is what re-install needs to locate the skill again. Add later only when a concrete consumer demands one.
+
+**Connection to existing work.** Builds directly on `src/skill_init.rs` (slug derivation — likely folded into `scaffold`), `src/skill_validate.rs` (the spec checks already in place), `src/emit/skill.rs` (body templating), and the marker-replacement logic in `src/emit/claude.rs` lines 5-6, 113-154 (active markers + legacy migration). The `--from-brief` source mode lets P7 reuse `brief skill emit`'s body generator wholesale; the `--description` mode is the genuinely new path.
+
+**Mission framing (worth flagging).** P7 introduces a *skill-first* authoring path (`scaffold --description`) that does not require a `.brief.md` at all. This is a step beyond brief's stated mission ("CLI that reads `.brief.md` files and emits to targets") and toward the broader framing in [design-decisions.md](../design-decisions.md) ("a tool that writes to multiple integration surfaces"). The decision to take that step should be made deliberately, not absorbed silently as part of P7. If the team prefers to keep brief strictly brief-first, drop `--description` and require `--from-brief`; the rest of P7 still stands.
+
+**Status.** Proposed. The boundary itself is forced — any of the three commands needs it — so it is the first sub-task regardless of which command ships first. P5 must be revised to call P7's `brief skill uninstall` rather than unconditionally removing the skill directory.
+
 ### Long-term / On-demand
 
 | Item | When to build | Notes |

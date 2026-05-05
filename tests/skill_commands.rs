@@ -303,6 +303,30 @@ fn test_skill_emit() {
 }
 
 #[test]
+fn test_skill_emit_install_stamps_metadata_brief_source() {
+    let dir = tempdir().unwrap();
+    let brief_path = dir.path().join("review.brief.md");
+    let content = "---\nstack: [Rust]\nskill_name: review\nskill_description: Review code\n---\n\n# Review code\n\n## Deliverable\nReview comments.\n";
+    fs::write(&brief_path, content).unwrap();
+
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.current_dir(dir.path())
+        .arg("--file")
+        .arg(&brief_path)
+        .arg("skill")
+        .arg("emit")
+        .arg("--install");
+    cmd.assert().success();
+
+    let installed = dir.path().join(".claude/skills/review/SKILL.md");
+    let body = fs::read_to_string(&installed).unwrap();
+    assert!(
+        body.contains("metadata:\n  brief.source: ../../../review.brief.md"),
+        "expected metadata.brief.source pointing back to the brief, got:\n{body}"
+    );
+}
+
+#[test]
 fn test_skill_emit_install() {
     let dir = tempdir().unwrap();
     let mut cmd = Command::cargo_bin("brief").unwrap();

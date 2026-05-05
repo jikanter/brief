@@ -114,3 +114,21 @@ pub fn validate_skill(path: &PathBuf) -> Result<()> {
     println!("SKILL.md at {:?} is valid.", skill_md_path);
     Ok(())
 }
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::*;
+
+    #[test]
+    fn validator_accepts_metadata_block_with_brief_source() {
+        let content = "---\n\
+name: review\n\
+description: Review code\n\
+metadata:\n  \
+  brief.source: ../../some.brief.md\n\
+---\n\n\
+Body.\n";
+        validate_skill_content(content)
+            .expect("metadata block with brief.source should be accepted");
+    }
+}

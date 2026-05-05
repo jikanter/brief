@@ -1,0 +1,1 @@
+- Brief currently strips markdown links from soft sections

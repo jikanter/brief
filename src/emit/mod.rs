@@ -8,4 +8,4 @@ pub use agents_md::emit_agents_md;
 pub use claude::{emit_claude, install_claude};
 pub use json::emit_json;
 pub use prompt::emit_prompt;
-pub use skill::{emit_skill, skill_name};
+pub use skill::{emit_skill, relative_path, skill_name};

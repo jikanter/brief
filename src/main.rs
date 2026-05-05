@@ -272,16 +272,23 @@ fn cmd_emit_skill_internal(file: &PathBuf, install: bool) -> Result<()> {
         .with_context(|| format!("Failed to read {}", file.display()))?;
 
     let brief = parse_brief(&content).context("Failed to parse briefing")?;
-    let output = emit::emit_skill(&brief);
-
-    validate_skill_content(&output)
-        .context("Emitted SKILL.md would not pass agentskills.io validation")?;
 
     if install {
         let name = emit::skill_name(&brief);
         let skill_dir = PathBuf::from(".claude/skills").join(&name);
         std::fs::create_dir_all(&skill_dir)
             .with_context(|| format!("Failed to create {}", skill_dir.display()))?;
+
+        let brief_canon = std::fs::canonicalize(file)
+            .with_context(|| format!("Failed to canonicalize {}", file.display()))?;
+        let dir_canon = std::fs::canonicalize(&skill_dir)
+            .with_context(|| format!("Failed to canonicalize {}", skill_dir.display()))?;
+        let source = emit::relative_path(&brief_canon, &dir_canon);
+
+        let output = emit::emit_skill(&brief, Some(&source));
+        validate_skill_content(&output)
+            .context("Emitted SKILL.md would not pass agentskills.io validation")?;
+
         let skill_path = skill_dir.join("SKILL.md");
         std::fs::write(&skill_path, &output)
             .with_context(|| format!("Failed to write {}", skill_path.display()))?;
@@ -291,6 +298,9 @@ fn cmd_emit_skill_internal(file: &PathBuf, install: bool) -> Result<()> {
             skill_path.display()
         );
     } else {
+        let output = emit::emit_skill(&brief, None);
+        validate_skill_content(&output)
+            .context("Emitted SKILL.md would not pass agentskills.io validation")?;
         print!("{output}");
     }
 

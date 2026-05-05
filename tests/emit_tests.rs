@@ -123,7 +123,7 @@ fn emit_json_from_full_fixture_is_valid() {
 #[test]
 fn emit_skill_from_skill_fixture() {
     let brief = parse_brief(&fixture("skill.brief.md")).unwrap();
-    let output = emit::emit_skill(&brief);
+    let output = emit::emit_skill(&brief, None);
 
     // Frontmatter
     assert!(output.starts_with("---\n"));
@@ -165,7 +165,7 @@ fn emit_skill_from_skill_fixture() {
 #[test]
 fn emit_skill_from_full_fixture_derives_name() {
     let brief = parse_brief(&fixture("full.brief.md")).unwrap();
-    let output = emit::emit_skill(&brief);
+    let output = emit::emit_skill(&brief, None);
 
     // Should slugify the goal since no skill_name in frontmatter
     assert!(output.contains("name: build-real-time-collaborative-document-editor\n"));

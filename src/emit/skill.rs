@@ -1,4 +1,20 @@
+use std::path::Path;
+
 use crate::model::Brief;
+
+/// Compute the relative path from `from_dir` to `to_path`.
+/// Both inputs must be absolute and normalized.
+pub fn relative_path(to_path: &Path, from_dir: &Path) -> String {
+    let to: Vec<_> = to_path.components().collect();
+    let from: Vec<_> = from_dir.components().collect();
+    let common = to.iter().zip(from.iter()).take_while(|(a, b)| a == b).count();
+    let ups = from.len() - common;
+    let mut parts: Vec<String> = (0..ups).map(|_| "..".to_string()).collect();
+    for c in &to[common..] {
+        parts.push(c.as_os_str().to_string_lossy().into_owned());
+    }
+    parts.join("/")
+}
 
 /// Derive a skill name slug from the goal text.
 fn slugify(goal: &str) -> String {
@@ -13,7 +29,11 @@ fn slugify(goal: &str) -> String {
 }
 
 /// Emit a Claude Code SKILL.md file from a Brief.
-pub fn emit_skill(brief: &Brief) -> String {
+///
+/// `source` is the relative path back to the originating `.brief.md`, computed
+/// by the caller relative to the SKILL.md's eventual location. When provided,
+/// it is stamped as `metadata.brief.source` so re-installs can find the source.
+pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
     let mut out = String::new();
 
     let name = brief
@@ -33,6 +53,10 @@ pub fn emit_skill(brief: &Brief) -> String {
     out.push_str("---\n");
     out.push_str(&format!("name: {name}\n"));
     out.push_str(&format!("description: {description}\n"));
+    if let Some(src) = source {
+        out.push_str("metadata:\n");
+        out.push_str(&format!("  brief.source: {src}\n"));
+    }
     out.push_str("---\n\n");
 
     // Opening instruction from goal
@@ -141,6 +165,76 @@ mod tests {
     }
 
     #[test]
+    fn relative_path_three_levels_up() {
+        let result = relative_path(
+            std::path::Path::new("/work/proj/some.brief.md"),
+            std::path::Path::new("/work/proj/.claude/skills/review"),
+        );
+        assert_eq!(result, "../../../some.brief.md");
+    }
+
+    #[test]
+    fn relative_path_sibling_dir() {
+        let result = relative_path(
+            std::path::Path::new("/work/proj/briefs/x.brief.md"),
+            std::path::Path::new("/work/proj/skills/review"),
+        );
+        assert_eq!(result, "../../briefs/x.brief.md");
+    }
+
+    #[test]
+    fn emit_stamps_metadata_brief_source_when_given() {
+        let brief = Brief {
+            frontmatter: Frontmatter {
+                skill_name: Some("review".into()),
+                skill_description: Some("Review code".into()),
+                ..Default::default()
+            },
+            goal: "Review code".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_skill(&brief, Some("../../some.brief.md"));
+        assert!(
+            output.contains("metadata:"),
+            "expected metadata block in output:\n{output}"
+        );
+        assert!(
+            output.contains("brief.source: ../../some.brief.md"),
+            "expected brief.source key in output:\n{output}"
+        );
+    }
+
+    #[test]
+    fn emit_omits_metadata_when_no_source() {
+        let brief = Brief {
+            frontmatter: Frontmatter {
+                skill_name: Some("review".into()),
+                skill_description: Some("Review code".into()),
+                ..Default::default()
+            },
+            goal: "Review code".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_skill(&brief, None);
+        assert!(
+            !output.contains("metadata:"),
+            "expected no metadata block when source is None:\n{output}"
+        );
+        assert!(
+            !output.contains("brief.source"),
+            "expected no brief.source key when source is None:\n{output}"
+        );
+    }
+
+    #[test]
     fn emit_uses_explicit_skill_name() {
         let brief = Brief {
             frontmatter: Frontmatter {
@@ -156,7 +250,7 @@ mod tests {
             deliverable: None,
             unknown_sections: vec![],
         };
-        let output = emit_skill(&brief);
+        let output = emit_skill(&brief, None);
         assert!(output.contains("name: review\n"));
         assert!(output.contains("description: Review code following team standards\n"));
     }
@@ -175,7 +269,7 @@ mod tests {
             deliverable: None,
             unknown_sections: vec![],
         };
-        let output = emit_skill(&brief);
+        let output = emit_skill(&brief, None);
         assert!(output.contains("name: deploy-the-service\n"));
         assert!(output.contains("description: Deploy the service\n"));
     }
@@ -195,7 +289,7 @@ mod tests {
             deliverable: None,
             unknown_sections: vec![],
         };
-        let output = emit_skill(&brief);
+        let output = emit_skill(&brief, None);
         assert!(output.contains("## Rules"));
         assert!(output.contains("You MUST follow these rules:"));
         assert!(output.contains("- No breaking changes"));
@@ -220,7 +314,7 @@ mod tests {
             deliverable: None,
             unknown_sections: vec![],
         };
-        let output = emit_skill(&brief);
+        let output = emit_skill(&brief, None);
         assert!(output.contains("## Protected regions"));
         assert!(output.contains("`src/auth/**` — SOC2 audited"));
     }
@@ -247,7 +341,7 @@ mod tests {
             deliverable: None,
             unknown_sections: vec![],
         };
-        let output = emit_skill(&brief);
+        let output = emit_skill(&brief, None);
         assert!(output.contains("## Verify before proceeding"));
         assert!(output.contains("- Redis is available"));
         // Validated assumptions should NOT appear in verification section
@@ -268,7 +362,7 @@ mod tests {
             deliverable: None,
             unknown_sections: vec![],
         };
-        let output = emit_skill(&brief);
+        let output = emit_skill(&brief, None);
         assert!(output.contains("read these files for context"));
         assert!(output.contains("`./docs/arch.md`"));
         assert!(output.contains("`./README.md`"));
@@ -285,7 +379,7 @@ mod tests {
             deliverable: Some("Working code with tests.\n".into()),
             unknown_sections: vec![],
         };
-        let output = emit_skill(&brief);
+        let output = emit_skill(&brief, None);
         assert!(output.contains("## Expected output"));
         assert!(output.contains("Working code with tests."));
     }
@@ -304,7 +398,7 @@ mod tests {
                 content: "- Build: `cargo build`".into(),
             }],
         };
-        let output = emit_skill(&brief);
+        let output = emit_skill(&brief, None);
         assert!(output.contains("## Commands"));
         assert!(output.contains("- Build: `cargo build`"));
     }
@@ -323,7 +417,7 @@ mod tests {
             deliverable: None,
             unknown_sections: vec![],
         };
-        let output = emit_skill(&brief);
+        let output = emit_skill(&brief, None);
         assert!(output.contains("This project uses Python 3.12, PostgreSQL 16."));
     }
 }
