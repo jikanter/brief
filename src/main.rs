@@ -256,8 +256,18 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
                     claude_md.display()
                 );
             }
+            EmitTarget::AgentsMd => {
+                let agents_md = PathBuf::from("AGENTS.md");
+                emit::install_agents_md(&brief, &agents_md)
+                    .with_context(|| "Failed to install briefing into AGENTS.md")?;
+                println!(
+                    "{} briefing into {}",
+                    "Installed".green().bold(),
+                    agents_md.display()
+                );
+            }
             _ => {
-                anyhow::bail!("--install is only supported for the claude target");
+                anyhow::bail!("--install is only supported for the claude and agents-md targets");
             }
         }
     } else {
