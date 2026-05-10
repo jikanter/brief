@@ -7,7 +7,11 @@ use crate::model::Brief;
 pub fn relative_path(to_path: &Path, from_dir: &Path) -> String {
     let to: Vec<_> = to_path.components().collect();
     let from: Vec<_> = from_dir.components().collect();
-    let common = to.iter().zip(from.iter()).take_while(|(a, b)| a == b).count();
+    let common = to
+        .iter()
+        .zip(from.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
     let ups = from.len() - common;
     let mut parts: Vec<String> = (0..ups).map(|_| "..".to_string()).collect();
     for c in &to[common..] {
@@ -106,7 +110,9 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
 
     // Sacred / protected regions
     if !brief.sacred.is_empty() {
-        out.push_str("\n## Protected regions\n\nDo NOT modify or suggest changes to these files:\n");
+        out.push_str(
+            "\n## Protected regions\n\nDo NOT modify or suggest changes to these files:\n",
+        );
         for entry in &brief.sacred {
             out.push_str(&format!("- `{}` — {}\n", entry.path, entry.reason));
         }
@@ -133,7 +139,10 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
 
     // Unknown sections (passthrough)
     for section in &brief.unknown_sections {
-        out.push_str(&format!("\n## {}\n\n{}\n", section.heading, section.content));
+        out.push_str(&format!(
+            "\n## {}\n\n{}\n",
+            section.heading, section.content
+        ));
     }
 
     out
@@ -158,10 +167,7 @@ mod tests {
     fn slugify_basic() {
         assert_eq!(slugify("Fix the login bug"), "fix-the-login-bug");
         assert_eq!(slugify("Review Code!"), "review-code");
-        assert_eq!(
-            slugify("  Spaces  and---dashes  "),
-            "spaces-and-dashes"
-        );
+        assert_eq!(slugify("  Spaces  and---dashes  "), "spaces-and-dashes");
     }
 
     #[test]

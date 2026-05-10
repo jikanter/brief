@@ -119,7 +119,9 @@ The scope split above is the principle. Applied to the content categories users 
 
 The common confusion: users try to put standing project conventions into a brief's Soft constraints, and then re-author the same list every task. If it doesn't change task-to-task, it belongs in CLAUDE.md, not brief.
 
-The `--install` flag implements this via `<brief:generated>` / `</brief:generated>` XML-style markers for idempotent injection. The brief section is placed alongside (not instead of) existing CLAUDE.md content. (Earlier versions used HTML-comment markers, but Claude Code strips HTML comments from CLAUDE.md before the model sees it, which rendered briefings invisible to the agent. Legacy markers are still recognized on read and migrated to the new format on the next `--install`.)
+The `--install` flag implements this via `<brief:generated>` / `</brief:generated>` XML-style markers for idempotent injection. The brief section is placed alongside (not instead of) existing CLAUDE.md content. 
+(Earlier versions used HTML-comment markers, but Claude Code strips HTML comments from CLAUDE.md before the model sees it, 
+which rendered briefings invisible to the agent. Legacy markers are still recognized on read and migrated to the new format on the next `--install`.)
 
 ## `--install` as the Integration Paradigm (Phase 2 Decision)
 

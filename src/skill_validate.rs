@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
@@ -71,8 +71,8 @@ pub fn validate_skill_content(content: &str) -> Result<()> {
         .ok_or_else(|| anyhow!("Unclosed frontmatter in SKILL.md"))?;
 
     let yaml_str = &after_opening[..end_pos];
-    let fm: SkillFrontmatter = serde_yaml::from_str(yaml_str)
-        .context("Failed to parse YAML frontmatter in SKILL.md")?;
+    let fm: SkillFrontmatter =
+        serde_yaml::from_str(yaml_str).context("Failed to parse YAML frontmatter in SKILL.md")?;
 
     validate_skill_name(&fm.name)?;
 

@@ -13,7 +13,8 @@
       "Read(//Users/admin/.config/aichat/**)",
       "Read(//Users/admin/.config/**)",
       "Read(//Users/admin/**)",
-      "Bash(grep -B1 -A4 \"items after a test module\\\\|writing \\\\`&PathBuf\\\\`\")"
+      "Bash(grep -B1 -A4 \"items after a test module\\\\|writing \\\\`&PathBuf\\\\`\")",
+      "Bash(showboat note *)"
     ]
   }
 }

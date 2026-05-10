@@ -186,7 +186,8 @@ stale content\n\
 <!-- brief:end -->\n\
 \n\
 ## Other\n";
-        let section = "<brief:generated>\n# Briefing: New task\nfresh content\n</brief:generated>\n";
+        let section =
+            "<brief:generated>\n# Briefing: New task\nfresh content\n</brief:generated>\n";
         let (result, pairs) = inject_section(existing, section);
         assert_eq!(pairs, 1);
         assert!(!result.contains("<!-- brief:start -->"));

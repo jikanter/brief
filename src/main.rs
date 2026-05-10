@@ -121,6 +121,8 @@ enum EmitTarget {
     Prompt,
     /// Emit an AGENTS.md section
     AgentsMd,
+    /// Emit a Cursor `.cursor/rules/brief.mdc` rule
+    Cursor,
     /// Emit structured JSON
     Json,
 }
@@ -241,6 +243,7 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
         EmitTarget::Claude => emit::emit_claude(&brief),
         EmitTarget::Prompt => emit::emit_prompt(&brief),
         EmitTarget::AgentsMd => emit::emit_agents_md(&brief),
+        EmitTarget::Cursor => emit::emit_cursor(&brief),
         EmitTarget::Json => emit::emit_json(&brief),
     };
 
@@ -266,8 +269,20 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
                     agents_md.display()
                 );
             }
+            EmitTarget::Cursor => {
+                let base = std::env::current_dir().context("Failed to get current directory")?;
+                let written = emit::install_cursor(&brief, &base)
+                    .with_context(|| "Failed to install briefing into .cursor/rules/brief.mdc")?;
+                println!(
+                    "{} briefing into {}",
+                    "Installed".green().bold(),
+                    written.display()
+                );
+            }
             _ => {
-                anyhow::bail!("--install is only supported for the claude and agents-md targets");
+                anyhow::bail!(
+                    "--install is only supported for the claude, agents-md, and cursor targets"
+                );
             }
         }
     } else {
@@ -302,11 +317,7 @@ fn cmd_emit_skill_internal(file: &PathBuf, install: bool) -> Result<()> {
         let skill_path = skill_dir.join("SKILL.md");
         std::fs::write(&skill_path, &output)
             .with_context(|| format!("Failed to write {}", skill_path.display()))?;
-        println!(
-            "{} {}",
-            "Installed".green().bold(),
-            skill_path.display()
-        );
+        println!("{} {}", "Installed".green().bold(), skill_path.display());
     } else {
         let output = emit::emit_skill(&brief, None);
         validate_skill_content(&output)

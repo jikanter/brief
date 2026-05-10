@@ -81,7 +81,10 @@ pub fn emit_agents_md(brief: &Brief) -> String {
 
     // Unknown sections (passthrough)
     for section in &brief.unknown_sections {
-        out.push_str(&format!("\n## {}\n\n{}\n", section.heading, section.content));
+        out.push_str(&format!(
+            "\n## {}\n\n{}\n",
+            section.heading, section.content
+        ));
     }
 
     out

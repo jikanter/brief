@@ -1,6 +1,6 @@
 # Cursor Backend
 
-**Status:** Planned (phase2-synthesis P4). The one P4 emitter explicitly flagged as "real work — meaningfully different format requiring a dedicated emitter."
+**Status:** In-Progress (phase2-synthesis P4). The one P4 emitter explicitly flagged as "real work — meaningfully different format requiring a dedicated emitter."
 
 ## Target file format
 

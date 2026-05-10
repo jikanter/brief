@@ -179,9 +179,11 @@ mod tests {
             well_formed: false,
         }];
         let diags = validate(&brief, tmp.path());
-        assert!(diags
-            .iter()
-            .any(|d| d.severity == Severity::Error && d.message.contains("backticks")));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.severity == Severity::Error && d.message.contains("backticks"))
+        );
     }
 
     #[test]
@@ -194,8 +196,10 @@ mod tests {
             has_checkbox: false,
         }];
         let diags = validate(&brief, tmp.path());
-        assert!(diags
-            .iter()
-            .any(|d| d.severity == Severity::Error && d.message.contains("checkbox")));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.severity == Severity::Error && d.message.contains("checkbox"))
+        );
     }
 }

@@ -100,9 +100,9 @@ Check the current `.brief.md` against the codebase.
 Transform `.brief.md` into a target format.
 
 Targets:
-- `claude` — Emit a `CLAUDE.md` section with constraints formatted as Claude Code conventions. This is the primary target.
+- `claude` — Emit a `CLAUDE.md` section with constraints formatted as Claude Code conventions. Supports `--install` (idempotently injects/replaces a `<brief:generated>` section in `CLAUDE.md`).
 - `prompt` — Emit raw system prompt text suitable for API use.
-- `agents-md` — Emit an `AGENTS.md` compatible section.
+- `agents-md` — Emit an `AGENTS.md`-compatible section. This is the cross-vendor convention at agents.md (used by OpenAI Codex CLI, Cursor, Amp, Google Jules, etc.). Supports `--install` with the same `<brief:generated>` marker behavior as the `claude` target. Codex CLI is the canonical "CLAUDE.md equivalent" consumer: it reads `AGENTS.md` from the project root, passes the file's raw bytes to the model wrapped in `<INSTRUCTIONS>...</INSTRUCTIONS>` with no Markdown rendering or HTML-comment stripping, so the brief markers survive intact. Note: do not put a literal `</INSTRUCTIONS>` substring in a brief, as it would collide with Codex's own wrapper (brief itself never emits one).
 - `json` — Emit the parsed briefing as structured JSON (for tooling integration).
 
 ### `brief check <path>`
@@ -132,9 +132,10 @@ brief/
 │   ├── validate.rs        # Validation logic
 │   ├── emit/
 │   │   ├── mod.rs
-│   │   ├── claude.rs      # CLAUDE.md emitter
+│   │   ├── markers.rs     # Shared <brief:generated> marker logic for installers
+│   │   ├── claude.rs      # CLAUDE.md emitter + installer
 │   │   ├── prompt.rs      # Raw prompt emitter
-│   │   ├── agents_md.rs   # AGENTS.md emitter
+│   │   ├── agents_md.rs   # AGENTS.md emitter + installer (Codex / cross-vendor)
 │   │   └── json.rs        # JSON emitter
 │   ├── init.rs            # Repo analyzer + scaffolder
 │   └── check.rs           # Sacred path checker
@@ -174,7 +175,7 @@ Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest` (no 
 - Lint: `cargo clippy`
 - Format: `cargo fmt`
 
-<!-- brief:start -->
+<brief:generated>
 # Briefing: Brief, a best-in-class structured file format for agents
 
 **Stack:** Rust
@@ -192,4 +193,11 @@ Read these files for background before starting work:
 - **IMPORTANT:** Format takes less then sixty seconds to author
 - **IMPORTANT:** Tooling interoprates and does not replace existing file formats (Claude.md, .cursorrules, etc.)
 
-<!-- brief:end -->
+### Soft (Preferred)
+- The format should be dogfoodable. In other words, the .brief.md of the brief project should be the first use-case.
+
+## Deliverable
+A human-authorable format with multiple outputs that can control different pieces of the runtime. Secondarily,
+the format should be extensible in order to support new use cases and new formats.
+</brief:generated>
+

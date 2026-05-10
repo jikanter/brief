@@ -164,9 +164,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
 
             // Content outside list items (e.g., deliverable paragraphs)
             Event::Start(Tag::Paragraph)
-                if !in_item
-                    && !in_heading
-                    && !matches!(current_section, Section::Unknown(_)) =>
+                if !in_item && !in_heading && !matches!(current_section, Section::Unknown(_)) =>
             {
                 in_paragraph = true;
             }
@@ -198,8 +196,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
     }
 
     // Finalize any trailing unknown section
-    if let (Section::Unknown(name), Some(start)) = 
-        (&current_section, unknown_section_start) {
+    if let (Section::Unknown(name), Some(start)) = (&current_section, unknown_section_start) {
         let raw = input[start..].trim();
         if !raw.is_empty() {
             unknown_sections.push(UnknownSection {
@@ -213,11 +210,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
         None
     } else {
         let text = state.deliverable_parts.join("").trim().to_string();
-        if text.is_empty() {
-            None
-        } else {
-            Some(text)
-        }
+        if text.is_empty() { None } else { Some(text) }
     };
 
     ParsedBody {
@@ -278,7 +271,9 @@ fn process_item(
             }
         }
         Section::Deliverable => {
-            state.deliverable_parts.push(segments_to_plain_text(segments));
+            state
+                .deliverable_parts
+                .push(segments_to_plain_text(segments));
         }
         // Unknown sections use raw Markdown capture, not event-based accumulation
         Section::Unknown(_) | Section::None => {}
@@ -453,10 +448,11 @@ mod tests {
         let md = "## Deliverable\nWorking code with tests.\n";
         let body = parse_body(md);
         assert!(body.deliverable.is_some());
-        assert!(body
-            .deliverable
-            .unwrap()
-            .contains("Working code with tests"));
+        assert!(
+            body.deliverable
+                .unwrap()
+                .contains("Working code with tests")
+        );
     }
 
     #[test]
@@ -465,9 +461,11 @@ mod tests {
         let body = parse_body(md);
         assert_eq!(body.unknown_sections.len(), 1);
         assert_eq!(body.unknown_sections[0].heading, "Custom Section");
-        assert!(body.unknown_sections[0]
-            .content
-            .contains("Some custom content"));
+        assert!(
+            body.unknown_sections[0]
+                .content
+                .contains("Some custom content")
+        );
     }
 
     #[test]
@@ -477,14 +475,26 @@ mod tests {
         assert_eq!(body.unknown_sections.len(), 2);
         // Commands section preserves list with code spans
         assert_eq!(body.unknown_sections[0].heading, "Commands");
-        assert!(body.unknown_sections[0].content.contains("- Build: `cargo build`"));
-        assert!(body.unknown_sections[0].content.contains("- Test: `cargo test`"));
+        assert!(
+            body.unknown_sections[0]
+                .content
+                .contains("- Build: `cargo build`")
+        );
+        assert!(
+            body.unknown_sections[0]
+                .content
+                .contains("- Test: `cargo test`")
+        );
         // Style section preserves emphasis, code, sub-headings, and links
         assert_eq!(body.unknown_sections[1].heading, "Style");
         assert!(body.unknown_sections[1].content.contains("**strict**"));
         assert!(body.unknown_sections[1].content.contains("`thiserror`"));
         assert!(body.unknown_sections[1].content.contains("### Sub-heading"));
-        assert!(body.unknown_sections[1].content.contains("[links](http://example.com)"));
+        assert!(
+            body.unknown_sections[1]
+                .content
+                .contains("[links](http://example.com)")
+        );
     }
 
     #[test]

@@ -1,6 +1,11 @@
 # Brief - Structured Briefings for AI Agents
 
-Structured briefing format for AI coding agents.
+*Very Important* Agents: Read [Claude.md](./CLAUDE.md) to better understand the projects
+
+Brief is a structured briefing format for AI agents. It is designed to be human-writable, opinionated,
+and more heavily structured than other formats. It includes a CLI to validate, compose, and emit 
+briefings non-destructively, leveraging context-dependent pattern matching to ensure 
+interoperability.
 
 `brief` provides a fast, familiar format (`.brief.md`) for humans to express intent, constraints, commands, and sacred code regions to AI agents — and a CLI to validate, compose, and emit those briefings to multiple agent runtimes.
 
@@ -13,8 +18,11 @@ brief init
 # Validate against your codebase
 brief validate
 
-# Emit for Claude Code
-brief emit claude > CLAUDE.md
+# Emit for Claude Code (idempotent install into CLAUDE.md)
+brief emit claude --install
+
+# Emit for OpenAI Codex / cross-vendor agents (idempotent install into AGENTS.md)
+brief emit agents-md --install
 
 # Check if a path is sacred
 brief check src/auth/handler.rs

@@ -21,7 +21,9 @@ fn test_skill_init_help() {
 #[test]
 fn test_skill_validate_fails_on_missing_file() {
     let mut cmd = Command::cargo_bin("brief").unwrap();
-    cmd.arg("skill").arg("validate").arg("non_existent_skill.md");
+    cmd.arg("skill")
+        .arg("validate")
+        .arg("non_existent_skill.md");
     cmd.assert()
         .failure()
         .stderr(predicate::str::contains("not found at"));
@@ -123,10 +125,7 @@ fn test_skill_validate_rejects_name_over_64_chars() {
     let dir = tempdir().unwrap();
     let skill_path = dir.path().join("SKILL.md");
     let long_name = "a".repeat(65);
-    let content = format!(
-        "---\nname: {}\ndescription: test\n---\n\nBody\n",
-        long_name
-    );
+    let content = format!("---\nname: {}\ndescription: test\n---\n\nBody\n", long_name);
     fs::write(&skill_path, content).unwrap();
 
     let mut cmd = Command::cargo_bin("brief").unwrap();
@@ -140,8 +139,7 @@ fn test_skill_validate_rejects_name_over_64_chars() {
 fn test_skill_validate_rejects_angle_brackets_in_description() {
     let dir = tempdir().unwrap();
     let skill_path = dir.path().join("SKILL.md");
-    let content =
-        "---\nname: foo\ndescription: Use <tool> to process input\n---\n\nBody\n";
+    let content = "---\nname: foo\ndescription: Use <tool> to process input\n---\n\nBody\n";
     fs::write(&skill_path, content).unwrap();
 
     let mut cmd = Command::cargo_bin("brief").unwrap();
@@ -343,11 +341,9 @@ fn test_skill_emit_install() {
         .arg("emit")
         .arg("--install");
 
-    cmd.assert()
-        .success()
-        .stdout(predicate::str::contains(
-            "Installed .claude/skills/review/SKILL.md",
-        ));
+    cmd.assert().success().stdout(predicate::str::contains(
+        "Installed .claude/skills/review/SKILL.md",
+    ));
 
     assert!(dir.path().join(".claude/skills/review/SKILL.md").exists());
 }

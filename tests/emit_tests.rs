@@ -201,6 +201,40 @@ fn round_trip_json_preserves_structure() {
     assert!(first_sacred.get("well_formed").is_some());
 }
 
+// -- Cursor emitter --
+
+#[test]
+fn emit_cursor_from_full_fixture() {
+    let brief = parse_brief(&fixture("full.brief.md")).unwrap();
+    let output = emit::emit_cursor(&brief);
+
+    // Frontmatter
+    assert!(output.starts_with("---\n"));
+    assert!(output.contains("description: Build real-time collaborative document editor\n"));
+    assert!(output.contains("alwaysApply: true\n"));
+
+    // Body
+    assert!(output.contains("# Build real-time collaborative document editor"));
+    assert!(output.contains("**Stack:** TypeScript 5.4"));
+    assert!(output.contains("## Required"));
+    assert!(output.contains("- WebSocket connections must support 10k"));
+    assert!(output.contains("## Preferred"));
+    assert!(output.contains("- Prefer Yjs"));
+    assert!(output.contains("## Ask First"));
+    assert!(output.contains("- Changes to the shared state schema"));
+    assert!(output.contains("## Protected Files"));
+    assert!(output.contains("`src/core/crdt-engine/**`"));
+    assert!(output.contains("## Verify"));
+    assert!(output.contains("## Deliverable"));
+
+    // Unknown sections preserved
+    assert!(output.contains("## Commands"));
+    assert!(output.contains("## Code Style"));
+
+    // Descriptive register — no Claude-flavored IMPORTANT prefix
+    assert!(!output.contains("**IMPORTANT:**"));
+}
+
 // -- install_claude tests with CLAUDE.md fixtures --
 
 /// Copy a fixture CLAUDE.md into a temp directory and return the path to it.

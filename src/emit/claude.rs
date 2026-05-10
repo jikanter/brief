@@ -19,7 +19,9 @@ pub fn emit_claude(brief: &Brief) -> String {
 
     // Context
     if !brief.frontmatter.context.is_empty() {
-        out.push_str("## Reference Context\n\nRead these files for background before starting work:\n");
+        out.push_str(
+            "## Reference Context\n\nRead these files for background before starting work:\n",
+        );
         for ctx in &brief.frontmatter.context {
             let clean = ctx.strip_prefix("./").unwrap_or(ctx);
             out.push_str(&format!("- @{clean}\n"));
@@ -88,7 +90,10 @@ pub fn emit_claude(brief: &Brief) -> String {
 
     // Unknown sections (passthrough)
     for section in &brief.unknown_sections {
-        out.push_str(&format!("\n## {}\n\n{}\n", section.heading, section.content));
+        out.push_str(&format!(
+            "\n## {}\n\n{}\n",
+            section.heading, section.content
+        ));
     }
 
     out
