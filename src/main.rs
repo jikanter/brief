@@ -125,6 +125,8 @@ enum EmitTarget {
     Cursor,
     /// Emit structured JSON
     Json,
+    /// Emit Anthropic-style XML tags for API system prompts
+    Xml,
 }
 
 fn main() {
@@ -245,6 +247,7 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
         EmitTarget::AgentsMd => emit::emit_agents_md(&brief),
         EmitTarget::Cursor => emit::emit_cursor(&brief),
         EmitTarget::Json => emit::emit_json(&brief),
+        EmitTarget::Xml => emit::emit_xml(&brief),
     };
 
     if install {

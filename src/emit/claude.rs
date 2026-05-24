@@ -4,6 +4,14 @@ use crate::emit::markers::{inject_section, wrap_with_markers};
 use crate::model::Brief;
 
 /// Emit a CLAUDE.md-compatible section from a Brief.
+///
+/// The Markdown skeleton (`# Briefing`, `## Constraints`, `## Sacred Regions`)
+/// is preserved so the file still reads cleanly to humans. Each section's
+/// body is wrapped in an Anthropic-canonical XML tag (`<context>`, `<rules>`,
+/// `<protected_files>`, `<assumptions>`, `<deliverable>`) so Claude — which
+/// has strong priors on those tag names from Anthropic's own prompting
+/// guidance — can latch onto the structure when CLAUDE.md is passed through
+/// to the model.
 pub fn emit_claude(brief: &Brief) -> String {
     let mut out = String::new();
 
@@ -17,19 +25,21 @@ pub fn emit_claude(brief: &Brief) -> String {
         ));
     }
 
-    // Context
+    // Context — wrapped in <context> per Anthropic's prompting guide.
     if !brief.frontmatter.context.is_empty() {
         out.push_str(
-            "## Reference Context\n\nRead these files for background before starting work:\n",
+            "## Reference Context\n\nRead these files for background before starting work:\n\n",
         );
+        out.push_str("<context>\n");
         for ctx in &brief.frontmatter.context {
             let clean = ctx.strip_prefix("./").unwrap_or(ctx);
             out.push_str(&format!("- @{clean}\n"));
         }
-        out.push('\n');
+        out.push_str("</context>\n\n");
     }
 
-    // Constraints
+    // Constraints — each tier wrapped in <rules priority="..."> so Claude
+    // sees a tagged structure under the human-readable Markdown headings.
     let has_constraints = !brief.constraints.hard.is_empty()
         || !brief.constraints.soft.is_empty()
         || !brief.constraints.ask_first.is_empty();
@@ -38,57 +48,64 @@ pub fn emit_claude(brief: &Brief) -> String {
         out.push_str("## Constraints\n\n");
 
         if !brief.constraints.hard.is_empty() {
-            out.push_str("### Hard (Non-negotiable)\n");
+            out.push_str("### Hard (Non-negotiable)\n\n");
+            out.push_str("<rules priority=\"required\">\n");
             for c in &brief.constraints.hard {
                 out.push_str(&format!("- **IMPORTANT:** {c}\n"));
             }
-            out.push('\n');
+            out.push_str("</rules>\n\n");
         }
 
         if !brief.constraints.soft.is_empty() {
-            out.push_str("### Soft (Preferred)\n");
+            out.push_str("### Soft (Preferred)\n\n");
+            out.push_str("<rules priority=\"preferred\">\n");
             for c in &brief.constraints.soft {
                 out.push_str(&format!("- {c}\n"));
             }
-            out.push('\n');
+            out.push_str("</rules>\n\n");
         }
 
         if !brief.constraints.ask_first.is_empty() {
-            out.push_str("### Ask First (Requires approval)\n");
+            out.push_str("### Ask First (Requires approval)\n\n");
+            out.push_str("<rules priority=\"ask-first\">\n");
             for c in &brief.constraints.ask_first {
                 out.push_str(&format!("- {c}\n"));
             }
-            out.push('\n');
+            out.push_str("</rules>\n\n");
         }
     }
 
-    // Sacred
+    // Sacred — wrapped in <protected_files>.
     if !brief.sacred.is_empty() {
-        out.push_str("## Sacred Regions (Do Not Modify)\n");
+        out.push_str("## Sacred Regions (Do Not Modify)\n\n");
+        out.push_str("<protected_files>\n");
         for entry in &brief.sacred {
             out.push_str(&format!("- `{}` — {}\n", entry.path, entry.reason));
         }
-        out.push('\n');
+        out.push_str("</protected_files>\n\n");
     }
 
-    // Assumptions
+    // Assumptions — wrapped in <assumptions>.
     if !brief.assumptions.is_empty() {
-        out.push_str("## Assumptions\n");
+        out.push_str("## Assumptions\n\n");
+        out.push_str("<assumptions>\n");
         for a in &brief.assumptions {
             let marker = if a.validated { "[x]" } else { "[ ]" };
             out.push_str(&format!("- {marker} {}\n", a.text));
         }
-        out.push('\n');
+        out.push_str("</assumptions>\n\n");
     }
 
-    // Deliverable
+    // Deliverable — wrapped in <deliverable>.
     if let Some(ref deliverable) = brief.deliverable {
-        out.push_str("## Deliverable\n");
-        out.push_str(deliverable);
-        out.push('\n');
+        out.push_str("## Deliverable\n\n");
+        out.push_str("<deliverable>\n");
+        out.push_str(deliverable.trim_end_matches('\n'));
+        out.push_str("\n</deliverable>\n");
     }
 
-    // Unknown sections (passthrough)
+    // Unknown sections (passthrough — no XML wrapping, format-extensibility
+    // surface stays untouched).
     for section in &brief.unknown_sections {
         out.push_str(&format!(
             "\n## {}\n\n{}\n",
@@ -261,6 +278,117 @@ mod tests {
         };
         let output = emit_claude(&brief);
         assert!(!output.contains("Reference Context"));
+    }
+
+    #[test]
+    fn emit_wraps_constraints_in_rules_tags() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            constraints: Constraints {
+                hard: vec!["No breaking changes".into()],
+                soft: vec!["Prefer async".into()],
+                ask_first: vec!["Schema changes".into()],
+            },
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_claude(&brief);
+        assert!(output.contains("<rules priority=\"required\">"));
+        assert!(output.contains("<rules priority=\"preferred\">"));
+        assert!(output.contains("<rules priority=\"ask-first\">"));
+        assert_eq!(output.matches("</rules>").count(), 3);
+        // Markdown headings still present alongside the tags.
+        assert!(output.contains("### Hard (Non-negotiable)"));
+        assert!(output.contains("### Soft (Preferred)"));
+        assert!(output.contains("### Ask First (Requires approval)"));
+    }
+
+    #[test]
+    fn emit_wraps_sacred_in_protected_files_tag() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            constraints: Constraints::default(),
+            sacred: vec![SacredEntry {
+                path: "src/auth/**".into(),
+                reason: "Auth".into(),
+                well_formed: true,
+            }],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_claude(&brief);
+        assert!(output.contains("<protected_files>"));
+        assert!(output.contains("- `src/auth/**` — Auth"));
+        assert!(output.contains("</protected_files>"));
+    }
+
+    #[test]
+    fn emit_wraps_context_in_context_tag() {
+        let brief = Brief {
+            frontmatter: Frontmatter {
+                stack: vec!["Rust".into()],
+                context: vec!["./docs/arch.md".into()],
+                ..Default::default()
+            },
+            goal: "Goal".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_claude(&brief);
+        assert!(output.contains("<context>"));
+        assert!(output.contains("- @docs/arch.md"));
+        assert!(output.contains("</context>"));
+    }
+
+    #[test]
+    fn emit_wraps_assumptions_and_deliverable() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![Assumption {
+                text: "Cache hits 80%".into(),
+                validated: false,
+                has_checkbox: true,
+            }],
+            deliverable: Some("Working pipeline".into()),
+            unknown_sections: vec![],
+        };
+        let output = emit_claude(&brief);
+        assert!(output.contains("<assumptions>"));
+        assert!(output.contains("- [ ] Cache hits 80%"));
+        assert!(output.contains("</assumptions>"));
+        assert!(output.contains("<deliverable>"));
+        assert!(output.contains("Working pipeline"));
+        assert!(output.contains("</deliverable>"));
+    }
+
+    #[test]
+    fn emit_omits_xml_tags_for_empty_sections() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_claude(&brief);
+        assert!(!output.contains("<rules"));
+        assert!(!output.contains("<protected_files>"));
+        assert!(!output.contains("<context>"));
+        assert!(!output.contains("<assumptions>"));
+        assert!(!output.contains("<deliverable>"));
     }
 
     // Anchor test: confirms install_claude still uses the shared marker tags.
