@@ -235,6 +235,70 @@ fn emit_cursor_from_full_fixture() {
     assert!(!output.contains("**IMPORTANT:**"));
 }
 
+// -- XML emitter --
+
+#[test]
+fn emit_xml_from_full_fixture() {
+    let brief = parse_brief(&fixture("full.brief.md")).unwrap();
+    let output = emit::emit_xml(&brief);
+
+    assert!(output.starts_with("<brief>"));
+    assert!(output.trim_end().ends_with("</brief>"));
+
+    assert!(output.contains("<goal>Build real-time collaborative document editor</goal>"));
+
+    // Stack: all 5 items joined.
+    assert!(output.contains("<stack>TypeScript 5.4, React 18, PostgreSQL 16, Redis 7, AWS ECS</stack>"));
+
+    // Context files: stripped of leading ./
+    assert!(output.contains("<context>"));
+    assert!(output.contains("<file>docs/architecture.md</file>"));
+    assert!(output.contains("<file>docs/api-spec.yaml</file>"));
+    assert!(output.contains("<file>README.md</file>"));
+
+    // Constraints with reframing.
+    assert!(output.contains("<hard>"));
+    assert!(output.contains("<soft>"));
+    assert!(output.contains("<ask-first>"));
+    assert!(output.contains("MUST: WebSocket connections"));
+    // "Prefer Yjs..." already starts with "Prefer", so no double-prefix.
+    assert!(output.contains("<rule>Prefer Yjs"));
+    assert!(output.contains("STOP and confirm before: Changes to the shared state schema"));
+
+    // Sacred.
+    assert!(output.contains("<sacred>"));
+    assert!(output.contains("<region path=\"src/core/crdt-engine/**\">"));
+
+    // Assumptions split by validation state.
+    assert!(output.contains("<unvalidated>Redis pub/sub"));
+    assert!(output.contains("<validated>Existing REST API"));
+
+    // Deliverable.
+    assert!(output.contains("<deliverable>"));
+
+    // Unknown sections.
+    assert!(output.contains("<section name=\"Commands\">"));
+    assert!(output.contains("<section name=\"Code Style\">"));
+}
+
+#[test]
+fn emit_xml_from_minimal_fixture() {
+    let brief = parse_brief(&fixture("minimal.brief.md")).unwrap();
+    let output = emit::emit_xml(&brief);
+
+    assert!(output.starts_with("<brief>"));
+    assert!(output.trim_end().ends_with("</brief>"));
+    assert!(output.contains("<goal>Fix the login bug</goal>"));
+    assert!(output.contains("<stack>Rust</stack>"));
+    // "Do not break..." already starts with an imperative — passed through unchanged.
+    assert!(output.contains("<rule>Do not break existing tests</rule>"));
+    assert!(output.contains("<region path=\"src/auth.rs\">"));
+    // No empty blocks.
+    assert!(!output.contains("<context>"));
+    assert!(!output.contains("<assumptions>"));
+    assert!(!output.contains("<deliverable>"));
+}
+
 // -- install_claude tests with CLAUDE.md fixtures --
 
 /// Copy a fixture CLAUDE.md into a temp directory and return the path to it.

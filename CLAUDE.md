@@ -100,82 +100,7 @@ Check the current `.brief.md` against the codebase.
 Transform `.brief.md` into a target format.
 
 Targets:
-- `claude` — Emit a `CLAUDE.md` section with constraints formatted as Claude Code conventions. Supports `--install` (idempotently injects/replaces a `<brief:generated>` section in `CLAUDE.md`).
-- `prompt` — Emit raw system prompt text suitable for API use.
-- `agents-md` — Emit an `AGENTS.md`-compatible section. This is the cross-vendor convention at agents.md (used by OpenAI Codex CLI, Cursor, Amp, Google Jules, etc.). Supports `--install` with the same `<brief:generated>` marker behavior as the `claude` target. Codex CLI is the canonical "CLAUDE.md equivalent" consumer: it reads `AGENTS.md` from the project root, passes the file's raw bytes to the model wrapped in `<INSTRUCTIONS>...</INSTRUCTIONS>` with no Markdown rendering or HTML-comment stripping, so the brief markers survive intact. Note: do not put a literal `</INSTRUCTIONS>` substring in a brief, as it would collide with Codex's own wrapper (brief itself never emits one).
-- `json` — Emit the parsed briefing as structured JSON (for tooling integration).
-
-### `brief check <path>`
-Check if a file path falls within a sacred region.
-- `brief check src/auth/handler.rs` → exit 1, prints sacred reason.
-- `brief check src/api/routes.rs` → exit 0.
-- Useful for git hooks and CI integration.
-
-### `brief diff <file1> <file2>`
-Show semantic differences between two briefing files.
-- Added/removed constraints, changed sacred regions, new assumptions.
-
-## Build & Project Structure
-
-```
-brief/
-├── Cargo.toml
-├── CLAUDE.md              # This file
-├── src/
-│   ├── main.rs            # CLI entry point (clap)
-│   ├── lib.rs             # Public API
-│   ├── parse/
-│   │   ├── mod.rs
-│   │   ├── frontmatter.rs # YAML frontmatter extraction
-│   │   └── body.rs        # Markdown heading tree parser
-│   ├── model.rs           # Brief data structures
-│   ├── validate.rs        # Validation logic
-│   ├── emit/
-│   │   ├── mod.rs
-│   │   ├── markers.rs     # Shared <brief:generated> marker logic for installers
-│   │   ├── claude.rs      # CLAUDE.md emitter + installer
-│   │   ├── prompt.rs      # Raw prompt emitter
-│   │   ├── agents_md.rs   # AGENTS.md emitter + installer (Codex / cross-vendor)
-│   │   └── json.rs        # JSON emitter
-│   ├── init.rs            # Repo analyzer + scaffolder
-│   └── check.rs           # Sacred path checker
-├── tests/
-│   ├── fixtures/           # Sample .brief.md files
-│   └── integration/
-└── examples/
-    └── sample.brief.md
-```
-
-## Dependencies
-
-Use minimal, well-maintained crates:
-- `clap` (derive) — CLI argument parsing
-- `serde`, `serde_yaml` — frontmatter parsing
-- `serde_json` — JSON emit
-- `glob` — Sacred path matching
-- `pulldown-cmark` — Markdown parsing (heading tree extraction)
-- `colored` — Terminal output formatting
-- `thiserror` or `anyhow` — Error handling
-
-Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest` (no network calls in Phase 1).
-
-## Code Style
-
-- Use `thiserror` for library errors, `anyhow` for CLI error propagation.
-- Parse into a strongly-typed `Brief` struct, then operate on that.
-- Emitters take `&Brief` and return `String`.
-- Tests for every parser edge case (missing sections, malformed sacred entries, empty frontmatter).
-- Integration tests that round-trip: parse a fixture → emit → verify output contains expected content.
-
-## Commands
-
-- Build: `cargo build`
-- Test: `cargo test`
-- Run: `cargo run -- <subcommand>`
-- Lint: `cargo clippy`
-- Format: `cargo fmt`
-
-<brief:generated>
+- `claude` — Emit a `CLAUDE.md` section with constraints formatted as Claude Code conventions. Supports `--install` (idempotently injects/replaces a `<brief:generated>
 # Briefing: Brief, a best-in-class structured file format for agents
 
 **Stack:** Rust
@@ -183,21 +108,35 @@ Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest` (no 
 ## Reference Context
 
 Read these files for background before starting work:
+
+<context>
 - @README.md
+</context>
 
 ## Constraints
 
 ### Hard (Non-negotiable)
-- **IMPORTANT:** System reduces the human cognitive burden of interacting with agents
-- **IMPORTANT:** Distributed as a single binary
+
+<rules priority="required">
 - **IMPORTANT:** Format takes less then sixty seconds to author
+- **IMPORTANT:** System reduces the human cognitive burden of interacting with agents
+- **IMPORTANT:** Distributed as a single binary, or single-binary plus configuration files.
 - **IMPORTANT:** Tooling interoprates and does not replace existing file formats (Claude.md, .cursorrules, etc.)
+- **IMPORTANT:** Example: Brief uses a an xml tag 'brief:generated' to encapsulate generated content for CLAUDE.md files.
+</rules>
 
 ### Soft (Preferred)
+
+<rules priority="preferred">
+- The format should not be high cognitive load, as there is much variance in complexity between "reducing the cognitive burden of humans", and "low cognitive load" formats.
 - The format should be dogfoodable. In other words, the .brief.md of the brief project should be the first use-case.
+</rules>
 
 ## Deliverable
+
+<deliverable>
 A human-authorable format with multiple outputs that can control different pieces of the runtime. Secondarily,
 the format should be extensible in order to support new use cases and new formats.
+</deliverable>
 </brief:generated>
 
