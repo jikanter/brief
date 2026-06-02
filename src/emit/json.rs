@@ -22,6 +22,7 @@ mod tests {
                 skill_description: None,
             },
             goal: "Build feature".into(),
+            identity: None,
             constraints: Constraints {
                 hard: vec!["No breakage".into()],
                 soft: vec![],

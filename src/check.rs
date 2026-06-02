@@ -68,6 +68,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Test".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![
                 SacredEntry {

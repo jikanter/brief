@@ -130,6 +130,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Build feature".into(),
+            identity: None,
             constraints: Constraints {
                 hard: vec!["Must pass CI".into()],
                 soft: vec![],
@@ -149,6 +150,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Goal".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -168,6 +170,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Goal".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![SacredEntry {
                 path: "src/auth/**".into(),
@@ -187,6 +190,7 @@ mod tests {
         Brief {
             frontmatter: Frontmatter::default(),
             goal: "Fix the login bug".into(),
+            identity: None,
             constraints: Constraints {
                 hard: vec!["Do not break existing tests".into()],
                 soft: vec![],
