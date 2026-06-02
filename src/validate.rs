@@ -102,6 +102,7 @@ mod tests {
                 skill_description: None,
             },
             goal: "Fix the bug".to_string(),
+            identity: None,
             constraints: Constraints {
                 hard: vec!["Don't break tests".to_string()],
                 soft: vec![],

@@ -5,6 +5,7 @@ use crate::model::*;
 #[derive(Debug)]
 enum Section {
     None,
+    Identity,
     Constraints,
     Sacred,
     Assumptions,
@@ -22,6 +23,7 @@ enum ConstraintType {
 /// Intermediate result from body parsing (before combining with frontmatter).
 pub struct ParsedBody {
     pub goal: Option<String>,
+    pub identity: Option<Identity>,
     pub constraints: Constraints,
     pub sacred: Vec<SacredEntry>,
     pub assumptions: Vec<Assumption>,
@@ -38,6 +40,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
     let mut goal: Option<String> = None;
     let mut unknown_sections: Vec<UnknownSection> = Vec::new();
     let mut state = ParseState {
+        identity: None,
         constraints: Constraints::default(),
         sacred: Vec::new(),
         assumptions: Vec::new(),
@@ -97,6 +100,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
                     }
                     HeadingLevel::H2 => {
                         match text.as_str() {
+                            "Identity" => current_section = Section::Identity,
                             "Constraints" => current_section = Section::Constraints,
                             "Sacred" => current_section = Section::Sacred,
                             "Assumptions" => current_section = Section::Assumptions,
@@ -215,6 +219,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
 
     ParsedBody {
         goal,
+        identity: state.identity,
         constraints: state.constraints,
         sacred: state.sacred,
         assumptions: state.assumptions,
@@ -232,6 +237,7 @@ enum ItemSegment {
 
 /// Mutable state accumulated during body parsing.
 struct ParseState {
+    identity: Option<Identity>,
     constraints: Constraints,
     sacred: Vec<SacredEntry>,
     assumptions: Vec<Assumption>,
@@ -257,6 +263,16 @@ fn process_item(
                 }
             }
         }
+        Section::Identity => {
+            let text = segments_to_plain_text(segments);
+            if !text.is_empty() {
+                state.identity = Some(Identity {
+                    heading: "Identity".to_string(),
+                    content: text,
+                });
+            }
+        }
+
         Section::Sacred => {
             parse_sacred_item(segments, &mut state.sacred);
         }
@@ -366,6 +382,15 @@ mod tests {
     fn no_h1_returns_none() {
         let body = parse_body("## Just an H2\n\nSome text.\n");
         assert_eq!(body.goal, None);
+    }
+
+    #[test]
+    fn parse_project_identity() {
+        let md = "## Identity\n\n- **Name**: A Fake Project\n This is a project with some kind of identity \n";
+        let body = parse_body(md);
+        let identity = body.identity.expect("identity section parsed");
+        assert_eq!(identity.heading, "Identity");
+        assert!(identity.content.contains("A Fake Project"));
     }
 
     #[test]

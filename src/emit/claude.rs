@@ -44,6 +44,14 @@ pub fn emit_claude(brief: &Brief) -> String {
         || !brief.constraints.soft.is_empty()
         || !brief.constraints.ask_first.is_empty();
 
+    // Identity — H2 heading with optional plain text beneath it.
+    if let Some(ref identity) = brief.identity {
+        out.push_str(&format!("## {}\n\n", identity.heading));
+        if !identity.content.is_empty() {
+            out.push_str(&format!("{}\n\n", identity.content));
+        }
+    }
+
     if has_constraints {
         out.push_str("## Constraints\n\n");
 
@@ -157,6 +165,10 @@ mod tests {
                 stack: vec!["Rust".into()],
                 ..Default::default()
             },
+            identity: Some(Identity {
+                heading: "Identity".into(),
+                content: "A Minimal Project".into(),
+            }),
             goal: "Fix the bug".into(),
             constraints: Constraints::default(),
             sacred: vec![],
@@ -172,6 +184,7 @@ mod tests {
     fn emit_contains_constraints() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
+            identity: None,
             goal: "Goal".into(),
             constraints: Constraints {
                 hard: vec!["No breaking changes".into()],
@@ -194,6 +207,7 @@ mod tests {
     fn emit_contains_sacred() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
+            identity: None,
             goal: "Goal".into(),
             constraints: Constraints::default(),
             sacred: vec![SacredEntry {
@@ -221,6 +235,7 @@ mod tests {
                 ],
                 ..Default::default()
             },
+            identity: None,
             goal: "Optimize queries".into(),
             constraints: Constraints::default(),
             sacred: vec![],
@@ -238,6 +253,7 @@ mod tests {
     fn emit_contains_unknown_sections() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
+            identity: None,
             goal: "Goal".into(),
             constraints: Constraints::default(),
             sacred: vec![],
@@ -269,6 +285,7 @@ mod tests {
                 context: vec![],
                 ..Default::default()
             },
+            identity: None,
             goal: "Do stuff".into(),
             constraints: Constraints::default(),
             sacred: vec![],
@@ -284,6 +301,7 @@ mod tests {
     fn emit_wraps_constraints_in_rules_tags() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
+            identity: None,
             goal: "Goal".into(),
             constraints: Constraints {
                 hard: vec!["No breaking changes".into()],
@@ -310,6 +328,7 @@ mod tests {
     fn emit_wraps_sacred_in_protected_files_tag() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
+            identity: None,
             goal: "Goal".into(),
             constraints: Constraints::default(),
             sacred: vec![SacredEntry {
@@ -335,6 +354,7 @@ mod tests {
                 context: vec!["./docs/arch.md".into()],
                 ..Default::default()
             },
+            identity: None,
             goal: "Goal".into(),
             constraints: Constraints::default(),
             sacred: vec![],
@@ -352,6 +372,7 @@ mod tests {
     fn emit_wraps_assumptions_and_deliverable() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
+            identity: None,
             goal: "Goal".into(),
             constraints: Constraints::default(),
             sacred: vec![],
@@ -376,6 +397,7 @@ mod tests {
     fn emit_omits_xml_tags_for_empty_sections() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
+            identity: None,
             goal: "Goal".into(),
             constraints: Constraints::default(),
             sacred: vec![],
@@ -398,6 +420,7 @@ mod tests {
         let claude_md = dir.path().join("CLAUDE.md");
         let brief = Brief {
             frontmatter: Frontmatter::default(),
+            identity: None,
             goal: "Fix it".into(),
             constraints: Constraints::default(),
             sacred: vec![],

@@ -197,6 +197,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Review code".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -223,6 +224,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Review code".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -250,6 +252,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Perform thorough code review".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -269,6 +272,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Deploy the service".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -285,6 +289,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Task".into(),
+            identity: None,
             constraints: Constraints {
                 hard: vec!["No breaking changes".into()],
                 soft: vec!["Prefer async".into()],
@@ -310,6 +315,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Task".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![SacredEntry {
                 path: "src/auth/**".into(),
@@ -330,6 +336,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Task".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![
@@ -362,6 +369,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Task".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -379,6 +387,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Task".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -395,6 +404,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Task".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -417,6 +427,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Review code".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],

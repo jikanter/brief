@@ -103,6 +103,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Redesign pipeline".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -119,6 +120,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Goal".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -137,6 +139,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Goal".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![

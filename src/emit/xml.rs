@@ -219,6 +219,7 @@ mod tests {
         Brief {
             frontmatter: Frontmatter::default(),
             goal: "Goal".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -235,6 +236,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Build a thing".into(),
+            identity: None,
             ..empty_brief()
         };
         let output = emit_xml(&brief);
@@ -248,6 +250,7 @@ mod tests {
     fn xml_contains_constraints_with_reframing() {
         let brief = Brief {
             goal: "G".into(),
+            identity: None,
             constraints: Constraints {
                 hard: vec![
                     "Pass the existing CI suite".into(),
@@ -273,6 +276,7 @@ mod tests {
     fn xml_does_not_double_prefix_imperative_constraints() {
         let brief = Brief {
             goal: "G".into(),
+            identity: None,
             constraints: Constraints {
                 hard: vec!["MUST: ship it".into(), "NEVER: leak PII".into()],
                 soft: vec!["PREFER: small modules".into()],
@@ -296,6 +300,7 @@ mod tests {
     fn xml_contains_sacred_regions() {
         let brief = Brief {
             goal: "G".into(),
+            identity: None,
             sacred: vec![SacredEntry {
                 path: "src/auth/**".into(),
                 reason: "Audited".into(),
@@ -313,6 +318,7 @@ mod tests {
     fn xml_separates_assumptions() {
         let brief = Brief {
             goal: "G".into(),
+            identity: None,
             assumptions: vec![
                 Assumption {
                     text: "Unvalidated A".into(),
@@ -353,6 +359,7 @@ mod tests {
     fn xml_contains_unknown_sections() {
         let brief = Brief {
             goal: "G".into(),
+            identity: None,
             unknown_sections: vec![UnknownSection {
                 heading: "Commands".into(),
                 content: "- Build: `cargo build`".into(),
@@ -369,6 +376,7 @@ mod tests {
     fn xml_escapes_special_characters() {
         let brief = Brief {
             goal: "Fix A & B < C > D".into(),
+            identity: None,
             constraints: Constraints {
                 hard: vec!["Pipe with | and < or >".into()],
                 ..Default::default()
@@ -399,6 +407,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "G".into(),
+            identity: None,
             ..empty_brief()
         };
         let output = emit_xml(&brief);
@@ -419,6 +428,7 @@ mod tests {
     fn xml_includes_deliverable_when_present() {
         let brief = Brief {
             goal: "G".into(),
+            identity: None,
             deliverable: Some("Ship a green CI".into()),
             ..empty_brief()
         };

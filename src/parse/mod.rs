@@ -17,6 +17,7 @@ pub fn parse_brief(input: &str) -> Result<Brief> {
     Ok(Brief {
         frontmatter,
         goal,
+        identity: body.identity,
         constraints: body.constraints,
         sacred: body.sacred,
         assumptions: body.assumptions,

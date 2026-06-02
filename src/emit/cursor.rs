@@ -163,6 +163,7 @@ mod tests {
                 ..Default::default()
             },
             goal: "Add real-time notifications".into(),
+            identity: None,
             constraints: Constraints {
                 hard: vec![
                     "Must not degrade page load time by more than 100ms".into(),
@@ -369,6 +370,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Fix it".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],
@@ -395,6 +397,7 @@ mod tests {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Fix bug: handle [nested] {edge} cases".into(),
+            identity: None,
             constraints: Constraints::default(),
             sacred: vec![],
             assumptions: vec![],

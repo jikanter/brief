@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct Brief {
     pub frontmatter: Frontmatter,
     pub goal: String,
+    pub identity: Option<Identity>,
     pub constraints: Constraints,
     pub sacred: Vec<SacredEntry>,
     pub assumptions: Vec<Assumption>,
@@ -70,6 +71,12 @@ pub struct Assumption {
     pub validated: bool,
     /// Whether the original entry had checkbox syntax.
     pub has_checkbox: bool,
+}
+/// A section for project identity
+#[derive(Debug, Clone, Serialize)]
+pub struct Identity {
+    pub heading: String,
+    pub content: String,
 }
 
 /// A section with an unrecognized H2 heading, preserved for extensibility.
