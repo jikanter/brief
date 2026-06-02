@@ -114,3 +114,48 @@ This is the "reserved unknown-section names" idea from the format-expressiveness
 **Why this needs a deep dive.** The right answer depends on whether code-span preservation in constraint text actually moves the needle on agent compliance. There's no a priori way to know — it's an empirical question about LLM tokenization of backticked identifiers. Before extending the byte-range capture to known sections (a small refactor), the team should decide whether the extra precision earns its complexity. Possible deep-dive output: a small experiment emitting the same brief with and without code-span preservation and observing whether Claude's behavior on a constraint like "use `Result<T, AppError>`" changes.
 
 **Status:** undecided, deep-dive pending. Tracked as an explicit follow-up in the working todo list.
+
+---
+
+## `[format]` Cassette / `## Fixtures` Field for Eridian Replay
+
+**Question:** Should `.brief.md` grow a `cassettes: [name]` frontmatter field (or a first-class `## Fixtures` section) binding a role's intent to a pinned eval-replay set?
+
+**The setup.** Eridian's caching sub-track is extracting its wire-level record/replay/cache/mock substrate into a standalone tool, **astrophage** ([github.com/jikanter/astrophage](https://github.com/jikanter/astrophage)), forked out of the aichat runtime. A *cassette* is a pinned, content-addressed, committed set of model interactions that astrophage replays deterministically — offline, token-free — for regression/eval. The cross-repo design that names brief as a possible declaration surface is aichat's [`SPEC-astrophage.md`](https://github.com/jikanter/aichat-private/blob/main/docs/architecture/integrated-architecture/SPEC-astrophage.md) §4 (and its in-repo basis [`SPEC-004-ecosystem-surfaces.md`](https://github.com/jikanter/aichat-private/blob/main/docs/analysis/caching/SPEC-004-ecosystem-surfaces.md) §brief).
+
+**The proposed seam (F6 pattern — brief never runs anything).** An intent author declares, next to the role's constraints/deliverable, that the role's eval replays a named set:
+
+```markdown
+## Fixtures
+- cassette: rust-reviewer-v1 — pinned eval-replay set for the rust-reviewer role
+```
+
+or in frontmatter:
+
+```yaml
+cassettes: [rust-reviewer-v1]
+```
+
+`brief emit` would compile the binding into the eval harness's replay config — a promptfoo `providerconfig` snippet selecting `--cache-mode cassette --cassette rust-reviewer-v1 --cache-replay`. Brief only **parses and emits a string**; astrophage (invoked by the harness, with aichat as the client) records and replays. This preserves design decision 4 (format-first, no runtime) and the hard "no `tokio`, no `reqwest`" constraint — brief never gains network code.
+
+**Applying the YAGNI bar ([design/frontmatter-additions.md](design/frontmatter-additions.md)):**
+
+| Check | Result |
+|---|---|
+| 1. Task-specific | ~ A cassette name is role/eval-specific, not standing repo context — leans pass. But the binding may be just as naturally owned by `promptfooconfig.yaml`. |
+| 2. No existing carrier | ✗ A `## Fixtures` **unknown section** already passes through every emitter and serializes to `unknown_sections[].content` as a string; an emit target can parse the cassette name from there with no schema growth. |
+| 3. Concrete consumer exists | ✗ astrophage is specced, not yet shipped; until its `brief emit` target is built there is no consumer reading a typed `cassettes:` field. |
+| 4. Shape is obvious | ~ `cassettes: [string]` is plausible, but record/replay options (record-extend vs hard-fail, per-cassette namespace) may force a map-of-objects; not pinned until astrophage's CLI stabilizes. |
+| 5. Stays inside mission | ~ A cassette ref is task intent, but it wedges toward `fixtures`, `eval_config`, `replay_mode` — eval-harness infrastructure that drifts away from brief's mission. |
+| 6. Current user flow fails | ✗ No user is blocked: the cassette set can be named directly in `promptfooconfig.yaml` (aichat `SPEC-004` §promptfoo) with zero brief involvement. |
+
+**2 of 6 firmly fail, 3 are soft. Recommendation: defer (optional, do not build now).** Identical disposition to aichat's own `SPEC-004` verdict ("spec a minimal, optional, deferred emit target; apply nothing now"). The `## Fixtures` field is a *convenience* for teams already authoring intent in `.brief.md` who want the cassette reference to live next to the role it pins — not a requirement for the eval-replay story.
+
+**Trigger to revisit.** All three of:
+1. astrophage has shipped and exposes a stable cassette-selection CLI (resolves check 4's shape).
+2. A `brief emit astrophage` / `brief emit promptfoo` target is being actively built and string-parsing the `## Fixtures` unknown section is judged insufficient (flips check 2/3).
+3. A user is authoring the cassette binding in `.brief.md` and finds the unknown-section round-trip lossy or error-prone (flips check 6).
+
+**Cross-repo note.** This is a **brief-repo task** owned here; aichat documents it as a companion change but must never edit `.brief.md` parsing from its own repo. The reverse rule also holds — brief links to aichat via GitHub URL, never a local path.
+
+**Status:** deferred per the YAGNI bar; logged as a companion to aichat `SPEC-astrophage.md`. Not acted upon — awaiting the revisit trigger.

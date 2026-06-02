@@ -27,6 +27,7 @@ For in-conversation use, invoke the `frontmatter-yagni` skill ([.claude/skills/f
 | `extends:` (composition) | ❌ rejected | Fails 2 (two-file composition exists), 4 (ambiguous semantics), 5 (wrong direction) |
 | `environment:` | ❌ rejected | Fails 1 (standing context), 5 (infrastructure drift) |
 | `commands:` | Deferred | 0/6 pass — see [../open-questions.md](../open-questions.md) `[format]` Frontmatter-Only Commands for the walkthrough |
+| `cassettes:` / `## Fixtures` | Deferred | 2/6 fail firmly, 3 soft — eval-replay binding for the astrophage tool; see [../open-questions.md](../open-questions.md) `[format]` Cassette / `## Fixtures` Field for the walkthrough. Companion to aichat `SPEC-astrophage.md`. |
 
 The pattern holds: every accepted field passes all six; every rejection fails at least three. The bar isn't post-hoc rationalization — it's the implicit reasoning from [../analysis/archive/obsolete-features.md](../analysis/archive/obsolete-features.md) and [../analysis/phase2-synthesis.md](../analysis/phase2-synthesis.md) "What NOT To Do" organized into a checklist.
 
