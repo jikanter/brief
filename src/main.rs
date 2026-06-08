@@ -55,6 +55,27 @@ enum Commands {
         path: String,
     },
 
+    /// Fail if any changed file falls within a sacred region (CI gate)
+    ///
+    /// Examples:
+    ///   brief validate-diff --base origin/main
+    ///   brief validate-diff --base origin/main --json
+    ///   git diff --name-only origin/main | brief validate-diff --stdin
+    #[command(verbatim_doc_comment)]
+    ValidateDiff {
+        /// Git ref to diff against (changed files = `git diff --name-only <base>..HEAD`)
+        #[arg(long, default_value = "HEAD")]
+        base: String,
+
+        /// Read newline-separated changed file paths from stdin instead of running git
+        #[arg(long)]
+        stdin: bool,
+
+        /// Emit a machine-readable JSON report
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Show semantic differences between two briefing files
     Diff {
         /// First briefing file
@@ -144,6 +165,9 @@ fn run(cli: Cli) -> Result<()> {
         Commands::Validate => cmd_validate(&cli.file),
         Commands::Emit { target, install } => cmd_emit(target, &cli.file, install),
         Commands::Check { path } => cmd_check(&path, &cli.file),
+        Commands::ValidateDiff { base, stdin, json } => {
+            cmd_validate_diff(&cli.file, &base, stdin, json)
+        }
         Commands::Diff { file1, file2 } => cmd_diff(&file1, &file2),
         Commands::Skill { command } => match command {
             SkillCommands::Init { name } => cmd_skill_init(name),
@@ -332,16 +356,7 @@ fn cmd_emit_skill_internal(file: &PathBuf, install: bool) -> Result<()> {
 }
 
 fn cmd_check(path: &str, file: &PathBuf) -> Result<()> {
-    let base_dir = file
-        .parent()
-        .map(|p| {
-            if p.as_os_str().is_empty() {
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-            } else {
-                p.to_path_buf()
-            }
-        })
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let base_dir = brief_base_dir(file);
 
     let content = std::fs::read_to_string(file)
         .with_context(|| format!("Failed to read {}", file.display()))?;
@@ -362,6 +377,90 @@ fn cmd_check(path: &str, file: &PathBuf) -> Result<()> {
         process::exit(1);
     } else {
         println!("{} {} is not in a sacred region", "✓".green().bold(), path);
+    }
+
+    Ok(())
+}
+
+/// Resolve the directory a brief lives in, for interpreting relative sacred paths.
+fn brief_base_dir(file: &std::path::Path) -> PathBuf {
+    file.parent()
+        .map(|p| {
+            if p.as_os_str().is_empty() {
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+            } else {
+                p.to_path_buf()
+            }
+        })
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+}
+
+/// Changed files from `git diff --name-only <base>..HEAD`.
+fn git_changed_files(base: &str) -> Result<Vec<String>> {
+    let range = format!("{base}..HEAD");
+    let output = process::Command::new("git")
+        .args(["diff", "--name-only", &range])
+        .output()
+        .context("Failed to run git; is git installed and is this a repository?")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("git diff failed: {}", stderr.trim());
+    }
+
+    Ok(parse_file_list(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// Parse a newline-separated list of file paths, dropping blanks.
+fn parse_file_list(raw: &str) -> Vec<String> {
+    raw.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn cmd_validate_diff(file: &PathBuf, base: &str, stdin: bool, json: bool) -> Result<()> {
+    let base_dir = brief_base_dir(file);
+
+    let content = std::fs::read_to_string(file)
+        .with_context(|| format!("Failed to read {}", file.display()))?;
+    let brief = parse_brief(&content).context("Failed to parse briefing")?;
+
+    let files = if stdin {
+        use std::io::Read;
+        let mut buf = String::new();
+        std::io::stdin()
+            .read_to_string(&mut buf)
+            .context("Failed to read changed files from stdin")?;
+        parse_file_list(&buf)
+    } else {
+        git_changed_files(base)?
+    };
+
+    let report = brief_cli::validate_diff::check_changed_files(&brief, &files, &base_dir);
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else if report.is_clean() {
+        println!(
+            "{} {} changed file(s) checked, none in a sacred region",
+            "✓".green().bold(),
+            report.checked
+        );
+    } else {
+        eprintln!(
+            "{} {} changed file(s) fall within sacred regions:",
+            "✗".red().bold(),
+            report.violations.len()
+        );
+        for v in &report.violations {
+            eprintln!("  {} → `{}`: {}", v.file, v.pattern, v.reason);
+        }
+    }
+
+    if !report.is_clean() {
+        process::exit(1);
     }
 
     Ok(())

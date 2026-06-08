@@ -74,7 +74,9 @@ Revised emit order for `prompt` target (maximum compliance):
 
 The `claude` target should use a compromise order (goal first, then constraints) since CLAUDE.md is read by humans too. The `prompt` target should be aggressively optimized for compliance.
 
-### P1: `validate-diff` — CI-Enforceable Sacred Regions (effort: 2-3 days)
+### P1: `validate-diff` — CI-Enforceable Sacred Regions (effort: 2-3 days) — **SHIPPED**
+
+**Status (2026-06-08): shipped.** `brief validate-diff [--base <ref>] [--stdin] [--json]` is implemented in `src/validate_diff.rs` (pure, unit-tested core) and wired in `src/main.rs`. Default base is `HEAD`; `--stdin` reads newline-separated paths for hook/CI use; `--json` emits a machine-readable report. Exits non-zero when any changed file matches a sacred region. Integration tests in `tests/validate_diff_cli.rs`.
 
 This transforms brief from advisory documentation into a CI gate. The implementation:
 
