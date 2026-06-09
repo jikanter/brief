@@ -47,12 +47,25 @@ enum Commands {
         /// Install the briefing into the target location
         #[arg(long)]
         install: bool,
+
+        /// Also register the sacred-region PreToolUse hook in .claude/settings.json
+        /// (claude target only; implies --install)
+        #[arg(long)]
+        hooks: bool,
     },
 
     /// Check if a file path falls within a sacred region
+    ///
+    /// With --hook, reads a Claude Code PreToolUse event on stdin and denies the
+    /// edit when the target file is sacred (for use as a settings.json hook).
+    #[command(verbatim_doc_comment)]
     Check {
-        /// The file path to check
-        path: String,
+        /// The file path to check (omit when using --hook)
+        path: Option<String>,
+
+        /// Act as a Claude Code PreToolUse hook: read the event JSON on stdin
+        #[arg(long)]
+        hook: bool,
     },
 
     /// Fail if any changed file falls within a sacred region (CI gate)
@@ -163,8 +176,12 @@ fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Init => cmd_init(),
         Commands::Validate => cmd_validate(&cli.file),
-        Commands::Emit { target, install } => cmd_emit(target, &cli.file, install),
-        Commands::Check { path } => cmd_check(&path, &cli.file),
+        Commands::Emit {
+            target,
+            install,
+            hooks,
+        } => cmd_emit(target, &cli.file, install, hooks),
+        Commands::Check { path, hook } => cmd_check(path.as_deref(), &cli.file, hook),
         Commands::ValidateDiff { base, stdin, json } => {
             cmd_validate_diff(&cli.file, &base, stdin, json)
         }
@@ -259,7 +276,13 @@ fn cmd_validate(file: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
+fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool, hooks: bool) -> Result<()> {
+    if hooks && !matches!(target, EmitTarget::Claude) {
+        anyhow::bail!("--hooks is only supported for the claude target");
+    }
+    // --hooks implies --install: there is no "emit hooks to stdout" mode.
+    let install = install || hooks;
+
     let content = std::fs::read_to_string(file)
         .with_context(|| format!("Failed to read {}", file.display()))?;
 
@@ -285,6 +308,15 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool) -> Result<()> {
                     "Installed".green().bold(),
                     claude_md.display()
                 );
+                if hooks {
+                    let settings = install_pretooluse_hook()
+                        .context("Failed to register PreToolUse hook in .claude/settings.json")?;
+                    println!(
+                        "{} sacred-region PreToolUse hook in {}",
+                        "Registered".green().bold(),
+                        settings.display()
+                    );
+                }
             }
             EmitTarget::AgentsMd => {
                 let agents_md = PathBuf::from("AGENTS.md");
@@ -355,13 +387,18 @@ fn cmd_emit_skill_internal(file: &PathBuf, install: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_check(path: &str, file: &PathBuf) -> Result<()> {
+fn cmd_check(path: Option<&str>, file: &PathBuf, hook: bool) -> Result<()> {
     let base_dir = brief_base_dir(file);
 
     let content = std::fs::read_to_string(file)
         .with_context(|| format!("Failed to read {}", file.display()))?;
-
     let brief = parse_brief(&content).context("Failed to parse briefing")?;
+
+    if hook {
+        return run_check_hook(&brief, &base_dir);
+    }
+
+    let path = path.context("a file path is required (or pass --hook to read stdin)")?;
     let result = check_path(&brief, path, &base_dir);
 
     if result.is_sacred {
@@ -464,6 +501,49 @@ fn cmd_validate_diff(file: &PathBuf, base: &str, stdin: bool, json: bool) -> Res
     }
 
     Ok(())
+}
+
+/// PreToolUse hook mode: read the event JSON on stdin, deny the edit when the
+/// target file is sacred. Always exits 0 — Claude Code honors the JSON decision,
+/// and a hook crash must not block unrelated edits.
+fn run_check_hook(brief: &brief_cli::model::Brief, base_dir: &std::path::Path) -> Result<()> {
+    use std::io::Read;
+    let mut buf = String::new();
+    std::io::stdin()
+        .read_to_string(&mut buf)
+        .context("Failed to read hook event from stdin")?;
+
+    let Some(raw_path) = brief_cli::hooks::extract_file_path(&buf) else {
+        // No file path in the event (non-file tool, or unparseable) — nothing to guard.
+        return Ok(());
+    };
+
+    let rel = brief_cli::hooks::relativize(&raw_path, base_dir);
+    let result = check_path(brief, &rel, base_dir);
+    if result.is_sacred {
+        let pattern = result.matching_pattern.as_deref().unwrap_or("unknown");
+        let reason = result.reason.as_deref().unwrap_or("");
+        let msg = format!("{raw_path} is in sacred region `{pattern}` — {reason}");
+        println!("{}", brief_cli::hooks::deny_json(&msg));
+    }
+    Ok(())
+}
+
+/// Merge the sacred-region PreToolUse hook into `.claude/settings.json`
+/// (idempotent). Returns the settings path written.
+fn install_pretooluse_hook() -> Result<PathBuf> {
+    let settings_dir = PathBuf::from(".claude");
+    let settings_path = settings_dir.join("settings.json");
+
+    let existing = std::fs::read_to_string(&settings_path).ok();
+    let updated = brief_cli::hooks::ensure_pretooluse_hook(existing.as_deref())?;
+
+    std::fs::create_dir_all(&settings_dir)
+        .with_context(|| format!("Failed to create {}", settings_dir.display()))?;
+    std::fs::write(&settings_path, format!("{updated}\n"))
+        .with_context(|| format!("Failed to write {}", settings_path.display()))?;
+
+    Ok(settings_path)
 }
 
 fn cmd_diff(file1: &PathBuf, file2: &PathBuf) -> Result<()> {

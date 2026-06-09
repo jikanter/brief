@@ -93,7 +93,13 @@ Behavior:
 
 The CI integration writes itself: a GitHub Action that runs `brief validate-diff --base origin/main --json` and posts a comment on PRs that touch sacred regions.
 
-### P2: Hooks Integration — Deterministic Sacred Region Enforcement (effort: 1-2 days)
+### P2: Hooks Integration — Deterministic Sacred Region Enforcement (effort: 1-2 days) — **SHIPPED**
+
+**Status (2026-06-08): shipped.** Two pieces, both in `src/hooks.rs` (pure, unit-tested) + wired in `src/main.rs`:
+- `brief check --hook` reads a PreToolUse event on stdin (`tool_input.file_path`), relativizes it against the brief's base dir, and on a sacred match prints the deny decision `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":…}}`. Always exits 0 so the JSON decision governs and a hook crash never blocks unrelated edits; non-file events and non-sacred paths emit nothing.
+- `brief emit claude --install --hooks` injects the CLAUDE.md section *and* idempotently registers the `Edit|Write` PreToolUse hook in `.claude/settings.json`, preserving any existing settings. `--hooks` implies `--install` and is claude-only.
+
+Integration tests in `tests/hooks_cli.rs`. The original sketch below (passing the path as an argument) was superseded by the real stdin protocol confirmed against current Claude Code.
 
 Text-based sacred region instructions achieve ~90-95% compliance for simple cases, dropping to ~60-70% when the user's request directly contradicts the constraint. Hooks close this gap deterministically.
 
