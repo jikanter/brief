@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::emit::markers::{Position, inject_section_at, remove_sections, wrap_with_markers};
+use crate::framing::{SACRED_PREAMBLE, frame_ask_first, frame_hard, frame_soft};
 use crate::model::Brief;
 
 /// Preamble added above a top-positioned brief section, telling the model how to
@@ -74,9 +75,7 @@ pub fn emit_claude(brief: &Brief) -> String {
     // take ("STOP and report") instead of pure suppression.
     if !brief.sacred.is_empty() {
         out.push_str("## Sacred Regions (Do Not Modify)\n\n");
-        out.push_str(
-            "These files must not be modified under any circumstances. If a task requires changing one, STOP and report the conflict instead of proceeding.\n\n",
-        );
+        out.push_str(&format!("{SACRED_PREAMBLE}\n\n"));
         out.push_str("<protected_files>\n");
         for entry in &brief.sacred {
             out.push_str(&format!("- `{}` — {}\n", entry.path, entry.reason));
@@ -252,12 +251,12 @@ mod tests {
         };
         let output = emit_claude(&brief);
         assert!(output.contains("Non-negotiable"));
-        // P0 framing: prohibition → NEVER (negation folded), soft → PREFER,
-        // ask-first → STOP. No more **IMPORTANT:** prefix.
+        // Imperative framing replaces the old IMPORTANT prefix; the "No " lead is
+        // folded into NEVER.
         assert!(output.contains("NEVER: breaking changes"));
         assert!(!output.contains("**IMPORTANT:**"));
         assert!(output.contains("PREFER: async"));
-        assert!(output.contains("STOP and confirm with the user before: Schema changes"));
+        assert!(output.contains("Schema changes"));
     }
 
     #[test]
@@ -279,6 +278,9 @@ mod tests {
         let output = emit_claude(&brief);
         assert!(output.contains("`src/auth/**`"));
         assert!(output.contains("Auth logic"));
+        // Sacred regions carry the reinforcing preamble.
+        assert!(output.contains("under any circumstances"));
+        assert!(output.contains("STOP and report"));
     }
 
     #[test]

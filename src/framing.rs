@@ -21,6 +21,24 @@
 //! Rendering a requirement as `NEVER:` is actively misleading; matching the verb
 //! to the polarity is the whole point.
 
+/// Preamble emitted above a sacred-region list. "Under any circumstances"
+/// removes exception ambiguity; "STOP and report" gives the model an action to
+/// take instead of pure suppression, which is more reliable than prohibition
+/// alone.
+pub const SACRED_PREAMBLE: &str = "The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.";
+
+/// Canonical imperative prefixes the emitter itself produces. Text that already
+/// opens with one of these is passed through unchanged so authors can hand-write
+/// framing and so already-emitted content round-trips through `--install`
+/// without being double-prefixed ("MUST: NEVER: ...").
+const FRAMED_PREFIXES: [&str; 5] = ["never:", "must:", "avoid:", "prefer:", "stop:"];
+
+/// True if the constraint already opens with a canonical imperative prefix.
+fn already_framed(text: &str) -> bool {
+    let lower = text.trim_start().to_lowercase();
+    FRAMED_PREFIXES.iter().any(|p| lower.starts_with(p))
+}
+
 /// The semantic polarity of a hard constraint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Polarity {
@@ -68,6 +86,9 @@ pub fn classify(constraint: &str) -> Polarity {
 /// - Convention → the text unchanged.
 pub fn frame_hard(constraint: &str) -> String {
     let trimmed = constraint.trim();
+    if already_framed(trimmed) {
+        return trimmed.to_string();
+    }
     match classify(trimmed) {
         Polarity::Prohibition => {
             let rest = strip_leading_ci(trimmed, &PROHIBITION_LEADS);
@@ -94,6 +115,9 @@ pub fn frame_hard(constraint: &str) -> String {
 /// A leading "prefer " is folded in so we never produce "PREFER: prefer ...".
 pub fn frame_soft(constraint: &str) -> String {
     let trimmed = constraint.trim();
+    if already_framed(trimmed) {
+        return trimmed.to_string();
+    }
     let rest = strip_leading_ci(trimmed, &["prefer ", "prefer: "]);
     if rest.is_empty() {
         format!("PREFER: {trimmed}")
@@ -104,7 +128,11 @@ pub fn frame_soft(constraint: &str) -> String {
 
 /// Render an ask-first constraint as an interruption directive.
 pub fn frame_ask_first(constraint: &str) -> String {
-    let c = constraint.trim().trim_end_matches('.');
+    let trimmed = constraint.trim();
+    if already_framed(trimmed) {
+        return trimmed.to_string();
+    }
+    let c = trimmed.trim_end_matches('.');
     format!("STOP and confirm with the user before: {c}")
 }
 
@@ -191,6 +219,15 @@ mod tests {
             "PREFER: Yjs over Automerge"
         );
         assert_eq!(frame_soft("Prefer small commits"), "PREFER: small commits");
+    }
+
+    #[test]
+    fn already_framed_text_is_not_double_prefixed() {
+        // Canonical prefixes the emitter produces round-trip unchanged.
+        assert_eq!(frame_hard("MUST: ship it"), "MUST: ship it");
+        assert_eq!(frame_hard("NEVER: leak PII"), "NEVER: leak PII");
+        assert_eq!(frame_soft("PREFER: small modules"), "PREFER: small modules");
+        assert_eq!(frame_ask_first("STOP: schema changes"), "STOP: schema changes");
     }
 
     #[test]

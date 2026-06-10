@@ -27,7 +27,7 @@ pub fn emit_agents_md(brief: &Brief) -> String {
 
     // Context
     if !brief.frontmatter.context.is_empty() {
-        out.push_str("## Context\n\nRefer to these files for background:\n");
+        out.push_str("## Context\n\nRefer to these files for background:\n\n");
         for ctx in &brief.frontmatter.context {
             out.push_str(&format!("- `{ctx}`\n"));
         }
@@ -40,7 +40,7 @@ pub fn emit_agents_md(brief: &Brief) -> String {
         || !brief.constraints.ask_first.is_empty();
 
     if has_constraints {
-        out.push_str("## Instructions\n");
+        out.push_str("## Instructions\n\n");
         for c in &brief.constraints.hard {
             out.push_str(&format!("- {c} **(REQUIRED)**\n"));
         }
@@ -55,7 +55,7 @@ pub fn emit_agents_md(brief: &Brief) -> String {
 
     // Protected files
     if !brief.sacred.is_empty() {
-        out.push_str("## Protected Files\n");
+        out.push_str("## Protected Files\n\n");
         for entry in &brief.sacred {
             out.push_str(&format!("- `{}`: {}\n", entry.path, entry.reason));
         }
@@ -64,7 +64,7 @@ pub fn emit_agents_md(brief: &Brief) -> String {
 
     // Assumptions
     if !brief.assumptions.is_empty() {
-        out.push_str("## Assumptions\n");
+        out.push_str("## Assumptions\n\n");
         for a in &brief.assumptions {
             let marker = if a.validated { "[x]" } else { "[ ]" };
             out.push_str(&format!("- {marker} {}\n", a.text));
@@ -74,7 +74,7 @@ pub fn emit_agents_md(brief: &Brief) -> String {
 
     // Deliverable
     if let Some(ref deliverable) = brief.deliverable {
-        out.push_str("## Deliverable\n");
+        out.push_str("## Deliverable\n\n");
         out.push_str(deliverable);
         out.push('\n');
     }

@@ -78,7 +78,7 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
 
     // Context files
     if !brief.frontmatter.context.is_empty() {
-        out.push_str("\nBefore starting, read these files for context:\n");
+        out.push_str("\nBefore starting, read these files for context:\n\n");
         for ctx in &brief.frontmatter.context {
             out.push_str(&format!("- `{ctx}`\n"));
         }
@@ -86,7 +86,7 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
 
     // Rules — hard constraints
     if !brief.constraints.hard.is_empty() {
-        out.push_str("\n## Rules\n\nYou MUST follow these rules:\n");
+        out.push_str("\n## Rules\n\nYou MUST follow these rules:\n\n");
         for c in &brief.constraints.hard {
             out.push_str(&format!("- {c}\n"));
         }
@@ -94,7 +94,7 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
 
     // Preferences — soft constraints
     if !brief.constraints.soft.is_empty() {
-        out.push_str("\nPrefer these approaches when possible:\n");
+        out.push_str("\nPrefer these approaches when possible:\n\n");
         for c in &brief.constraints.soft {
             out.push_str(&format!("- {c}\n"));
         }
@@ -102,7 +102,7 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
 
     // Ask first
     if !brief.constraints.ask_first.is_empty() {
-        out.push_str("\nAsk the user before proceeding with:\n");
+        out.push_str("\nAsk the user before proceeding with:\n\n");
         for c in &brief.constraints.ask_first {
             out.push_str(&format!("- {c}\n"));
         }
@@ -111,7 +111,7 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
     // Sacred / protected regions
     if !brief.sacred.is_empty() {
         out.push_str(
-            "\n## Protected regions\n\nDo NOT modify or suggest changes to these files:\n",
+            "\n## Protected regions\n\nDo NOT modify or suggest changes to these files:\n\n",
         );
         for entry in &brief.sacred {
             out.push_str(&format!("- `{}` — {}\n", entry.path, entry.reason));
@@ -122,7 +122,7 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
     let unvalidated: Vec<_> = brief.assumptions.iter().filter(|a| !a.validated).collect();
     if !unvalidated.is_empty() {
         out.push_str("\n## Verify before proceeding\n\n");
-        out.push_str("Confirm these assumptions still hold before acting on them:\n");
+        out.push_str("Confirm these assumptions still hold before acting on them:\n\n");
         for a in &unvalidated {
             out.push_str(&format!("- {}\n", a.text));
         }

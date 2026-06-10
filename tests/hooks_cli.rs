@@ -132,5 +132,7 @@ fn hooks_flag_rejected_for_non_claude_target() {
         .arg("--hooks")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("only supported for the claude target"));
+        .stderr(predicate::str::contains(
+            "only supported for the claude target",
+        ));
 }

@@ -196,5 +196,22 @@ Read these files for background before starting work:
 - **IMPORTANT:** System reduces the human cognitive burden of interacting with agents
 - **IMPORTANT:** Distributed as a single binary, or single-binary plus configuration files.
 - **IMPORTANT:** Tooling interoprates and does not replace existing file formats (Claude.md, .cursorrules, etc.)
+- **IMPORTANT:** Brief should be non-destructive and easily extractable from where it is installed.
+- **IMPORTANT:** Example: Brief uses a an xml tag 'brief:generated' to encapsulate generated content for CLAUDE.md files.
+- **IMPORTANT:** System is extensible within its ecosystem
+</rules>
 
+### Soft (Preferred)
+
+<rules priority="preferred">
+- The format should not be high cognitive load, as there is much variance in complexity between "reducing the cognitive burden of humans", and "low cognitive load" formats.
+- The format should be dogfoodable. In other words, the .brief.md of the brief project should be the first use-case.
+</rules>
+
+## Deliverable
+
+<deliverable>
+A human-authorable format with multiple outputs that can control different pieces of the runtime. Secondarily,
+the format should be extensible in order to support new use cases and new formats.
+</deliverable>
 </brief:generated>

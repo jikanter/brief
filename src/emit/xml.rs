@@ -6,6 +6,7 @@
 //! intentionally not an XML document (no `<?xml ?>` declaration, no DTD): the
 //! output is prompt content for an LLM, not data for an XML parser.
 
+use crate::framing::{frame_ask_first, frame_hard, frame_soft};
 use crate::model::Brief;
 
 /// Emit an XML-tagged briefing suitable for direct use in an Anthropic API
@@ -43,10 +44,7 @@ pub fn emit_xml(brief: &Brief) -> String {
         if !brief.constraints.hard.is_empty() {
             out.push_str("<hard>\n");
             for c in &brief.constraints.hard {
-                out.push_str(&format!(
-                    "<rule>{}</rule>\n",
-                    escape_xml(&reframe_hard(c))
-                ));
+                out.push_str(&format!("<rule>{}</rule>\n", escape_xml(&frame_hard(c))));
             }
             out.push_str("</hard>\n");
         }
@@ -54,10 +52,7 @@ pub fn emit_xml(brief: &Brief) -> String {
         if !brief.constraints.soft.is_empty() {
             out.push_str("<soft>\n");
             for c in &brief.constraints.soft {
-                out.push_str(&format!(
-                    "<rule>{}</rule>\n",
-                    escape_xml(&reframe_soft(c))
-                ));
+                out.push_str(&format!("<rule>{}</rule>\n", escape_xml(&frame_soft(c))));
             }
             out.push_str("</soft>\n");
         }
@@ -67,7 +62,7 @@ pub fn emit_xml(brief: &Brief) -> String {
             for c in &brief.constraints.ask_first {
                 out.push_str(&format!(
                     "<rule>{}</rule>\n",
-                    escape_xml(&reframe_ask_first(c))
+                    escape_xml(&frame_ask_first(c))
                 ));
             }
             out.push_str("</ask-first>\n");
@@ -97,10 +92,7 @@ pub fn emit_xml(brief: &Brief) -> String {
             ));
         }
         for a in brief.assumptions.iter().filter(|a| a.validated) {
-            out.push_str(&format!(
-                "<validated>{}</validated>\n",
-                escape_xml(&a.text)
-            ));
+            out.push_str(&format!("<validated>{}</validated>\n", escape_xml(&a.text)));
         }
         out.push_str("</assumptions>\n");
     }
@@ -152,62 +144,6 @@ fn escape_xml_attr(s: &str) -> String {
         }
     }
     out
-}
-
-/// Reframe a Hard constraint with an imperative prefix.
-///
-/// If the text already opens with an imperative verb (NEVER/MUST/DO NOT/etc.),
-/// it is returned unchanged. Prohibitions get `NEVER:`; requirements get `MUST:`.
-fn reframe_hard(text: &str) -> String {
-    if has_imperative_prefix(text) {
-        return text.to_string();
-    }
-    if is_prohibition(text) {
-        format!("NEVER: {text}")
-    } else {
-        format!("MUST: {text}")
-    }
-}
-
-/// Reframe a Soft constraint with a preference prefix.
-fn reframe_soft(text: &str) -> String {
-    if has_imperative_prefix(text) {
-        return text.to_string();
-    }
-    if is_prohibition(text) {
-        format!("AVOID: {text}")
-    } else {
-        format!("PREFER: {text}")
-    }
-}
-
-/// Reframe an Ask-First constraint as an interruption directive.
-fn reframe_ask_first(text: &str) -> String {
-    let lower = text.trim_start().to_ascii_lowercase();
-    if lower.starts_with("stop") {
-        return text.to_string();
-    }
-    format!("STOP and confirm before: {text}")
-}
-
-/// True if the constraint text already begins with one of the imperative
-/// verbs the emitter would otherwise prepend.
-fn has_imperative_prefix(text: &str) -> bool {
-    let lower = text.trim_start().to_ascii_lowercase();
-    const PREFIXES: &[&str] = &[
-        "never:", "never ", "must:", "must ", "do not ", "don't ", "avoid:", "avoid ",
-        "prefer:", "prefer ", "stop:", "stop ",
-    ];
-    PREFIXES.iter().any(|p| lower.starts_with(p))
-}
-
-/// Heuristic polarity check: does this constraint read as a prohibition?
-fn is_prohibition(text: &str) -> bool {
-    let lower = text.trim_start().to_ascii_lowercase();
-    const PROHIBITION_PREFIXES: &[&str] = &[
-        "no ", "not ", "never ", "don't ", "do not ", "avoid ", "disallow ",
-    ];
-    PROHIBITION_PREFIXES.iter().any(|p| lower.starts_with(p))
 }
 
 #[cfg(test)]
@@ -266,10 +202,12 @@ mod tests {
         };
         let output = emit_xml(&brief);
         assert!(output.contains("<rule>MUST: Pass the existing CI suite</rule>"));
-        assert!(output.contains("<rule>NEVER: No breaking schema changes</rule>"));
+        assert!(output.contains("<rule>NEVER: breaking schema changes</rule>"));
         assert!(output.contains("<rule>PREFER: Use async where reasonable</rule>"));
         assert!(output.contains("<rule>PREFER: Keep modules under 200 lines</rule>"));
-        assert!(output.contains("<rule>STOP and confirm before: Changing the schema</rule>"));
+        assert!(
+            output.contains("<rule>STOP and confirm with the user before: Changing the schema</rule>")
+        );
     }
 
     #[test]
@@ -293,7 +231,7 @@ mod tests {
         assert!(!output.contains("MUST: MUST"));
         assert!(!output.contains("NEVER: NEVER"));
         assert!(!output.contains("PREFER: PREFER"));
-        assert!(!output.contains("STOP and confirm before: STOP"));
+        assert!(!output.contains("STOP and confirm with the user before: STOP"));
     }
 
     #[test]
@@ -437,18 +375,28 @@ mod tests {
     }
 
     #[test]
-    fn reframing_leaves_already_imperative_text_alone() {
-        // Text that already opens with an imperative verb is returned as-is —
-        // the emitter does not double-prefix.
-        assert_eq!(reframe_hard("Do not push to main"), "Do not push to main");
-        assert_eq!(reframe_hard("Never block the event loop"), "Never block the event loop");
-        assert_eq!(reframe_hard("Avoid lodash"), "Avoid lodash");
-        assert_eq!(reframe_hard("Must run linter before commit"), "Must run linter before commit");
+    fn reframing_leaves_already_framed_text_alone() {
+        use crate::framing::frame_hard;
+        // Text already opening with a canonical prefix (NEVER:/MUST:/AVOID:) is
+        // returned as-is — the emitter does not double-prefix.
+        assert_eq!(frame_hard("MUST: run linter"), "MUST: run linter");
+        assert_eq!(frame_hard("NEVER: leak PII"), "NEVER: leak PII");
+
+        // Negation word-forms are folded into NEVER (the negation lead is dropped).
+        assert_eq!(frame_hard("Do not push to main"), "NEVER: push to main");
+        assert_eq!(
+            frame_hard("Never block the event loop"),
+            "NEVER: block the event loop"
+        );
+        assert_eq!(frame_hard("Avoid lodash"), "NEVER: lodash");
 
         // Positive requirement with no imperative gets MUST:.
-        assert_eq!(reframe_hard("All endpoints return JSON"), "MUST: All endpoints return JSON");
+        assert_eq!(
+            frame_hard("All endpoints return JSON"),
+            "MUST: All endpoints return JSON"
+        );
 
-        // Negative phrasing without an imperative verb gets NEVER:.
-        assert_eq!(reframe_hard("No silent failures"), "NEVER: No silent failures");
+        // Bare negation gets NEVER: with the "no " lead folded in.
+        assert_eq!(frame_hard("No silent failures"), "NEVER: silent failures");
     }
 }
