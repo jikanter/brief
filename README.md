@@ -24,6 +24,16 @@ brief emit claude --install
 # Emit for OpenAI Codex / cross-vendor agents (idempotent install into AGENTS.md)
 brief emit agents-md --install
 
+# Emit for other ecosystems, each in its idiomatic register
+brief emit cursor --install     # .cursor/rules/brief.mdc
+brief emit copilot --install    # .github/copilot-instructions.md
+brief emit windsurf --install   # .windsurf/rules/brief.md
+brief emit aider --install      # CONVENTIONS.md + .aider.conf.yml
+
+# Stay under the context-window budget
+brief emit claude --budget      # report estimated tokens/chars (to stderr)
+brief emit prompt --compact     # strip reference prose; keep only the essentials
+
 # Check if a path is sacred
 brief check src/auth/handler.rs
 ```
