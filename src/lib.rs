@@ -1,3 +1,4 @@
+pub mod budget;
 pub mod check;
 pub mod emit;
 pub mod hooks;

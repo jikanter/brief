@@ -123,28 +123,31 @@ The hook receives tool event data on stdin, runs `brief check`, and outputs a JS
 
 Implementation approach: `brief emit claude --install --hooks` both injects the CLAUDE.md section AND adds the PreToolUse hook to `.claude/settings.json`. This extends the `--install` paradigm naturally.
 
-### P3: Context Window Budget Awareness (effort: 1 day)
+### P3: Context Window Budget Awareness (effort: 1 day) — **SHIPPED**
 
-Every token of brief output displaces conversation history, code context, or tool output. The emitter should:
+**Status (2026-06-10): shipped.** Implemented in `src/budget.rs` (pure, unit-tested) and wired into `brief emit` in `src/main.rs`. The module treats the emitter like a model compiler's codegen: `estimate_tokens` is the size report (tokenizer-free ~4-chars-per-token heuristic — no network, no model files), `compact` is an optimization pass over the Brief IR (drops stack/context/assumptions/identity/unknown sections, keeps goal + constraints + sacred + deliverable; emitters then render the reduced IR through their normal path so each target's register survives), and per-`Target` thresholds are the linker budget. New `emit` flags:
 
-- Report token count of emitted output (approximate, whitespace-split is sufficient)
-- Offer a `--compact` mode that strips explanatory prose and emits only constraint/sacred/deliverable essentials
-- Warn when emitted output exceeds a configurable threshold (default: 500 tokens for `prompt`, 2000 for `claude`)
+- `--compact` — emit only the load-bearing essentials.
+- `--budget` — print `budget: ~N tokens, M chars (budget T)` to **stderr** (stdout stays clean for piping). Opt-in so existing pipelines are unaffected.
+- `--max-tokens <N>` — override the warn threshold.
 
-This prevents the slow degradation of agent performance as briefs grow. A bloated brief consuming 3,000 tokens in the system prompt gets re-injected every turn.
+Over-budget always warns to stderr (even without `--budget`): default token budgets are 500 for `prompt`, 2000 for the file targets, none for `json`. Windsurf additionally carries a 12,000-char ecosystem cap; brief warns on overrun and never silently truncates. Integration tests in `tests/budget_cli.rs`.
 
-### P4: Cross-Ecosystem Emit Targets (effort: 2-4 days total)
+Every token of brief output displaces conversation history, code context, or tool output. This prevents the slow degradation of agent performance as briefs grow. A bloated brief consuming 3,000 tokens in the system prompt gets re-injected every turn.
 
-The original synthesis treated all four targets as equivalent effort. They are not:
+### P4: Cross-Ecosystem Emit Targets (effort: 2-4 days total) — **SHIPPED**
 
-| Target | Format | Effort | Notes |
-|--------|--------|--------|-------|
-| `copilot` | `.github/copilot-instructions.md` — Markdown | Trivial | Nearly identical to Claude emitter output |
-| `windsurf` | `.windsurfrules` — Markdown | Trivial | Plain markdown, different file path |
-| `aider` | `CONVENTIONS.md` — Markdown | Trivial | Plain markdown, different file path |
-| `cursor` | `.cursor/rules/*.mdc` | Real work | YAML frontmatter (`description`, `globs`, `alwaysApply`) + markdown body. Meaningfully different format requiring a dedicated emitter |
+**Status (2026-06-10): shipped.** All four targets land. `cursor` shipped earlier (`src/emit/cursor.rs`). This phase adds the remaining three, each tuned to its ecosystem's idiomatic register rather than reusing the Claude imperative voice (see the per-backend docs under `docs/design/backends/`):
 
-Three trivial wrappers (1 day combined) + one real emitter for Cursor (2-3 days).
+| Target | Emitter | Install destination | Register | Idempotency |
+|--------|---------|---------------------|----------|-------------|
+| `copilot` | `src/emit/copilot.rs` | `.github/copilot-instructions.md` | descriptive (Requirements/Preferences) | `<brief:generated>` marker injection (file is hand-edited) |
+| `windsurf` | `src/emit/windsurf.rs` | `.windsurf/rules/brief.md` | descriptive; `trigger: always_on` frontmatter | brief-owned file, overwritten (mirrors cursor) |
+| `aider` | `src/emit/aider.rs` | `CONVENTIONS.md` **+** `.aider.conf.yml` | conversational ("Prefer:" / "Ask before:") | CONVENTIONS.md via markers; conf via idempotent YAML merge |
+
+The original synthesis budgeted all three as "trivial wrappers." The per-backend audit corrected `aider`: a complete integration is two files — `CONVENTIONS.md` plus an `.aider.conf.yml` carrying `read: CONVENTIONS.md` (and `model:` from frontmatter when present, never overwriting a user's choice) so the conventions auto-load each session. `merge_aider_conf` performs the idempotent merge (promotes an existing scalar `read` to a list, extends an existing list, leaves a satisfied config untouched). Unit tests in each emitter module; CLI integration tests in `tests/p4_cli.rs`.
+
+Path-scoped output (`copilot`'s `.github/instructions/*.instructions.md`, `windsurf`/`cursor` per-glob rules) remains deferred until brief grows a format-level scoped-constraints concept — see [open-questions.md](../open-questions.md).
 
 ### P5: `--install` Enhancements (effort: 2-3 days)
 

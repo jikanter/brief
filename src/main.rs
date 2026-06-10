@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use colored::*;
 
+use brief_cli::budget;
 use brief_cli::check::check_path;
 use brief_cli::emit;
 use brief_cli::init::scaffold_brief;
@@ -52,6 +53,18 @@ enum Commands {
         /// (claude target only; implies --install)
         #[arg(long)]
         hooks: bool,
+
+        /// Strip reference prose; emit only goal, constraints, sacred regions, and deliverable
+        #[arg(long)]
+        compact: bool,
+
+        /// Print an estimated token/character budget report to stderr
+        #[arg(long)]
+        budget: bool,
+
+        /// Override the token budget that triggers an over-budget warning
+        #[arg(long, value_name = "N")]
+        max_tokens: Option<usize>,
     },
 
     /// Check if a file path falls within a sacred region
@@ -157,10 +170,33 @@ enum EmitTarget {
     AgentsMd,
     /// Emit a Cursor `.cursor/rules/brief.mdc` rule
     Cursor,
+    /// Emit a GitHub Copilot `.github/copilot-instructions.md` section
+    Copilot,
+    /// Emit a Windsurf `.windsurf/rules/brief.md` rule
+    Windsurf,
+    /// Emit an Aider `CONVENTIONS.md` (+ `.aider.conf.yml` on --install)
+    Aider,
     /// Emit structured JSON
     Json,
     /// Emit Anthropic-style XML tags for API system prompts
     Xml,
+}
+
+impl EmitTarget {
+    /// Map to the budget target whose context-window thresholds apply.
+    fn budget_target(&self) -> budget::Target {
+        match self {
+            EmitTarget::Claude => budget::Target::Claude,
+            EmitTarget::Prompt => budget::Target::Prompt,
+            EmitTarget::AgentsMd => budget::Target::AgentsMd,
+            EmitTarget::Cursor => budget::Target::Cursor,
+            EmitTarget::Copilot => budget::Target::Copilot,
+            EmitTarget::Windsurf => budget::Target::Windsurf,
+            EmitTarget::Aider => budget::Target::Aider,
+            EmitTarget::Json => budget::Target::Json,
+            EmitTarget::Xml => budget::Target::Xml,
+        }
+    }
 }
 
 fn main() {
@@ -180,7 +216,18 @@ fn run(cli: Cli) -> Result<()> {
             target,
             install,
             hooks,
-        } => cmd_emit(target, &cli.file, install, hooks),
+            compact,
+            budget,
+            max_tokens,
+        } => cmd_emit(EmitArgs {
+            target,
+            file: &cli.file,
+            install,
+            hooks,
+            compact,
+            budget,
+            max_tokens,
+        }),
         Commands::Check { path, hook } => cmd_check(path.as_deref(), &cli.file, hook),
         Commands::ValidateDiff { base, stdin, json } => {
             cmd_validate_diff(&cli.file, &base, stdin, json)
@@ -276,7 +323,28 @@ fn cmd_validate(file: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool, hooks: bool) -> Result<()> {
+/// Arguments for the `emit` command.
+struct EmitArgs<'a> {
+    target: EmitTarget,
+    file: &'a PathBuf,
+    install: bool,
+    hooks: bool,
+    compact: bool,
+    budget: bool,
+    max_tokens: Option<usize>,
+}
+
+fn cmd_emit(args: EmitArgs) -> Result<()> {
+    let EmitArgs {
+        target,
+        file,
+        install,
+        hooks,
+        compact,
+        budget: budget_flag,
+        max_tokens,
+    } = args;
+
     if hooks && !matches!(target, EmitTarget::Claude) {
         anyhow::bail!("--hooks is only supported for the claude target");
     }
@@ -287,15 +355,30 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool, hooks: bool) -> R
         .with_context(|| format!("Failed to read {}", file.display()))?;
 
     let brief = parse_brief(&content).context("Failed to parse briefing")?;
+    // --compact is an optimization pass over the Brief IR: reduce first, then
+    // every emitter renders the reduced briefing through its normal code path.
+    let brief = if compact {
+        budget::compact(&brief)
+    } else {
+        brief
+    };
 
     let output = match target {
         EmitTarget::Claude => emit::emit_claude(&brief),
         EmitTarget::Prompt => emit::emit_prompt(&brief),
         EmitTarget::AgentsMd => emit::emit_agents_md(&brief),
         EmitTarget::Cursor => emit::emit_cursor(&brief),
+        EmitTarget::Copilot => emit::emit_copilot(&brief),
+        EmitTarget::Windsurf => emit::emit_windsurf(&brief),
+        EmitTarget::Aider => emit::emit_aider(&brief),
         EmitTarget::Json => emit::emit_json(&brief),
         EmitTarget::Xml => emit::emit_xml(&brief),
     };
+
+    // Budget awareness (P3): measure the emitted section against the target's
+    // context-window thresholds. The report is opt-in (--budget) so piping stays
+    // quiet; over-budget warnings always fire.
+    report_budget(&output, target.budget_target(), budget_flag, max_tokens);
 
     if install {
         match target {
@@ -338,9 +421,38 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool, hooks: bool) -> R
                     written.display()
                 );
             }
-            _ => {
+            EmitTarget::Copilot => {
+                let base = std::env::current_dir().context("Failed to get current directory")?;
+                let written = emit::install_copilot(&brief, &base).with_context(
+                    || "Failed to install briefing into .github/copilot-instructions.md",
+                )?;
+                println!(
+                    "{} briefing into {}",
+                    "Installed".green().bold(),
+                    written.display()
+                );
+            }
+            EmitTarget::Windsurf => {
+                let base = std::env::current_dir().context("Failed to get current directory")?;
+                let written = emit::install_windsurf(&brief, &base)
+                    .with_context(|| "Failed to install briefing into .windsurf/rules/brief.md")?;
+                println!(
+                    "{} briefing into {}",
+                    "Installed".green().bold(),
+                    written.display()
+                );
+            }
+            EmitTarget::Aider => {
+                let base = std::env::current_dir().context("Failed to get current directory")?;
+                let written = emit::install_aider(&brief, &base)
+                    .with_context(|| "Failed to install briefing into CONVENTIONS.md")?;
+                for path in &written {
+                    println!("{} {}", "Installed".green().bold(), path.display());
+                }
+            }
+            EmitTarget::Prompt | EmitTarget::Json | EmitTarget::Xml => {
                 anyhow::bail!(
-                    "--install is only supported for the claude, agents-md, and cursor targets"
+                    "--install is only supported for the claude, agents-md, cursor, copilot, windsurf, and aider targets"
                 );
             }
         }
@@ -349,6 +461,56 @@ fn cmd_emit(target: EmitTarget, file: &PathBuf, install: bool, hooks: bool) -> R
     }
 
     Ok(())
+}
+
+/// Print the P3 context-window budget report and any over-budget warnings to
+/// stderr. The full report is opt-in (`--budget`); warnings always fire so a
+/// bloated briefing can never silently consume the context window.
+fn report_budget(
+    output: &str,
+    target: budget::Target,
+    budget_flag: bool,
+    max_tokens: Option<usize>,
+) {
+    let mut report = budget::measure(output, target);
+    if let Some(mt) = max_tokens {
+        report.token_threshold = Some(mt);
+    }
+
+    if budget_flag {
+        let threshold = match report.token_threshold {
+            Some(t) => format!(" (budget {t})"),
+            None => String::new(),
+        };
+        eprintln!(
+            "{} ~{} tokens, {} chars{}",
+            "budget:".cyan().bold(),
+            report.tokens,
+            report.chars,
+            threshold
+        );
+    }
+
+    if report.over_tokens() {
+        eprintln!(
+            "{} {} output is ~{} tokens, over the {}-token budget; consider --compact",
+            "warning:".yellow().bold(),
+            target.label(),
+            report.tokens,
+            report.token_threshold.unwrap()
+        );
+    }
+
+    if report.over_chars() {
+        eprintln!(
+            "{} {} output is {} chars, over the {}-char {} ecosystem limit; reduce the brief (never silently truncated)",
+            "warning:".yellow().bold(),
+            target.label(),
+            report.chars,
+            report.char_limit.unwrap(),
+            target.label()
+        );
+    }
 }
 
 fn cmd_emit_skill_internal(file: &PathBuf, install: bool) -> Result<()> {
