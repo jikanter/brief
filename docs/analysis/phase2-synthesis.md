@@ -169,23 +169,23 @@ A single `brief emit claude --install --full` that:
 
 `brief emit claude --uninstall` to remove the `<brief:generated>` / `</brief:generated>` section from CLAUDE.md (and any legacy `<!-- brief:start -->` / `<!-- brief:end -->` marker pair from older installs), remove hooks from settings.json, and remove the skill directory. Users need confidence they can reverse what brief did.
 
-### P6: Emit Quality Refinements (effort: ongoing)
+### P6: Emit Quality Refinements (effort: ongoing) — **SHIPPED**
 
-**Negative constraint framing:**
+**Status (2026-06-11): shipped.** Four refinements land, all additive. Their shared primitive is `src/framing.rs` — the prompt-engineering canonicalization pass — and each refinement is framed against the model-compiler analogy from P3/P4.
 
-The emitter should strengthen hard constraints with automatic negative framing where applicable. A constraint "Use Result<T, AppError> for error handling" becomes "MUST use Result<T, AppError> for error handling. Do not use alternatives unless explicitly discussed."
+**Constraint framing / polarity** (`src/framing.rs`). Rather than the roadmap's blunt "prefix every hard constraint with MUST + 'do not use alternatives'", the shipped version implements the sharper refinement from [emit-quality-refinements.md](emit-quality-refinements.md) §1–§2: hard constraints are classified by polarity and routed to the matching verb — **prohibition** → `NEVER:` (folding the leading negation in), **requirement** → `MUST:`, **convention** ("use thiserror") → left plain so a standing decision is not dressed as adversarial. This is the codegen canonicalization step.
 
-**Constraint conflict detection:**
+*Scope decision (deliberate):* framing is applied to the **`prompt`** target (highest-privilege register — straight into an API system prompt) and the new **`anchor`** output. It is **not** wired into the `claude`/`agents-md` emitters (their human-readable `**IMPORTANT:**` register and tests stand) nor the descriptive targets (`cursor`/`copilot`/`windsurf`/`aider`, whose idiom is explicitly non-imperative). Reframing the `claude` target is the unshipped **P0** "constraint language reframing" item; `framing.rs` is the reusable mechanism it will adopt when taken up.
 
-When `--install` injects into an existing CLAUDE.md, scan for potential contradictions. Full semantic dedup is hard, but keyword-overlap detection between brief constraints and existing CLAUDE.md content is tractable. Warn when a brief constraint appears to conflict with existing instructions.
+**Constraint conflict detection** (`src/conflict.rs`). On `--install` into a host file with existing content (`CLAUDE.md`/`AGENTS.md`/`.github/copilot-instructions.md`/`CONVENTIONS.md`), `detect_conflicts` warns when a brief constraint contradicts an existing instruction. This is the linker's symbol-redefinition warning: it fires only on **same subject** (shared content token, polarity words excluded) **and opposite polarity** (exactly one side is a prohibition), which keeps false positives low. brief's own `<brief:generated>` region is excluded so re-installs never flag the brief against itself. Warns; never blocks. (cursor/windsurf are brief-owned overwrites — no host content to conflict with — so they are skipped.)
 
-**Constraint specificity validation:**
+**Constraint specificity validation** (`src/validate.rs`). `brief validate` flags vague constraints as a lint-pass **Warning** (never an error): vague = under 8 words **and** no concrete reference (backtick span, path, `::`, version/digit, or `snake_case`/`CamelCase` identifier). A short-but-concrete constraint ("no `unsafe`") is not flagged; a long sentence is not flagged.
 
-`brief validate` should flag vague constraints (heuristic: under 8 words, no concrete nouns or paths). Vague constraints ("follow best practices") have dramatically lower compliance than specific ones ("all public functions must return Result<T, AppError>").
+**Attention anchoring** (`src/emit/anchor.rs`, `brief emit anchor`). Emits a compact, deliberately lossy `<brief:anchor>` block (≤5 lines: polarity-framed hard constraints, then ask-first items, then a one-line sacred summary) suitable for periodic re-injection by an agent framework to counter attention decay over long sessions. Soft constraints, assumptions, and prose are dropped on purpose.
 
-**Attention anchoring:**
+Tests: unit suites in each new module + `tests/p6_cli.rs`.
 
-Generate a compact constraint summary block (3-5 lines, highest-priority constraints only) suitable for periodic re-injection by agent frameworks. This addresses attention decay in long multi-turn sessions without MCP complexity.
+*Deferred (tracked, not in this slice):* per-target tone presets ([emit-quality-refinements.md](emit-quality-refinements.md) §3) and command-executable `which` validation (§6 — pairs with `brief init` command auto-scaffolding, which does not exist yet).
 
 ### P7: Skill discovery, scaffold, and install/uninstall — hand-editable across the boundary (effort: 3-5 days)
 
