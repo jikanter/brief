@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 
 use anyhow::{Context, Result};
@@ -159,6 +159,70 @@ pub enum SkillCommands {
         #[arg(long, short)]
         install: bool,
     },
+
+    /// Search local skill roots for a skill by name or description
+    ///
+    /// Examples:
+    ///   brief skill search review
+    #[command(verbatim_doc_comment)]
+    Search {
+        /// Substring to match against skill name and description
+        query: String,
+    },
+
+    /// Scaffold a spec-compliant skill skeleton (hand-editable)
+    ///
+    /// Source precedence: --from-brief, then --description, then the active
+    /// .brief.md. Writes SKILL.md with metadata.brief.source stamped plus empty
+    /// scripts/ and references/ directories.
+    ///
+    /// Examples:
+    ///   brief skill scaffold --description "Review PRs for security"
+    ///   brief skill scaffold --from-brief ./review.brief.md
+    ///   brief skill scaffold --name my-skill
+    #[command(verbatim_doc_comment)]
+    Scaffold {
+        /// Author the skill from a literal description (skill-first, no brief)
+        #[arg(long)]
+        description: Option<String>,
+
+        /// Author the skill from an existing .brief.md
+        #[arg(long)]
+        from_brief: Option<PathBuf>,
+
+        /// Override the derived skill name (kebab-case)
+        #[arg(long)]
+        name: Option<String>,
+    },
+
+    /// Install a skill directory into .claude/skills/<name>/ (idempotent)
+    ///
+    /// Re-running syncs only brief-owned regions (metadata.brief.source and the
+    /// <brief:generated> body fence); hand edits elsewhere are preserved.
+    ///
+    /// Examples:
+    ///   brief skill install ./my-skill
+    #[command(verbatim_doc_comment)]
+    Install {
+        /// Path to the skill directory to install
+        path: PathBuf,
+    },
+
+    /// Uninstall a brief-managed skill from .claude/skills/<name>/
+    ///
+    /// Refuses to remove a skill without brief's ownership marker unless --force.
+    ///
+    /// Examples:
+    ///   brief skill uninstall my-skill
+    #[command(verbatim_doc_comment)]
+    Uninstall {
+        /// Installed skill name
+        name: String,
+
+        /// Remove even a skill that brief does not manage
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Clone, ValueEnum)]
@@ -242,6 +306,14 @@ fn run(cli: Cli) -> Result<()> {
             SkillCommands::Init { name } => cmd_skill_init(name),
             SkillCommands::Validate { path } => cmd_skill_validate(&path),
             SkillCommands::Emit { install } => cmd_skill_emit(&cli.file, install),
+            SkillCommands::Search { query } => cmd_skill_search(&query),
+            SkillCommands::Scaffold {
+                description,
+                from_brief,
+                name,
+            } => cmd_skill_scaffold(&cli.file, description, from_brief, name),
+            SkillCommands::Install { path } => cmd_skill_install(&path),
+            SkillCommands::Uninstall { name, force } => cmd_skill_uninstall(&name, force),
         },
     }
 }
@@ -254,8 +326,67 @@ fn cmd_skill_init(name: Option<String>) -> Result<()> {
     init_skill(name)
 }
 
-fn cmd_skill_validate(path: &PathBuf) -> Result<()> {
+fn cmd_skill_validate(path: &Path) -> Result<()> {
     validate_skill(path)
+}
+
+fn cmd_skill_search(query: &str) -> Result<()> {
+    let cwd = std::env::current_dir().context("Failed to get current directory")?;
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let roots = brief_cli::skill::default_skill_roots(&cwd, home.as_deref());
+    let hits = brief_cli::skill::search(query, &roots);
+
+    if hits.is_empty() {
+        eprintln!("{} no skills match \"{query}\"", "✗".red().bold());
+        process::exit(1);
+    }
+
+    for hit in &hits {
+        println!(
+            "{}  {}\n   {}\n   {}",
+            "•".cyan().bold(),
+            hit.name.bold(),
+            hit.description,
+            hit.path.display()
+        );
+    }
+    Ok(())
+}
+
+fn cmd_skill_scaffold(
+    file: &Path,
+    description: Option<String>,
+    from_brief: Option<PathBuf>,
+    name: Option<String>,
+) -> Result<()> {
+    let cwd = std::env::current_dir().context("Failed to get current directory")?;
+    // The active .brief.md is a source only when it actually exists.
+    let active = if file.exists() { Some(file) } else { None };
+
+    let opts = brief_cli::skill::ScaffoldOptions {
+        description,
+        from_brief,
+        name,
+    };
+    let created = brief_cli::skill::scaffold(&opts, active, &cwd)?;
+    println!("{} {}", "Scaffolded".green().bold(), created.display());
+    println!("Edit SKILL.md, scripts/, and references/ — brief owns only metadata.brief.source.");
+    Ok(())
+}
+
+fn cmd_skill_install(path: &Path) -> Result<()> {
+    let cwd = std::env::current_dir().context("Failed to get current directory")?;
+    let installed = brief_cli::skill::install(path, &cwd)
+        .with_context(|| format!("Failed to install skill from {}", path.display()))?;
+    println!("{} {}", "Installed".green().bold(), installed.display());
+    Ok(())
+}
+
+fn cmd_skill_uninstall(name: &str, force: bool) -> Result<()> {
+    let cwd = std::env::current_dir().context("Failed to get current directory")?;
+    let removed = brief_cli::skill::uninstall(name, &cwd, force)?;
+    println!("{} {}", "Uninstalled".green().bold(), removed.display());
+    Ok(())
 }
 
 fn cmd_init() -> Result<()> {

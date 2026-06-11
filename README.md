@@ -42,6 +42,12 @@ brief validate
 
 # Check if a path is sacred
 brief check src/auth/handler.rs
+
+# Author agent skills (hand-editable; brief owns only metadata.brief.source)
+brief skill search review                          # find existing local skills
+brief skill scaffold --description "Review PRs"    # or --from-brief ./x.brief.md
+brief skill install ./review                        # idempotent into .claude/skills/
+brief skill uninstall review
 ```
 
 ## The Format
