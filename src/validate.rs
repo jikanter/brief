@@ -82,7 +82,61 @@ pub fn validate(brief: &Brief, base_dir: &Path) -> Vec<Diagnostic> {
         }
     }
 
+    // 7. Flag vague constraints. Vague constraints ("follow best practices")
+    //    have dramatically lower agent compliance than specific ones ("all
+    //    public functions must return `Result<T, AppError>`"). This is a lint
+    //    pass, not a hard error — warn and let the author decide.
+    let all_constraints = brief
+        .constraints
+        .hard
+        .iter()
+        .chain(&brief.constraints.soft)
+        .chain(&brief.constraints.ask_first);
+    for constraint in all_constraints {
+        if is_vague(constraint) {
+            diagnostics.push(Diagnostic {
+                severity: Severity::Warning,
+                message: format!(
+                    "Vague constraint (name a specific file, type, or command): \"{constraint}\""
+                ),
+            });
+        }
+    }
+
     diagnostics
+}
+
+/// A constraint is vague when it is short *and* names nothing concrete — no
+/// path, identifier, backtick span, version, or symbol the agent can anchor to.
+/// Both conditions must hold: a long sentence usually carries enough specificity
+/// even without a literal symbol, and a short constraint that names a concrete
+/// thing ("no `unsafe`") is precise despite its length.
+fn is_vague(constraint: &str) -> bool {
+    const MIN_WORDS: usize = 8;
+    let word_count = constraint.split_whitespace().count();
+    word_count < MIN_WORDS && !has_concrete_reference(constraint)
+}
+
+/// Does the text name something concrete — a backtick span, path, version
+/// number, or code identifier (snake_case / CamelCase / dotted / digit-bearing)?
+fn has_concrete_reference(text: &str) -> bool {
+    if text.contains('`') || text.contains('/') || text.contains("::") {
+        return true;
+    }
+    text.split_whitespace().any(|tok| {
+        let t = tok.trim_matches(|c: char| !c.is_alphanumeric());
+        t.chars().any(|c| c.is_ascii_digit())
+            || t.contains('_')
+            || t.contains('.')
+            || is_camel_case(t)
+    })
+}
+
+/// An internal uppercase that follows a lowercase letter — the shape of
+/// `AppError`, `useState`, `PathBuf`.
+fn is_camel_case(token: &str) -> bool {
+    let chars: Vec<char> = token.chars().collect();
+    (1..chars.len()).any(|i| chars[i].is_uppercase() && chars[i - 1].is_lowercase())
 }
 
 #[cfg(test)]
@@ -185,6 +239,52 @@ mod tests {
                 .iter()
                 .any(|d| d.severity == Severity::Error && d.message.contains("backticks"))
         );
+    }
+
+    #[test]
+    fn vague_constraint_is_a_warning_not_error() {
+        let tmp = TempDir::new().unwrap();
+        let mut brief = make_valid_brief();
+        brief.constraints.soft = vec!["Follow best practices".to_string()];
+        let diags = validate(&brief, tmp.path());
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.severity == Severity::Warning && d.message.contains("Vague constraint")),
+            "expected a vague-constraint warning, got: {diags:?}"
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.severity == Severity::Error && d.message.contains("Vague")),
+            "vague constraints must never be hard errors"
+        );
+    }
+
+    #[test]
+    fn specific_constraints_are_not_flagged() {
+        let tmp = TempDir::new().unwrap();
+        let mut brief = make_valid_brief();
+        brief.constraints.hard = vec![
+            "All public functions must return `Result<T, AppError>`".to_string(), // backtick + type
+            "Do not modify src/auth/handler.rs".to_string(),                      // path
+            "Keep response latency under 200ms for the search endpoint".to_string(), // long + digit
+        ];
+        let diags = validate(&brief, tmp.path());
+        assert!(
+            !diags.iter().any(|d| d.message.contains("Vague constraint")),
+            "specific constraints should not be flagged, got: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn short_but_concrete_constraint_is_not_vague() {
+        // Short, but names a concrete symbol — precise despite brevity.
+        let tmp = TempDir::new().unwrap();
+        let mut brief = make_valid_brief();
+        brief.constraints.hard = vec!["No `unsafe`".to_string()];
+        let diags = validate(&brief, tmp.path());
+        assert!(!diags.iter().any(|d| d.message.contains("Vague constraint")));
     }
 
     #[test]

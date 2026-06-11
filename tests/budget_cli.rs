@@ -88,7 +88,8 @@ fn compact_strips_reference_prose() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Fix the login bug"))
-        .stdout(predicate::str::contains("Do not break existing tests"))
+        // Hard constraint "Do not break existing tests" is polarity-framed (P6).
+        .stdout(predicate::str::contains("NEVER: break existing tests"))
         .stdout(predicate::str::contains("src/auth.rs"))
         .stdout(predicate::str::contains("A working login flow."))
         .stdout(predicate::str::contains("STACK:").not())

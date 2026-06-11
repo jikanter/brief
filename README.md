@@ -34,6 +34,12 @@ brief emit aider --install      # CONVENTIONS.md + .aider.conf.yml
 brief emit claude --budget      # report estimated tokens/chars (to stderr)
 brief emit prompt --compact     # strip reference prose; keep only the essentials
 
+# Compact, re-injectable constraint anchor (NEVER/MUST framed, <=5 lines)
+brief emit anchor
+
+# Lint the briefing (flags vague constraints; --install warns on conflicts)
+brief validate
+
 # Check if a path is sacred
 brief check src/auth/handler.rs
 ```

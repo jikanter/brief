@@ -7,6 +7,7 @@ use colored::*;
 
 use brief_cli::budget;
 use brief_cli::check::check_path;
+use brief_cli::conflict;
 use brief_cli::emit;
 use brief_cli::init::scaffold_brief;
 use brief_cli::model::Severity;
@@ -176,6 +177,8 @@ enum EmitTarget {
     Windsurf,
     /// Emit an Aider `CONVENTIONS.md` (+ `.aider.conf.yml` on --install)
     Aider,
+    /// Emit a compact re-injectable constraint anchor (highest-priority rules)
+    Anchor,
     /// Emit structured JSON
     Json,
     /// Emit Anthropic-style XML tags for API system prompts
@@ -193,6 +196,8 @@ impl EmitTarget {
             EmitTarget::Copilot => budget::Target::Copilot,
             EmitTarget::Windsurf => budget::Target::Windsurf,
             EmitTarget::Aider => budget::Target::Aider,
+            // The anchor is a system-prompt-style re-injection: tight budget.
+            EmitTarget::Anchor => budget::Target::Prompt,
             EmitTarget::Json => budget::Target::Json,
             EmitTarget::Xml => budget::Target::Xml,
         }
@@ -371,6 +376,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         EmitTarget::Copilot => emit::emit_copilot(&brief),
         EmitTarget::Windsurf => emit::emit_windsurf(&brief),
         EmitTarget::Aider => emit::emit_aider(&brief),
+        EmitTarget::Anchor => emit::emit_anchor(&brief),
         EmitTarget::Json => emit::emit_json(&brief),
         EmitTarget::Xml => emit::emit_xml(&brief),
     };
@@ -384,6 +390,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         match target {
             EmitTarget::Claude => {
                 let claude_md = PathBuf::from("CLAUDE.md");
+                warn_conflicts(&brief, &claude_md);
                 emit::install_claude(&brief, &claude_md)
                     .with_context(|| "Failed to install briefing into CLAUDE.md")?;
                 println!(
@@ -403,6 +410,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
             }
             EmitTarget::AgentsMd => {
                 let agents_md = PathBuf::from("AGENTS.md");
+                warn_conflicts(&brief, &agents_md);
                 emit::install_agents_md(&brief, &agents_md)
                     .with_context(|| "Failed to install briefing into AGENTS.md")?;
                 println!(
@@ -423,6 +431,10 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
             }
             EmitTarget::Copilot => {
                 let base = std::env::current_dir().context("Failed to get current directory")?;
+                warn_conflicts(
+                    &brief,
+                    &base.join(".github").join("copilot-instructions.md"),
+                );
                 let written = emit::install_copilot(&brief, &base).with_context(
                     || "Failed to install briefing into .github/copilot-instructions.md",
                 )?;
@@ -444,13 +456,14 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
             }
             EmitTarget::Aider => {
                 let base = std::env::current_dir().context("Failed to get current directory")?;
+                warn_conflicts(&brief, &base.join("CONVENTIONS.md"));
                 let written = emit::install_aider(&brief, &base)
                     .with_context(|| "Failed to install briefing into CONVENTIONS.md")?;
                 for path in &written {
                     println!("{} {}", "Installed".green().bold(), path.display());
                 }
             }
-            EmitTarget::Prompt | EmitTarget::Json | EmitTarget::Xml => {
+            EmitTarget::Prompt | EmitTarget::Anchor | EmitTarget::Json | EmitTarget::Xml => {
                 anyhow::bail!(
                     "--install is only supported for the claude, agents-md, cursor, copilot, windsurf, and aider targets"
                 );
@@ -461,6 +474,25 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Warn (to stderr) when a brief constraint appears to contradict an instruction
+/// already in the host file being installed into. Reads the pre-install content;
+/// a missing or unreadable file simply yields no warnings.
+fn warn_conflicts(brief: &brief_cli::model::Brief, host_path: &std::path::Path) {
+    let Ok(existing) = std::fs::read_to_string(host_path) else {
+        return;
+    };
+    let conflicts = conflict::detect_conflicts(brief, &existing);
+    for c in &conflicts {
+        eprintln!(
+            "{} brief constraint \"{}\" may conflict with existing instruction \"{}\" in {}",
+            "warning:".yellow().bold(),
+            c.brief_constraint,
+            c.existing_line,
+            host_path.display()
+        );
+    }
 }
 
 /// Print the P3 context-window budget report and any over-budget warnings to

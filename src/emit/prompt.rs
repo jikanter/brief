@@ -1,6 +1,13 @@
+use crate::framing::{frame_ask_first, frame_hard};
 use crate::model::Brief;
 
 /// Emit a raw system prompt suitable for direct API use.
+///
+/// The `prompt` target occupies the highest-privilege position — it lands
+/// directly in an API system prompt — so it uses the most aggressive register:
+/// hard constraints are framed by polarity (`NEVER:`/`MUST:`/plain convention,
+/// see [`crate::framing`]) and ask-first items become explicit interruption
+/// directives.
 pub fn emit_prompt(brief: &Brief) -> String {
     let mut out = String::new();
 
@@ -24,7 +31,7 @@ pub fn emit_prompt(brief: &Brief) -> String {
     if !brief.constraints.hard.is_empty() {
         out.push_str("HARD CONSTRAINTS:\n");
         for c in &brief.constraints.hard {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", frame_hard(c)));
         }
         out.push('\n');
     }
@@ -40,7 +47,7 @@ pub fn emit_prompt(brief: &Brief) -> String {
     if !brief.constraints.ask_first.is_empty() {
         out.push_str("ASK BEFORE PROCEEDING:\n");
         for c in &brief.constraints.ask_first {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", frame_ask_first(c)));
         }
         out.push('\n');
     }
@@ -132,6 +139,34 @@ mod tests {
         };
         let output = emit_prompt(&brief);
         assert!(output.contains("COMMANDS:\n- Build: `cargo build`"));
+    }
+
+    #[test]
+    fn prompt_frames_constraints_by_polarity() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            identity: None,
+            constraints: Constraints {
+                hard: vec![
+                    "Do not break the public API".into(),
+                    "All handlers return Result".into(),
+                    "Use thiserror for errors".into(),
+                ],
+                soft: vec![],
+                ask_first: vec!["Changing the schema".into()],
+            },
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_prompt(&brief);
+        assert!(output.contains("- NEVER: break the public API"));
+        assert!(output.contains("- MUST: All handlers return Result"));
+        // Convention stays plain — not dressed as adversarial.
+        assert!(output.contains("- Use thiserror for errors"));
+        assert!(output.contains("STOP and confirm with the user before: Changing the schema"));
     }
 
     #[test]
