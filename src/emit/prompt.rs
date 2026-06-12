@@ -1,15 +1,44 @@
-use crate::framing::{frame_ask_first, frame_hard};
+use crate::framing::{frame_ask_first, frame_hard, frame_soft};
 use crate::model::Brief;
 
 /// Emit a raw system prompt suitable for direct API use.
 ///
 /// The `prompt` target occupies the highest-privilege position — it lands
-/// directly in an API system prompt — so it uses the most aggressive register:
-/// hard constraints are framed by polarity (`NEVER:`/`MUST:`/plain convention,
-/// see [`crate::framing`]) and ask-first items become explicit interruption
-/// directives.
+/// directly in an API system prompt — so it is aggressively optimized for
+/// compliance on two axes (phase2-synthesis P0):
+///
+/// - **Register.** Hard constraints are framed by polarity (`NEVER:`/`MUST:`/
+///   plain convention), soft ones as `PREFER:`, ask-first ones as explicit
+///   `STOP and confirm` interruptions (see [`crate::framing`]).
+/// - **Order.** Sections are placed for attention dynamics, not human reading
+///   flow: hard constraints and sacred regions take the **primacy** position
+///   (first ~15% of context gets the highest attention), goal/stack/context and
+///   the softer constraints sit in the middle, and the deliverable takes the
+///   **recency** position (last ~15%) as the closing action directive.
 pub fn emit_prompt(brief: &Brief) -> String {
     let mut out = String::new();
+
+    // -- Primacy: the rules that must not be violated --
+
+    if !brief.constraints.hard.is_empty() {
+        out.push_str("HARD CONSTRAINTS:\n");
+        for c in &brief.constraints.hard {
+            out.push_str(&format!("- {}\n", frame_hard(c)));
+        }
+        out.push('\n');
+    }
+
+    if !brief.sacred.is_empty() {
+        out.push_str(
+            "DO NOT MODIFY (these files must not be changed under any circumstances; if a task requires it, STOP and report the conflict):\n",
+        );
+        for entry in &brief.sacred {
+            out.push_str(&format!("- {}: {}\n", entry.path, entry.reason));
+        }
+        out.push('\n');
+    }
+
+    // -- Middle: task frame and reference context --
 
     out.push_str(&format!("GOAL: {}\n\n", brief.goal));
 
@@ -28,18 +57,10 @@ pub fn emit_prompt(brief: &Brief) -> String {
         out.push('\n');
     }
 
-    if !brief.constraints.hard.is_empty() {
-        out.push_str("HARD CONSTRAINTS:\n");
-        for c in &brief.constraints.hard {
-            out.push_str(&format!("- {}\n", frame_hard(c)));
-        }
-        out.push('\n');
-    }
-
     if !brief.constraints.soft.is_empty() {
         out.push_str("SOFT CONSTRAINTS:\n");
         for c in &brief.constraints.soft {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", frame_soft(c)));
         }
         out.push('\n');
     }
@@ -48,14 +69,6 @@ pub fn emit_prompt(brief: &Brief) -> String {
         out.push_str("ASK BEFORE PROCEEDING:\n");
         for c in &brief.constraints.ask_first {
             out.push_str(&format!("- {}\n", frame_ask_first(c)));
-        }
-        out.push('\n');
-    }
-
-    if !brief.sacred.is_empty() {
-        out.push_str("DO NOT MODIFY:\n");
-        for entry in &brief.sacred {
-            out.push_str(&format!("- {}: {}\n", entry.path, entry.reason));
         }
         out.push('\n');
     }
@@ -79,19 +92,21 @@ pub fn emit_prompt(brief: &Brief) -> String {
         out.push('\n');
     }
 
+    // Unknown sections (passthrough) — reference material, before the closer.
+    for section in &brief.unknown_sections {
+        out.push_str(&format!(
+            "{}:\n{}\n\n",
+            section.heading.to_uppercase(),
+            section.content
+        ));
+    }
+
+    // -- Recency: the closing action directive --
+
     if let Some(ref deliverable) = brief.deliverable {
         out.push_str("DELIVERABLE:\n");
         out.push_str(deliverable);
         out.push('\n');
-    }
-
-    // Unknown sections (passthrough)
-    for section in &brief.unknown_sections {
-        out.push_str(&format!(
-            "\n{}:\n{}\n",
-            section.heading.to_uppercase(),
-            section.content
-        ));
     }
 
     out
