@@ -66,6 +66,18 @@ enum Commands {
         /// Override the token budget that triggers an over-budget warning
         #[arg(long, value_name = "N")]
         max_tokens: Option<usize>,
+
+        /// Where to place a first install: top | bottom | after:<heading> (claude only)
+        #[arg(long, value_name = "POS")]
+        position: Option<String>,
+
+        /// Unified install: section + skill + hooks + command permissions (claude only)
+        #[arg(long)]
+        full: bool,
+
+        /// Remove the brief section, hooks, and skill that brief installed (claude only)
+        #[arg(long)]
+        uninstall: bool,
     },
 
     /// Check if a file path falls within a sacred region
@@ -288,6 +300,9 @@ fn run(cli: Cli) -> Result<()> {
             compact,
             budget,
             max_tokens,
+            position,
+            full,
+            uninstall,
         } => cmd_emit(EmitArgs {
             target,
             file: &cli.file,
@@ -296,6 +311,9 @@ fn run(cli: Cli) -> Result<()> {
             compact,
             budget,
             max_tokens,
+            position,
+            full,
+            uninstall,
         }),
         Commands::Check { path, hook } => cmd_check(path.as_deref(), &cli.file, hook),
         Commands::ValidateDiff { base, stdin, json } => {
@@ -318,7 +336,7 @@ fn run(cli: Cli) -> Result<()> {
     }
 }
 
-fn cmd_skill_emit(file: &PathBuf, install: bool) -> Result<()> {
+fn cmd_skill_emit(file: &Path, install: bool) -> Result<()> {
     cmd_emit_skill_internal(file, install)
 }
 
@@ -468,6 +486,23 @@ struct EmitArgs<'a> {
     compact: bool,
     budget: bool,
     max_tokens: Option<usize>,
+    position: Option<String>,
+    full: bool,
+    uninstall: bool,
+}
+
+/// Parse a `--position` value into a marker [`emit::Position`].
+fn parse_position(raw: &str) -> Result<emit::Position> {
+    match raw.trim() {
+        "top" => Ok(emit::Position::Top),
+        "bottom" => Ok(emit::Position::Bottom),
+        other => match other.strip_prefix("after:") {
+            Some(h) if !h.trim().is_empty() => Ok(emit::Position::After(h.trim().to_string())),
+            _ => anyhow::bail!(
+                "invalid --position '{raw}'; expected top, bottom, or after:<heading>"
+            ),
+        },
+    }
 }
 
 fn cmd_emit(args: EmitArgs) -> Result<()> {
@@ -479,18 +514,46 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         compact,
         budget: budget_flag,
         max_tokens,
+        position,
+        full,
+        uninstall,
     } = args;
 
-    if hooks && !matches!(target, EmitTarget::Claude) {
+    // --hooks / --full / --uninstall / --position are claude-only (they touch
+    // CLAUDE.md, .claude/settings.json, and .claude/skills).
+    let claude = matches!(target, EmitTarget::Claude);
+    if hooks && !claude {
         anyhow::bail!("--hooks is only supported for the claude target");
     }
-    // --hooks implies --install: there is no "emit hooks to stdout" mode.
-    let install = install || hooks;
+    if full && !claude {
+        anyhow::bail!("--full is only supported for the claude target");
+    }
+    if uninstall && !claude {
+        anyhow::bail!("--uninstall is only supported for the claude target");
+    }
+    if position.is_some() && !claude {
+        anyhow::bail!("--position is only supported for the claude target");
+    }
+    if uninstall && (install || full || hooks) {
+        anyhow::bail!("--uninstall cannot be combined with --install, --full, or --hooks");
+    }
+
+    let position = match &position {
+        Some(p) => parse_position(p)?,
+        None => emit::Position::Bottom,
+    };
+    // --hooks and --full both imply --install.
+    let install = install || hooks || full;
 
     let content = std::fs::read_to_string(file)
         .with_context(|| format!("Failed to read {}", file.display()))?;
-
     let brief = parse_brief(&content).context("Failed to parse briefing")?;
+
+    // --uninstall reverses what brief installed, then exits.
+    if uninstall {
+        return cmd_uninstall_claude(&brief);
+    }
+
     // --compact is an optimization pass over the Brief IR: reduce first, then
     // every emitter renders the reduced briefing through its normal code path.
     let brief = if compact {
@@ -522,14 +585,20 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
             EmitTarget::Claude => {
                 let claude_md = PathBuf::from("CLAUDE.md");
                 warn_conflicts(&brief, &claude_md);
-                emit::install_claude(&brief, &claude_md)
+                emit::install_claude_at(&brief, &claude_md, &position)
                     .with_context(|| "Failed to install briefing into CLAUDE.md")?;
                 println!(
                     "{} briefing into {}",
                     "Installed".green().bold(),
                     claude_md.display()
                 );
-                if hooks {
+                // --full installs the skill (if the brief names one) alongside
+                // the CLAUDE.md section.
+                if full {
+                    cmd_full_install_skill(&brief, file)?;
+                }
+                // --hooks and --full both register the sacred-region hook.
+                if hooks || full {
                     let settings = install_pretooluse_hook()
                         .context("Failed to register PreToolUse hook in .claude/settings.json")?;
                     println!(
@@ -537,6 +606,10 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
                         "Registered".green().bold(),
                         settings.display()
                     );
+                }
+                // --full pre-allows the project's known-safe `## Commands`.
+                if full {
+                    cmd_full_install_permissions(&brief)?;
                 }
             }
             EmitTarget::AgentsMd => {
@@ -676,7 +749,7 @@ fn report_budget(
     }
 }
 
-fn cmd_emit_skill_internal(file: &PathBuf, install: bool) -> Result<()> {
+fn cmd_emit_skill_internal(file: &Path, install: bool) -> Result<()> {
     let content = std::fs::read_to_string(file)
         .with_context(|| format!("Failed to read {}", file.display()))?;
 
@@ -869,6 +942,90 @@ fn install_pretooluse_hook() -> Result<PathBuf> {
         .with_context(|| format!("Failed to write {}", settings_path.display()))?;
 
     Ok(settings_path)
+}
+
+/// `--full`: install the brief's skill, if it declares one. No-op (with a note)
+/// when the brief has no `skill_name`. Delegates to the same source-stamping
+/// install path as `brief skill emit --install`, so the SKILL.md carries the
+/// `metadata.brief.source` ownership marker and `--uninstall` can remove it.
+fn cmd_full_install_skill(brief: &brief_cli::model::Brief, file: &Path) -> Result<()> {
+    if brief.frontmatter.skill_name.is_none() {
+        println!("  (no skill_name in frontmatter — skipping skill install)");
+        return Ok(());
+    }
+    cmd_emit_skill_internal(file, true)
+}
+
+/// `--full`: pre-allow the project's known-safe `## Commands` in
+/// `.claude/settings.json` `permissions.allow`. No-op when there are none.
+fn cmd_full_install_permissions(brief: &brief_cli::model::Brief) -> Result<()> {
+    let entries = brief_cli::commands::command_permissions(brief);
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let settings_dir = PathBuf::from(".claude");
+    let settings_path = settings_dir.join("settings.json");
+    let existing = std::fs::read_to_string(&settings_path).ok();
+    let updated = brief_cli::hooks::ensure_permissions_allow(existing.as_deref(), &entries)
+        .context("Failed to update permissions.allow in .claude/settings.json")?;
+
+    std::fs::create_dir_all(&settings_dir)
+        .with_context(|| format!("Failed to create {}", settings_dir.display()))?;
+    std::fs::write(&settings_path, format!("{updated}\n"))
+        .with_context(|| format!("Failed to write {}", settings_path.display()))?;
+    println!(
+        "{} {} command permission(s) in {}",
+        "Allowed".green().bold(),
+        entries.len(),
+        settings_path.display()
+    );
+    Ok(())
+}
+
+/// `--uninstall`: reverse what brief installed — strip the CLAUDE.md section,
+/// remove the sacred-region hook from settings.json, and remove the installed
+/// skill via P7's ownership-checked `skill uninstall`. Each step is best-effort
+/// and reports what it did.
+fn cmd_uninstall_claude(brief: &brief_cli::model::Brief) -> Result<()> {
+    // 1. CLAUDE.md section.
+    let claude_md = PathBuf::from("CLAUDE.md");
+    if emit::uninstall_claude(&claude_md).with_context(|| "Failed to update CLAUDE.md")? {
+        println!(
+            "{} brief section from {}",
+            "Removed".green().bold(),
+            claude_md.display()
+        );
+    } else {
+        println!("  (no brief section in {})", claude_md.display());
+    }
+
+    // 2. Sacred-region hook in .claude/settings.json.
+    let settings_path = PathBuf::from(".claude").join("settings.json");
+    if let Ok(existing) = std::fs::read_to_string(&settings_path) {
+        let updated = brief_cli::hooks::remove_pretooluse_hook(&existing)
+            .context("Failed to update .claude/settings.json")?;
+        if updated.trim() != existing.trim() {
+            std::fs::write(&settings_path, format!("{updated}\n"))
+                .with_context(|| format!("Failed to write {}", settings_path.display()))?;
+            println!(
+                "{} sacred-region hook from {}",
+                "Removed".green().bold(),
+                settings_path.display()
+            );
+        }
+    }
+
+    // 3. Installed skill — via P7's ownership-checked uninstall (never a blind rm).
+    if brief.frontmatter.skill_name.is_some() {
+        let name = emit::skill_name(brief);
+        let cwd = std::env::current_dir().context("Failed to get current directory")?;
+        match brief_cli::skill::uninstall(&name, &cwd, false) {
+            Ok(dir) => println!("{} skill {}", "Removed".green().bold(), dir.display()),
+            Err(e) => println!("  (skill '{name}' not removed: {e})"),
+        }
+    }
+
+    Ok(())
 }
 
 fn cmd_diff(file1: &PathBuf, file2: &PathBuf) -> Result<()> {

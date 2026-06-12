@@ -75,6 +75,104 @@ pub fn find_marker_pairs(text: &str) -> Vec<MarkerPair> {
     pairs
 }
 
+/// Where to place the brief section on a *first* install (when the host file
+/// has no existing markers). On a re-install the section is always replaced in
+/// place, so position is ignored once markers exist.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Position {
+    /// Append to the end of the file (the default, non-destructive).
+    Bottom,
+    /// Prepend to the very top — primacy positioning for attention dynamics.
+    Top,
+    /// Insert immediately after the named `## <heading>` section.
+    After(String),
+}
+
+/// Like [`inject_section`], but on a first install (no existing markers) the
+/// section is placed according to `position`. When markers already exist the
+/// section is replaced in place and `position` is ignored (idempotent).
+pub fn inject_section_at(
+    existing: &str,
+    wrapped_section: &str,
+    position: &Position,
+) -> (String, usize) {
+    if !find_marker_pairs(existing).is_empty() {
+        return inject_section(existing, wrapped_section);
+    }
+    match position {
+        Position::Bottom => inject_section(existing, wrapped_section),
+        Position::Top => {
+            if existing.is_empty() {
+                return (wrapped_section.to_string(), 0);
+            }
+            let mut out = String::with_capacity(existing.len() + wrapped_section.len());
+            out.push_str(wrapped_section);
+            if !out.ends_with('\n') {
+                out.push('\n');
+            }
+            out.push('\n');
+            out.push_str(existing);
+            (out, 0)
+        }
+        Position::After(heading) => {
+            match insert_after_heading(existing, wrapped_section, heading) {
+                Some(out) => (out, 0),
+                // Heading not found — fall back to a safe append.
+                None => inject_section(existing, wrapped_section),
+            }
+        }
+    }
+}
+
+/// Insert `wrapped_section` right after the `## <heading>` section (before the
+/// next H2 or end of file). Returns `None` if the heading is not present.
+fn insert_after_heading(existing: &str, wrapped_section: &str, heading: &str) -> Option<String> {
+    let lines: Vec<&str> = existing.lines().collect();
+    let target = format!("## {}", heading.trim());
+    let start = lines.iter().position(|l| l.trim() == target)?;
+    // Find the next H2 after the heading; the section ends just before it.
+    let end = (start + 1..lines.len())
+        .find(|&i| lines[i].trim_start().starts_with("## "))
+        .unwrap_or(lines.len());
+
+    let before = lines[..end].join("\n");
+    let after = lines[end..].join("\n");
+
+    let mut out = String::with_capacity(existing.len() + wrapped_section.len());
+    out.push_str(&before);
+    out.push('\n');
+    out.push('\n');
+    out.push_str(wrapped_section);
+    if !after.is_empty() {
+        if !out.ends_with('\n') {
+            out.push('\n');
+        }
+        out.push('\n');
+        out.push_str(&after);
+    }
+    if existing.ends_with('\n') && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    Some(out)
+}
+
+/// Remove every brief marker pair (current and legacy flavors) from the text,
+/// leaving the user's surrounding content. Used by `--uninstall`.
+pub fn remove_sections(existing: &str) -> String {
+    let pairs = find_marker_pairs(existing);
+    if pairs.is_empty() {
+        return existing.to_string();
+    }
+    let mut out = String::with_capacity(existing.len());
+    let mut cursor = 0;
+    for pair in pairs {
+        out.push_str(&existing[cursor..pair.pair_start]);
+        cursor = pair.pair_end;
+    }
+    out.push_str(&existing[cursor..]);
+    out
+}
+
 /// Replace content between markers, or append if no markers found.
 /// Returns the resulting content and the number of marker pairs found.
 pub fn inject_section(existing: &str, wrapped_section: &str) -> (String, usize) {
@@ -301,6 +399,83 @@ new body\n\
     fn find_marker_pairs_handles_no_markers() {
         let pairs = find_marker_pairs("just some text\n");
         assert!(pairs.is_empty());
+    }
+
+    #[test]
+    fn inject_at_top_prepends_above_existing() {
+        let existing = "# My Project\n\nIntro.\n";
+        let section = "<brief:generated>\nbrief\n</brief:generated>\n";
+        let (out, pairs) = inject_section_at(existing, section, &Position::Top);
+        assert_eq!(pairs, 0);
+        assert!(out.starts_with("<brief:generated>"));
+        assert!(out.contains("# My Project"));
+        assert!(out.find("brief").unwrap() < out.find("# My Project").unwrap());
+    }
+
+    #[test]
+    fn inject_at_bottom_appends() {
+        let existing = "# My Project\n";
+        let section = "<brief:generated>\nbrief\n</brief:generated>\n";
+        let (out, _) = inject_section_at(existing, section, &Position::Bottom);
+        assert!(out.starts_with("# My Project"));
+        assert!(out.trim_end().ends_with("</brief:generated>"));
+    }
+
+    #[test]
+    fn inject_after_heading_places_within_section() {
+        let existing = "# Title\n\n## Setup\n\nsetup body\n\n## Other\n\nother body\n";
+        let section = "<brief:generated>\nbrief\n</brief:generated>\n";
+        let (out, _) = inject_section_at(existing, section, &Position::After("Setup".into()));
+        // brief comes after Setup body but before Other.
+        assert!(out.find("setup body").unwrap() < out.find("brief").unwrap());
+        assert!(out.find("brief").unwrap() < out.find("## Other").unwrap());
+    }
+
+    #[test]
+    fn inject_after_missing_heading_falls_back_to_append() {
+        let existing = "# Title\n\n## Setup\n\nbody\n";
+        let section = "<brief:generated>\nbrief\n</brief:generated>\n";
+        let (out, _) = inject_section_at(existing, section, &Position::After("Nope".into()));
+        assert!(out.find("body").unwrap() < out.find("brief").unwrap());
+    }
+
+    #[test]
+    fn inject_at_position_replaces_in_place_when_markers_exist() {
+        // Position is ignored once markers exist — re-install stays idempotent.
+        let existing = "head\n<brief:generated>\nold\n</brief:generated>\ntail\n";
+        let section = "<brief:generated>\nnew\n</brief:generated>\n";
+        let (out, pairs) = inject_section_at(existing, section, &Position::Top);
+        assert_eq!(pairs, 1);
+        assert_eq!(
+            out,
+            "head\n<brief:generated>\nnew\n</brief:generated>\ntail\n"
+        );
+    }
+
+    #[test]
+    fn remove_sections_strips_brief_region() {
+        let existing = "# Project\n\n<brief:generated>\ngen\n</brief:generated>\n\n## Notes\n";
+        let out = remove_sections(existing);
+        assert!(!out.contains("<brief:generated>"));
+        assert!(!out.contains("gen"));
+        assert!(out.contains("# Project"));
+        assert!(out.contains("## Notes"));
+    }
+
+    #[test]
+    fn remove_sections_strips_legacy_markers() {
+        let existing = "x\n<!-- brief:start -->\nold\n<!-- brief:end -->\ny\n";
+        let out = remove_sections(existing);
+        assert!(!out.contains("brief:start"));
+        assert!(!out.contains("old"));
+        assert!(out.contains('x'));
+        assert!(out.contains('y'));
+    }
+
+    #[test]
+    fn remove_sections_noop_without_markers() {
+        let existing = "just content\n";
+        assert_eq!(remove_sections(existing), existing);
     }
 
     #[test]
