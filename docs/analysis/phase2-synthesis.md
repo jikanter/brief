@@ -149,7 +149,15 @@ The original synthesis budgeted all three as "trivial wrappers." The per-backend
 
 Path-scoped output (`copilot`'s `.github/instructions/*.instructions.md`, `windsurf`/`cursor` per-glob rules) remains deferred until brief grows a format-level scoped-constraints concept — see [open-questions.md](../open-questions.md).
 
-### P5: `--install` Enhancements (effort: 2-3 days)
+### P5: `--install` Enhancements (effort: 2-3 days) — **SHIPPED**
+
+**Status (2026-06-12): shipped.** Three claude-only additions to the `emit` command, all built on the marker plumbing in `src/emit/markers.rs`:
+
+- **`--position top|bottom|after:<heading>`** — controls where a *first* install lands. `bottom` (default) appends; `top` prepends with the reconciliation preamble "The following task-specific constraints supplement the project instructions below."; `after:<heading>` inserts inside the named `## <heading>` section. On a re-install (markers already present) the section is replaced in place and position is ignored — idempotency is preserved. New marker helpers `inject_section_at` / `remove_sections`.
+- **`--full`** — unified install (implies `--install`): the CLAUDE.md section, plus the skill if the brief declares a `skill_name` (via the same source-stamping path as `skill emit --install`, so it carries the `metadata.brief.source` ownership marker), plus the sacred-region PreToolUse hook, plus `permissions.allow` entries derived from the project's `## Commands` (`src/commands.rs` → `Bash(<cmd>:*)`, a starting allowlist the user can prune).
+- **`--uninstall`** — reverses what brief installed: strips the CLAUDE.md section (current + legacy markers), removes the sacred-region hook from `.claude/settings.json` (`hooks::remove_pretooluse_hook`), and removes the installed skill **via P7's ownership-checked `skill uninstall`** — never a blind `rm`, so a hand-edited skill is protected.
+
+`permissions.allow` and hook-removal merges are in `src/hooks.rs` (pure, unit-tested). Integration tests in `tests/p5_cli.rs`.
 
 **Injection position control:**
 

@@ -1,5 +1,6 @@
 pub mod budget;
 pub mod check;
+pub mod commands;
 pub mod conflict;
 pub mod emit;
 pub mod framing;

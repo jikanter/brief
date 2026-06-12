@@ -20,6 +20,9 @@ brief validate
 
 # Emit for Claude Code (idempotent install into CLAUDE.md)
 brief emit claude --install
+brief emit claude --install --position top   # primacy placement + reconciliation preamble
+brief emit claude --full                     # section + skill + hooks + command permissions
+brief emit claude --uninstall                # reverse it all (section, hooks, skill)
 
 # Emit for OpenAI Codex / cross-vendor agents (idempotent install into AGENTS.md)
 brief emit agents-md --install
