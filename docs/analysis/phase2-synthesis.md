@@ -157,7 +157,15 @@ The original synthesis budgeted all three as "trivial wrappers." The per-backend
 
 Path-scoped output (`copilot`'s `.github/instructions/*.instructions.md`, `windsurf`/`cursor` per-glob rules) remains deferred until brief grows a format-level scoped-constraints concept — see [open-questions.md](../open-questions.md).
 
-### P5: `--install` Enhancements (effort: 2-3 days)
+### P5: `--install` Enhancements (effort: 2-3 days) — **SHIPPED**
+
+**Status (2026-06-12): shipped.** Three claude-only additions to the `emit` command, all built on the marker plumbing in `src/emit/markers.rs`:
+
+- **`--position top|bottom|after:<heading>`** — controls where a *first* install lands. `bottom` (default) appends; `top` prepends with the reconciliation preamble "The following task-specific constraints supplement the project instructions below."; `after:<heading>` inserts inside the named `## <heading>` section. On a re-install (markers already present) the section is replaced in place and position is ignored — idempotency is preserved. New marker helpers `inject_section_at` / `remove_sections`.
+- **`--full`** — unified install (implies `--install`): the CLAUDE.md section, plus the skill if the brief declares a `skill_name` (via the same source-stamping path as `skill emit --install`, so it carries the `metadata.brief.source` ownership marker), plus the sacred-region PreToolUse hook, plus `permissions.allow` entries derived from the project's `## Commands` (`src/commands.rs` → `Bash(<cmd>:*)`, a starting allowlist the user can prune).
+- **`--uninstall`** — reverses what brief installed: strips the CLAUDE.md section (current + legacy markers), removes the sacred-region hook from `.claude/settings.json` (`hooks::remove_pretooluse_hook`), and removes the installed skill **via P7's ownership-checked `skill uninstall`** — never a blind `rm`, so a hand-edited skill is protected.
+
+`permissions.allow` and hook-removal merges are in `src/hooks.rs` (pure, unit-tested). Integration tests in `tests/p5_cli.rs`.
 
 **Injection position control:**
 
@@ -195,7 +203,18 @@ Tests: unit suites in each new module + `tests/p6_cli.rs`.
 
 *Deferred (tracked, not in this slice):* per-target tone presets ([emit-quality-refinements.md](emit-quality-refinements.md) §3) and command-executable `which` validation (§6 — pairs with `brief init` command auto-scaffolding, which does not exist yet).
 
-### P7: Skill discovery, scaffold, and install/uninstall — hand-editable across the boundary (effort: 3-5 days)
+### P7: Skill discovery, scaffold, and install/uninstall — hand-editable across the boundary (effort: 3-5 days) — **SHIPPED**
+
+**Status (2026-06-11): shipped.** The forced primitive — the brief-owned / user-owned region boundary inside a SKILL.md — is encoded in the library module `src/skill.rs`, and all four commands ride on it:
+
+- `brief skill search <query>` — local-only, no network. Ranks `name` + `description` substring matches across `.claude/skills/`, `.agents/skills/`, and `~/.claude/skills/` (name match outweighs description). Exit 0 on a hit, 1 on none.
+- `brief skill scaffold [--description "<text>"] [--from-brief <file>] [--name <slug>]` — spec-compliant skeleton with `metadata.brief.source` stamped, plus empty `scripts/` + `references/`. Source precedence: `--from-brief` → `--description` → the active `.brief.md`. **The skill-first `--description` path is included** (the deliberate step the spec flagged — taken, per the broader "writes to multiple surfaces" framing in design-decisions.md).
+- `brief skill install <path>` — syncs into `.claude/skills/<name>/`. Idempotent across the boundary: a re-install updates only `metadata.brief.source` and the `<brief:generated>` body fence; all other destination fields and body content are preserved byte-for-byte. The frontmatter edit is **surgical** (line-level, not a YAML re-serialize) so user formatting/comments/key-order survive.
+- `brief skill uninstall <name> [--force]` — the canonical removal surface. Refuses to remove a skill lacking brief's ownership marker (`metadata.brief.source`) without `--force`.
+
+**v1 scope decisions (deliberate):** `init`/`validate`/`emit` are unchanged (scaffold does not replace `init`); spec validation moved into `src/skill.rs` so the lib and CLI share one implementation (the bin `skill_validate.rs` re-exports). `uninstall`'s "no edits outside brief-owned regions" check is gated on the ownership marker only — finer edited-body detection would need a stored baseline hash, which did not pass the YAGNI bar. **P5's future `brief emit claude --uninstall` must call `brief skill uninstall` for skill cleanup** rather than `rm`-ing the directory, per the boundary this work protects.
+
+Unit suite in `src/skill.rs` (boundary, scaffold, install/uninstall, search) + CLI integration tests in `tests/skill_p7_cli.rs`.
 
 **The use case.** A user has a skill they can describe in plain English but does not know two things:
 

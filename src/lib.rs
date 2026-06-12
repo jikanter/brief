@@ -1,5 +1,6 @@
 pub mod budget;
 pub mod check;
+pub mod commands;
 pub mod conflict;
 pub mod emit;
 pub mod framing;
@@ -7,5 +8,6 @@ pub mod hooks;
 pub mod init;
 pub mod model;
 pub mod parse;
+pub mod skill;
 pub mod validate;
 pub mod validate_diff;

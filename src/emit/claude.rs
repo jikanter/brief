@@ -1,8 +1,12 @@
 use std::path::Path;
 
-use crate::emit::markers::{inject_section, wrap_with_markers};
-use crate::framing::{frame_ask_first, frame_hard, frame_soft};
+use crate::emit::markers::{Position, inject_section_at, remove_sections, wrap_with_markers};
 use crate::model::Brief;
+
+/// Preamble added above a top-positioned brief section, telling the model how to
+/// reconcile the task-specific constraints with the project instructions below.
+const TOP_PREAMBLE: &str =
+    "The following task-specific constraints supplement the project instructions below.";
 
 /// Emit a CLAUDE.md-compatible section from a Brief.
 ///
@@ -139,25 +143,67 @@ pub fn emit_claude(brief: &Brief) -> String {
 /// content between them is replaced with a freshly-emitted, new-format
 /// section. Otherwise the marked section is appended to the end of the file.
 pub fn install_claude(brief: &Brief, claude_md_path: &Path) -> Result<String, std::io::Error> {
-    let section = emit_claude(brief);
+    install_claude_at(brief, claude_md_path, &Position::Bottom)
+}
+
+/// Inject a briefing section into an existing CLAUDE.md at a chosen position.
+///
+/// On a *first* install the section is placed per `position` (`Bottom` append,
+/// `Top` prepend, or `After:<heading>`). A top placement into an existing file
+/// gets a reconciliation preamble so the model knows the brief constraints
+/// supplement what follows. On a re-install (markers already present) the
+/// section is replaced in place and `position` is ignored — the install stays
+/// idempotent.
+pub fn install_claude_at(
+    brief: &Brief,
+    claude_md_path: &Path,
+    position: &Position,
+) -> Result<String, std::io::Error> {
+    let existing = if claude_md_path.exists() {
+        Some(std::fs::read_to_string(claude_md_path)?)
+    } else {
+        None
+    };
+    let has_existing = existing.as_deref().is_some_and(|s| !s.trim().is_empty());
+
+    let mut section = emit_claude(brief);
+    // The preamble only makes sense when there is content below to supplement.
+    if matches!(position, Position::Top) && has_existing {
+        section = format!("{TOP_PREAMBLE}\n\n{section}");
+    }
     let wrapped = wrap_with_markers(&section);
 
-    let output = if claude_md_path.exists() {
-        let existing = std::fs::read_to_string(claude_md_path)?;
-        let (result, pairs_found) = inject_section(&existing, &wrapped);
-        if pairs_found > 1 {
-            eprintln!(
-                "warning: found {} brief marker pairs; using the first, stripping remaining empty pairs",
-                pairs_found
-            );
+    let output = match existing {
+        Some(existing) => {
+            let (result, pairs_found) = inject_section_at(&existing, &wrapped, position);
+            if pairs_found > 1 {
+                eprintln!(
+                    "warning: found {} brief marker pairs; using the first, stripping remaining empty pairs",
+                    pairs_found
+                );
+            }
+            result
         }
-        result
-    } else {
-        wrapped
+        None => wrapped,
     };
 
     std::fs::write(claude_md_path, &output)?;
     Ok(output)
+}
+
+/// Remove the brief-generated section(s) from a CLAUDE.md (current and legacy
+/// markers). Returns `true` if the file changed. A missing file is a no-op.
+pub fn uninstall_claude(claude_md_path: &Path) -> Result<bool, std::io::Error> {
+    if !claude_md_path.exists() {
+        return Ok(false);
+    }
+    let existing = std::fs::read_to_string(claude_md_path)?;
+    let cleaned = remove_sections(&existing);
+    if cleaned == existing {
+        return Ok(false);
+    }
+    std::fs::write(claude_md_path, &cleaned)?;
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -444,5 +490,88 @@ mod tests {
         assert!(result.contains("<brief:generated>"));
         assert!(result.contains(MARKER_END));
         assert!(result.contains("# Briefing: Fix it"));
+    }
+
+    fn fix_it_brief() -> Brief {
+        Brief {
+            frontmatter: Frontmatter::default(),
+            identity: None,
+            goal: "Fix it".into(),
+            constraints: Constraints::default(),
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        }
+    }
+
+    #[test]
+    fn install_at_top_prepends_with_reconciliation_preamble() {
+        let dir = tempfile::tempdir().unwrap();
+        let claude_md = dir.path().join("CLAUDE.md");
+        std::fs::write(&claude_md, "# Project\n\nHand-written instructions.\n").unwrap();
+
+        install_claude_at(&fix_it_brief(), &claude_md, &Position::Top).unwrap();
+
+        let result = std::fs::read_to_string(&claude_md).unwrap();
+        assert!(result.starts_with("<brief:generated>"));
+        assert!(result.contains("supplement the project instructions below"));
+        // Brief section precedes the hand-written content.
+        assert!(result.find("# Briefing: Fix it").unwrap() < result.find("# Project").unwrap());
+    }
+
+    #[test]
+    fn install_at_top_into_new_file_omits_preamble() {
+        let dir = tempfile::tempdir().unwrap();
+        let claude_md = dir.path().join("CLAUDE.md");
+        install_claude_at(&fix_it_brief(), &claude_md, &Position::Top).unwrap();
+        let result = std::fs::read_to_string(&claude_md).unwrap();
+        // Nothing to supplement → no preamble.
+        assert!(!result.contains("supplement the project instructions"));
+    }
+
+    #[test]
+    fn install_after_heading_places_within_section() {
+        let dir = tempfile::tempdir().unwrap();
+        let claude_md = dir.path().join("CLAUDE.md");
+        std::fs::write(
+            &claude_md,
+            "# Project\n\n## Setup\n\nsetup steps\n\n## Usage\n\nusage\n",
+        )
+        .unwrap();
+
+        install_claude_at(
+            &fix_it_brief(),
+            &claude_md,
+            &Position::After("Setup".into()),
+        )
+        .unwrap();
+
+        let result = std::fs::read_to_string(&claude_md).unwrap();
+        assert!(result.find("setup steps").unwrap() < result.find("# Briefing: Fix it").unwrap());
+        assert!(result.find("# Briefing: Fix it").unwrap() < result.find("## Usage").unwrap());
+    }
+
+    #[test]
+    fn uninstall_strips_section_preserving_user_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let claude_md = dir.path().join("CLAUDE.md");
+        std::fs::write(&claude_md, "# Project\n\nKeep me.\n").unwrap();
+        install_claude(&fix_it_brief(), &claude_md).unwrap();
+
+        let changed = uninstall_claude(&claude_md).unwrap();
+        assert!(changed);
+        let result = std::fs::read_to_string(&claude_md).unwrap();
+        assert!(!result.contains("<brief:generated>"));
+        assert!(!result.contains("# Briefing: Fix it"));
+        assert!(result.contains("# Project"));
+        assert!(result.contains("Keep me."));
+    }
+
+    #[test]
+    fn uninstall_missing_file_is_noop() {
+        let dir = tempfile::tempdir().unwrap();
+        let claude_md = dir.path().join("CLAUDE.md");
+        assert!(!uninstall_claude(&claude_md).unwrap());
     }
 }
