@@ -1,6 +1,6 @@
 # Windsurf Backend
 
-**Status:** Planned (phase2-synthesis P4). Trivial wrapper for the base case. Core facts re-verified 2026-06-12 against [docs.windsurf.com](https://docs.windsurf.com/windsurf/cascade/memories); the trigger taxonomy is now confirmed and the `globs` form corrected.
+**Status:** Shipped (phase2-synthesis P4) — `brief emit windsurf [--install]` is implemented in `src/emit/windsurf.rs` (single `always_on` workspace rule). Core facts re-verified 2026-06-12 against [docs.windsurf.com](https://docs.windsurf.com/windsurf/cascade/memories); the trigger taxonomy is now confirmed and the `globs` form corrected.
 
 ## Target file locations
 

@@ -1,6 +1,6 @@
 # Cursor Backend
 
-**Status:** In-Progress (phase2-synthesis P4). The one P4 emitter explicitly flagged as "real work — meaningfully different format requiring a dedicated emitter."
+**Status:** Shipped (phase2-synthesis P4) — `brief emit cursor [--install]` is implemented in `src/emit/cursor.rs`, currently emitting a single bundled rule with `alwaysApply: true` (no `globs`, pending scoped constraints). Was the one P4 emitter flagged as "real work — meaningfully different format requiring a dedicated emitter."
 
 **Format facts verified against [cursor.com/docs/context/rules](https://cursor.com/docs/context/rules) on 2026-06-12.** The 2026-03 audit's array-form `globs` was wrong — see "Glob field format" below.
 

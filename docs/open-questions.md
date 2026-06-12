@@ -31,7 +31,19 @@ Backend-specific open questions live inline in [design/backends/](design/backend
 
 **Connection to compiled-intent theory.** [analysis/compiled-intent-theory.md](analysis/compiled-intent-theory.md) level 3 ("constraint manifolds") assumes constraints have a domain of applicability as a first-class concept. Scoped constraints at the format level would be the text-layer foundation that a future embedding layer builds on. This is weak evidence for direction 1 over direction 2.
 
-**Status:** undecided. Becomes forcing the moment P4's Cursor emitter is started — that work cannot idiomatically use `.mdc` without picking an answer.
+**Research update (2026-06-12).** Verified the current scoping mechanics of every target ecosystem (per-backend READMEs under [design/backends/](design/backends/), all re-verified 2026-06-12). Three findings reshape the decision:
+
+1. **Two scoping *axes*, not one — the model must serve both:**
+   - **Glob-frontmatter scoping** — Cursor `globs`, Copilot `applyTo`, Windsurf `trigger: glob`, **and Claude Code `.claude/rules/*.md` `paths:`**. A rule *file* carries a glob; it activates when editing matching files.
+   - **Directory-hierarchy scoping** — nested `CLAUDE.md` / `AGENTS.md`: a config file's *location* scopes it to that subtree (loaded on-demand when Claude reads a file there).
+2. **No format scopes multiple rule-sets within one file.** In every glob-frontmatter format the glob is **file-level** — one glob set per file. A scoped emit must therefore **fan out one rule file per distinct scope** (split-by-scope), not embed scope inside one file. The real cost lives in the *emitter*, not the authoring syntax.
+3. **Claude Code is no longer prose-only for scopes.** `.claude/rules/*.md` with `paths:` glob frontmatter is a native per-glob instruction surface (context, not enforcement — hooks remain the only blocking layer). A scoped Hard constraint can emit to `.claude/rules/` natively for the *primary* target instead of degrading to "When editing X:" prose. This materially raises the payoff of format-level scoping.
+
+**The directory-prefix distinction (the thing to get right).** A scope that is a clean **directory prefix** (`src/api/**`) has a native home in *both* axes — it's the glob for Cursor/Copilot/Windsurf/`.claude/rules`, *and* it can emit into `src/api/CLAUDE.md` via the hierarchy. An **arbitrary glob** (`**/*.test.ts`) only has a home in the glob-frontmatter axis. The model should expose `is_directory_prefix()` so the emitter can pick hierarchy vs. glob-file vs. prose. (AGENTS.md has *no* glob frontmatter — scoping only via nested placement; and Claude Code does **not** read AGENTS.md natively — it needs a `@AGENTS.md` import or a `CLAUDE.md` symlink.)
+
+**Implication for the two directions.** Emit cost (file fan-out + directory-prefix detection) is identical whether scope is stored format-level (direction 1) or as `emit:` hints (direction 2) — so the deciding factor is authoring semantics, not emit difficulty. Direction 1 (`Constraint { text, scope: Vec<Glob> }`, canonical `Vec<Glob>` with each emitter serializing its own form) now looks stronger: Claude's `.claude/rules` gives the primary target a native scoped home, and the emitter-trait refactor wants to land alongside it (one model, N serializers).
+
+**Status:** undecided, but better-informed. The Cursor emitter already shipped using the `alwaysApply: true` whole-file fallback (no `globs`), so the question is no longer blocking — but it is the highest-leverage format decision remaining. Proposed authoring syntax (flat bracket prefix) is captured in [brief-format.md](brief-format.md) §8.1.
 
 ---
 

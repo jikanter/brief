@@ -1,6 +1,6 @@
 # GitHub Copilot Backend
 
-**Status:** Planned (phase2-synthesis P4). Trivial base case (single Markdown file), real work for path-scoped instructions if/when brief grows scoped constraints.
+**Status:** Shipped (phase2-synthesis P4) — `brief emit copilot [--install]` is implemented in `src/emit/copilot.rs` (single `.github/copilot-instructions.md`). Path-scoped `.github/instructions/*.instructions.md` output remains future work, gated on brief growing scoped constraints.
 
 ## Target file formats
 
