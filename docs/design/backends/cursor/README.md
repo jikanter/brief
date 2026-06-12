@@ -2,30 +2,40 @@
 
 **Status:** In-Progress (phase2-synthesis P4). The one P4 emitter explicitly flagged as "real work — meaningfully different format requiring a dedicated emitter."
 
+**Format facts verified against [cursor.com/docs/context/rules](https://cursor.com/docs/context/rules) on 2026-06-12.** The 2026-03 audit's array-form `globs` was wrong — see "Glob field format" below.
+
 ## Target file format
 
-`.cursor/rules/<name>.mdc` — a Markdown body with YAML frontmatter. The legacy `.cursorrules` single-file format (~12,000 character limit) still works but is superseded by `.mdc` rules.
+`.cursor/rules/<name>.mdc` — a Markdown body with YAML frontmatter. The legacy `.cursorrules` single-file format (~12,000 character limit) still works but is superseded by `.mdc` rules. Rule files can be organized in nested folders under `.cursor/rules/` (e.g. `.cursor/rules/frontend/components.mdc`) — but subfolders are organizational only; they do **not** auto-scope a rule to that directory (scoping is via `globs`, not location).
 
 ## Frontmatter schema
 
 ```yaml
 ---
 description: short human-readable rule summary
-globs: ["src/**/*.ts"]
+globs: "src/**/*.ts, src/**/*.tsx"
 alwaysApply: false
 ---
 ```
 
+### Glob field format (corrected 2026-06-12)
+
+`globs` is a **comma-separated string**, NOT a YAML array. Multiple patterns are joined with commas within one string value: `globs: "docs/**/*.md, docs/**/*.mdx"`. (The earlier `globs: ["src/**/*.ts"]` array form in this doc was from the March 2026 audit and is incorrect for current Cursor — the emitter must serialize a comma-joined string.)
+
+### One glob set per file
+
+A single `.mdc` file carries **one `globs` set covering the whole file**. There is no way to scope different rules to different globs within one file — to do that you write **separate `.mdc` files**, one per scope. This is the forcing function behind brief's scoped-constraint emit (split-by-scope file fan-out).
+
 ## Activation modes
 
-The combination of `alwaysApply` and `globs` produces four distinct activation modes:
+The combination of `alwaysApply` and `globs` produces four activation modes (current Cursor names in parentheses):
 
-| `alwaysApply` | `globs` set | Activation |
+| `alwaysApply` | `globs`/`description` | Activation |
 |---|---|---|
-| `true` | — | Always present in the system prompt |
-| `false` | yes | Applied only when editing files matching the globs |
-| `false` | no | Model consults `description` and decides whether to load |
-| — | — | Manual invocation via `@rule-name` in chat |
+| `true` | — | **Always** — present in every session (`globs` parsed but ignored) |
+| `false` | `globs` set | **Apply to Specific Files** (Auto Attached) — loaded when editing matching files |
+| `false` | `description` only | **Apply Intelligently** (Agent Requested) — model consults `description` and decides |
+| `false` | neither | **Apply Manually** — only via `@rule-name` in chat |
 
 ## Soft size guidance
 

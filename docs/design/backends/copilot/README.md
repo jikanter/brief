@@ -12,11 +12,16 @@
 
 ```yaml
 ---
-applyTo: "**/*.ts"
+applyTo: "**/*.ts,**/*.tsx"
 ---
 ```
 
 A single file's `applyTo` glob determines which files trigger that instruction set. Multiple instruction files can coexist; Copilot composes matching files when the user edits a path that matches.
+
+**Verified 2026-06-12** against [VS Code custom-instructions docs](https://code.visualstudio.com/docs/copilot/customization/custom-instructions) and [GitHub Docs](https://docs.github.com/copilot/customizing-copilot/adding-custom-instructions-for-github-copilot):
+- `applyTo` is a **single string**; multiple patterns are comma-separated within it (`"**/*.ts,**/*.tsx"`), not a YAML array.
+- `applyTo` is **file-level** — one glob set per `.instructions.md`. To scope different rules to different paths, write separate files. When several files match the edited path, they all stack (no guaranteed order).
+- Same file-level-scope constraint as Cursor and Windsurf; brief's scoped-constraint emit must fan out one `.instructions.md` per distinct scope.
 
 ## Cross-convention discovery
 
