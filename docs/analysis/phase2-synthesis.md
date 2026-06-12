@@ -26,7 +26,15 @@ The actual remaining gaps are:
 
 ## Revised Priority Architecture
 
-### P0: Emit Quality — Constraint Framing and Section Ordering (effort: 1-2 days)
+### P0: Emit Quality — Constraint Framing and Section Ordering (effort: 1-2 days) — **SHIPPED**
+
+**Status (2026-06-12): shipped.** The `claude` and `prompt` emitters now adopt the polarity classifier shipped with P6 (`src/framing.rs`), closing the item P6 explicitly deferred. Zero format changes; emit-time only.
+
+- **Register.** `claude` and `prompt` hard constraints are framed by polarity (`NEVER:` prohibitions / `MUST:` requirements / plain conventions — the refinement over uniform NEVER), soft constraints as `PREFER:`, ask-first as `STOP and confirm with the user before:`. The `**IMPORTANT:**` prefix is gone. The descriptive targets (`cursor`/`copilot`/`windsurf`/`aider`) and the conversational `aider` register are deliberately untouched — imperative framing is wrong for those ecosystems (see emit-targets-reference divergence matrix).
+- **Sacred framing.** Both targets now lead the sacred block with the preamble "must not be modified under any circumstances … STOP and report the conflict" — removing the exception ambiguity and giving the model an action instead of pure suppression.
+- **Section ordering.** `prompt` is aggressively reordered for attention dynamics: hard constraints + sacred regions take the **primacy** position, goal/stack/context and the softer tiers sit in the middle, and the deliverable takes the **recency** position. `claude` uses the compromise order (goal first, then constraints ahead of reference material) since CLAUDE.md is read by humans too.
+
+Framing helpers (`frame_hard`/`frame_soft`/`frame_ask_first`) are unit-tested in `src/framing.rs`; emit output is pinned in `src/emit/claude.rs`, `src/emit/prompt.rs`, and `tests/emit_tests.rs`.
 
 The highest-impact changes require zero format changes and no new features. They are emit-time transformations that improve agent behavioral compliance.
 

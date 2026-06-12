@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::emit::markers::{inject_section, wrap_with_markers};
+use crate::framing::{frame_ask_first, frame_hard, frame_soft};
 use crate::model::Brief;
 
 /// Emit a CLAUDE.md-compatible section from a Brief.
@@ -17,7 +18,7 @@ pub fn emit_claude(brief: &Brief) -> String {
 
     out.push_str(&format!("# Briefing: {}\n\n", brief.goal));
 
-    // Stack
+    // Stack — a single line, kept near the top for the human reader.
     if !brief.frontmatter.stack.is_empty() {
         out.push_str(&format!(
             "**Stack:** {}\n\n",
@@ -25,7 +26,61 @@ pub fn emit_claude(brief: &Brief) -> String {
         ));
     }
 
-    // Context — wrapped in <context> per Anthropic's prompting guide.
+    // Constraints come right after the goal (the P0 "compromise order"): CLAUDE.md
+    // is read by humans too, so goal leads, but constraints sit ahead of the
+    // reference material rather than after it. Each tier is framed by polarity /
+    // register (NEVER/MUST/PREFER/STOP) and wrapped in <rules priority="...">.
+    let has_constraints = !brief.constraints.hard.is_empty()
+        || !brief.constraints.soft.is_empty()
+        || !brief.constraints.ask_first.is_empty();
+
+    if has_constraints {
+        out.push_str("## Constraints\n\n");
+
+        if !brief.constraints.hard.is_empty() {
+            out.push_str("### Hard (Non-negotiable)\n\n");
+            out.push_str("<rules priority=\"required\">\n");
+            for c in &brief.constraints.hard {
+                out.push_str(&format!("- {}\n", frame_hard(c)));
+            }
+            out.push_str("</rules>\n\n");
+        }
+
+        if !brief.constraints.soft.is_empty() {
+            out.push_str("### Soft (Preferred)\n\n");
+            out.push_str("<rules priority=\"preferred\">\n");
+            for c in &brief.constraints.soft {
+                out.push_str(&format!("- {}\n", frame_soft(c)));
+            }
+            out.push_str("</rules>\n\n");
+        }
+
+        if !brief.constraints.ask_first.is_empty() {
+            out.push_str("### Ask First (Requires approval)\n\n");
+            out.push_str("<rules priority=\"ask-first\">\n");
+            for c in &brief.constraints.ask_first {
+                out.push_str(&format!("- {}\n", frame_ask_first(c)));
+            }
+            out.push_str("</rules>\n\n");
+        }
+    }
+
+    // Sacred — wrapped in <protected_files>, with a preamble that removes
+    // ambiguity ("under any circumstances") and gives the model an action to
+    // take ("STOP and report") instead of pure suppression.
+    if !brief.sacred.is_empty() {
+        out.push_str("## Sacred Regions (Do Not Modify)\n\n");
+        out.push_str(
+            "These files must not be modified under any circumstances. If a task requires changing one, STOP and report the conflict instead of proceeding.\n\n",
+        );
+        out.push_str("<protected_files>\n");
+        for entry in &brief.sacred {
+            out.push_str(&format!("- `{}` — {}\n", entry.path, entry.reason));
+        }
+        out.push_str("</protected_files>\n\n");
+    }
+
+    // Reference Context — wrapped in <context> per Anthropic's prompting guide.
     if !brief.frontmatter.context.is_empty() {
         out.push_str(
             "## Reference Context\n\nRead these files for background before starting work:\n\n",
@@ -38,59 +93,12 @@ pub fn emit_claude(brief: &Brief) -> String {
         out.push_str("</context>\n\n");
     }
 
-    // Constraints — each tier wrapped in <rules priority="..."> so Claude
-    // sees a tagged structure under the human-readable Markdown headings.
-    let has_constraints = !brief.constraints.hard.is_empty()
-        || !brief.constraints.soft.is_empty()
-        || !brief.constraints.ask_first.is_empty();
-
     // Identity — H2 heading with optional plain text beneath it.
     if let Some(ref identity) = brief.identity {
         out.push_str(&format!("## {}\n\n", identity.heading));
         if !identity.content.is_empty() {
             out.push_str(&format!("{}\n\n", identity.content));
         }
-    }
-
-    if has_constraints {
-        out.push_str("## Constraints\n\n");
-
-        if !brief.constraints.hard.is_empty() {
-            out.push_str("### Hard (Non-negotiable)\n\n");
-            out.push_str("<rules priority=\"required\">\n");
-            for c in &brief.constraints.hard {
-                out.push_str(&format!("- **IMPORTANT:** {c}\n"));
-            }
-            out.push_str("</rules>\n\n");
-        }
-
-        if !brief.constraints.soft.is_empty() {
-            out.push_str("### Soft (Preferred)\n\n");
-            out.push_str("<rules priority=\"preferred\">\n");
-            for c in &brief.constraints.soft {
-                out.push_str(&format!("- {c}\n"));
-            }
-            out.push_str("</rules>\n\n");
-        }
-
-        if !brief.constraints.ask_first.is_empty() {
-            out.push_str("### Ask First (Requires approval)\n\n");
-            out.push_str("<rules priority=\"ask-first\">\n");
-            for c in &brief.constraints.ask_first {
-                out.push_str(&format!("- {c}\n"));
-            }
-            out.push_str("</rules>\n\n");
-        }
-    }
-
-    // Sacred — wrapped in <protected_files>.
-    if !brief.sacred.is_empty() {
-        out.push_str("## Sacred Regions (Do Not Modify)\n\n");
-        out.push_str("<protected_files>\n");
-        for entry in &brief.sacred {
-            out.push_str(&format!("- `{}` — {}\n", entry.path, entry.reason));
-        }
-        out.push_str("</protected_files>\n\n");
     }
 
     // Assumptions — wrapped in <assumptions>.
@@ -198,9 +206,12 @@ mod tests {
         };
         let output = emit_claude(&brief);
         assert!(output.contains("Non-negotiable"));
-        assert!(output.contains("**IMPORTANT:** No breaking changes"));
-        assert!(output.contains("Prefer async"));
-        assert!(output.contains("Schema changes"));
+        // P0 framing: prohibition → NEVER (negation folded), soft → PREFER,
+        // ask-first → STOP. No more **IMPORTANT:** prefix.
+        assert!(output.contains("NEVER: breaking changes"));
+        assert!(!output.contains("**IMPORTANT:**"));
+        assert!(output.contains("PREFER: async"));
+        assert!(output.contains("STOP and confirm with the user before: Schema changes"));
     }
 
     #[test]
