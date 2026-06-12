@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::emit::markers::{Position, inject_section_at, remove_sections, wrap_with_markers};
+use crate::framing::{frame_ask_first, frame_hard, frame_soft};
 use crate::model::Brief;
 
 /// Preamble added above a top-positioned brief section, telling the model how to
