@@ -89,6 +89,19 @@ pub fn frame_hard(constraint: &str) -> String {
     }
 }
 
+/// Render a soft constraint as a weighted preference (`PREFER: <rest>`).
+///
+/// A leading "prefer " is folded in so we never produce "PREFER: prefer ...".
+pub fn frame_soft(constraint: &str) -> String {
+    let trimmed = constraint.trim();
+    let rest = strip_leading_ci(trimmed, &["prefer ", "prefer: "]);
+    if rest.is_empty() {
+        format!("PREFER: {trimmed}")
+    } else {
+        format!("PREFER: {rest}")
+    }
+}
+
 /// Render an ask-first constraint as an interruption directive.
 pub fn frame_ask_first(constraint: &str) -> String {
     let c = constraint.trim().trim_end_matches('.');
@@ -169,6 +182,15 @@ mod tests {
         );
         assert!(!frame_hard("Use thiserror for errors").contains("NEVER"));
         assert!(!frame_hard("Use thiserror for errors").contains("MUST"));
+    }
+
+    #[test]
+    fn frame_soft_uses_prefer_without_doubling() {
+        assert_eq!(
+            frame_soft("Yjs over Automerge"),
+            "PREFER: Yjs over Automerge"
+        );
+        assert_eq!(frame_soft("Prefer small commits"), "PREFER: small commits");
     }
 
     #[test]

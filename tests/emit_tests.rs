@@ -17,11 +17,16 @@ fn emit_claude_from_full_fixture() {
     assert!(output.contains("# Briefing: Build real-time collaborative document editor"));
     assert!(output.contains("TypeScript 5.4"));
     assert!(output.contains("Non-negotiable"));
-    assert!(output.contains("**IMPORTANT:** WebSocket"));
+    // P0 polarity framing: a positive requirement renders as MUST, not IMPORTANT.
+    assert!(output.contains("MUST: WebSocket"));
+    assert!(!output.contains("**IMPORTANT:**"));
     assert!(output.contains("Preferred"));
-    assert!(output.contains("Yjs"));
+    assert!(output.contains("PREFER: Yjs"));
     assert!(output.contains("Requires approval"));
-    assert!(output.contains("shared state schema"));
+    assert!(
+        output
+            .contains("STOP and confirm with the user before: Changes to the shared state schema")
+    );
     assert!(output.contains("Sacred Regions"));
     assert!(output.contains("`src/core/crdt-engine/**`"));
     assert!(output.contains("Assumptions"));
@@ -44,8 +49,11 @@ fn emit_claude_from_minimal_fixture() {
     let output = emit::emit_claude(&brief);
 
     assert!(output.contains("Fix the login bug"));
-    assert!(output.contains("Do not break existing tests"));
+    // "Do not break existing tests" is a prohibition → NEVER (negation folded in).
+    assert!(output.contains("NEVER: break existing tests"));
     assert!(output.contains("`src/auth.rs`"));
+    // Sacred preamble gives the model an action, not just suppression.
+    assert!(output.contains("under any circumstances"));
 }
 
 // -- Prompt emitter --
@@ -55,15 +63,20 @@ fn emit_prompt_from_full_fixture() {
     let brief = parse_brief(&fixture("full.brief.md")).unwrap();
     let output = emit::emit_prompt(&brief);
 
-    assert!(output.starts_with("GOAL:"));
+    // P0 attention ordering: hard constraints take the primacy position, the
+    // deliverable the recency position.
+    assert!(output.starts_with("HARD CONSTRAINTS:"));
+    assert!(output.contains("GOAL:"));
     assert!(output.contains("STACK: TypeScript 5.4"));
-    assert!(output.contains("HARD CONSTRAINTS:"));
     assert!(output.contains("SOFT CONSTRAINTS:"));
     assert!(output.contains("ASK BEFORE PROCEEDING:"));
-    assert!(output.contains("DO NOT MODIFY:"));
+    assert!(output.contains("DO NOT MODIFY"));
     assert!(output.contains("ASSUMPTIONS (UNVALIDATED):"));
     assert!(output.contains("ASSUMPTIONS (VALIDATED):"));
     assert!(output.contains("DELIVERABLE:"));
+    // Hard constraints precede the goal (primacy); deliverable follows it (recency).
+    assert!(output.find("HARD CONSTRAINTS:") < output.find("GOAL:"));
+    assert!(output.find("GOAL:") < output.find("DELIVERABLE:"));
     // Unknown sections emitted with uppercase labels
     assert!(output.contains("COMMANDS:"));
     assert!(output.contains("CODE STYLE:"));
@@ -248,7 +261,9 @@ fn emit_xml_from_full_fixture() {
     assert!(output.contains("<goal>Build real-time collaborative document editor</goal>"));
 
     // Stack: all 5 items joined.
-    assert!(output.contains("<stack>TypeScript 5.4, React 18, PostgreSQL 16, Redis 7, AWS ECS</stack>"));
+    assert!(
+        output.contains("<stack>TypeScript 5.4, React 18, PostgreSQL 16, Redis 7, AWS ECS</stack>")
+    );
 
     // Context files: stripped of leading ./
     assert!(output.contains("<context>"));
