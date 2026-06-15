@@ -14,7 +14,17 @@
       "Read(//Users/admin/.config/**)",
       "Read(//Users/admin/**)",
       "Bash(grep -B1 -A4 \"items after a test module\\\\|writing \\\\`&PathBuf\\\\`\")",
-      "Bash(showboat note *)"
+      "Bash(showboat note *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(cd /Volumes/ExternalData/admin/Developer/Projects/brief *)",
+      "Bash(sed -n '/pub fn frame_soft/,/^}/p' src/framing.rs)",
+      "Bash(sed -n '/pub fn frame_ask_first\\\\b/,/^}/p' src/framing.rs)",
+      "Bash(git restore *)"
+    ],
+    "additionalDirectories": [
+      "/Volumes/ExternalData/admin/Developer/Projects/brief/src",
+      "/Volumes/ExternalData/admin/Developer/Projects/brief/src/emit"
     ]
   }
 }
