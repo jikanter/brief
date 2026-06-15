@@ -1,25 +1,25 @@
-use crate::framing::{frame_ask_first, frame_hard, frame_soft};
+use crate::framing::{SACRED_PREAMBLE, frame_ask_first, frame_hard, frame_soft};
 use crate::model::Brief;
 
 /// Emit a raw system prompt suitable for direct API use.
 ///
-/// The `prompt` target occupies the highest-privilege position — it lands
-/// directly in an API system prompt — so it is aggressively optimized for
-/// compliance on two axes (phase2-synthesis P0):
+/// The `prompt` target occupies the highest-privilege position (a system
+/// prompt) and is aggressively optimized for behavioral compliance rather than
+/// human reading flow:
 ///
-/// - **Register.** Hard constraints are framed by polarity (`NEVER:`/`MUST:`/
-///   plain convention), soft ones as `PREFER:`, ask-first ones as explicit
-///   `STOP and confirm` interruptions (see [`crate::framing`]).
-/// - **Order.** Sections are placed for attention dynamics, not human reading
-///   flow: hard constraints and sacred regions take the **primacy** position
-///   (first ~15% of context gets the highest attention), goal/stack/context and
-///   the softer constraints sit in the middle, and the deliverable takes the
-///   **recency** position (last ~15%) as the closing action directive.
+/// - **Framing:** constraints are rendered with imperative verbs (NEVER / MUST
+///   / PREFER / STOP) via [`crate::framing`], which LLMs have far stronger
+///   priors on than brief's Hard/Soft/Ask-First taxonomy.
+/// - **Ordering:** hard constraints and sacred regions take the primacy
+///   position (first ~15% of context, highest attention); the deliverable takes
+///   the recency position (last, an action directive). Goal, stack, context,
+///   soft/ask-first constraints, and assumptions sit in the middle.
+///
+/// See `docs/analysis/phase2-synthesis.md` §P0.
 pub fn emit_prompt(brief: &Brief) -> String {
     let mut out = String::new();
 
-    // -- Primacy: the rules that must not be violated --
-
+    // --- Primacy: hard constraints + sacred regions ---
     if !brief.constraints.hard.is_empty() {
         out.push_str("HARD CONSTRAINTS:\n");
         for c in &brief.constraints.hard {
@@ -29,17 +29,14 @@ pub fn emit_prompt(brief: &Brief) -> String {
     }
 
     if !brief.sacred.is_empty() {
-        out.push_str(
-            "DO NOT MODIFY (these files must not be changed under any circumstances; if a task requires it, STOP and report the conflict):\n",
-        );
+        out.push_str(&format!("SACRED REGIONS:\n{SACRED_PREAMBLE}\n"));
         for entry in &brief.sacred {
             out.push_str(&format!("- {}: {}\n", entry.path, entry.reason));
         }
         out.push('\n');
     }
 
-    // -- Middle: task frame and reference context --
-
+    // --- Task frame ---
     out.push_str(&format!("GOAL: {}\n\n", brief.goal));
 
     if !brief.frontmatter.stack.is_empty() {
@@ -57,6 +54,7 @@ pub fn emit_prompt(brief: &Brief) -> String {
         out.push('\n');
     }
 
+    // --- Middle: preferences are fine away from the attention extremes ---
     if !brief.constraints.soft.is_empty() {
         out.push_str("SOFT CONSTRAINTS:\n");
         for c in &brief.constraints.soft {
@@ -92,7 +90,7 @@ pub fn emit_prompt(brief: &Brief) -> String {
         out.push('\n');
     }
 
-    // Unknown sections (passthrough) — reference material, before the closer.
+    // Unknown sections (passthrough)
     for section in &brief.unknown_sections {
         out.push_str(&format!(
             "{}:\n{}\n\n",
@@ -101,11 +99,10 @@ pub fn emit_prompt(brief: &Brief) -> String {
         ));
     }
 
-    // -- Recency: the closing action directive --
-
+    // --- Recency: deliverable is the closing action directive ---
     if let Some(ref deliverable) = brief.deliverable {
         out.push_str("DELIVERABLE:\n");
-        out.push_str(deliverable);
+        out.push_str(deliverable.trim_end());
         out.push('\n');
     }
 
@@ -157,19 +154,18 @@ mod tests {
     }
 
     #[test]
-    fn prompt_frames_constraints_by_polarity() {
+    fn prompt_frames_hard_constraints_with_imperatives() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Goal".into(),
             identity: None,
             constraints: Constraints {
                 hard: vec![
-                    "Do not break the public API".into(),
-                    "All handlers return Result".into(),
-                    "Use thiserror for errors".into(),
+                    "No lodash".into(),
+                    "All public functions must return Result".into(),
+                    "Do not push to main".into(),
                 ],
-                soft: vec![],
-                ask_first: vec!["Changing the schema".into()],
+                ..Default::default()
             },
             sacred: vec![],
             assumptions: vec![],
@@ -177,11 +173,92 @@ mod tests {
             unknown_sections: vec![],
         };
         let output = emit_prompt(&brief);
-        assert!(output.contains("- NEVER: break the public API"));
-        assert!(output.contains("- MUST: All handlers return Result"));
-        // Convention stays plain — not dressed as adversarial.
-        assert!(output.contains("- Use thiserror for errors"));
-        assert!(output.contains("STOP and confirm with the user before: Changing the schema"));
+        // Prohibition → NEVER (negation lead folded in), requirement → MUST.
+        assert!(output.contains("NEVER: lodash"));
+        assert!(output.contains("MUST: All public functions must return Result"));
+        assert!(output.contains("NEVER: push to main"));
+        assert!(!output.contains("NEVER: Do not push to main"));
+    }
+
+    #[test]
+    fn prompt_frames_soft_and_ask_first() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            identity: None,
+            constraints: Constraints {
+                hard: vec![],
+                soft: vec!["async over threads".into()],
+                ask_first: vec!["Schema changes".into()],
+            },
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_prompt(&brief);
+        assert!(output.contains("PREFER: async over threads"));
+        assert!(output.contains("STOP and confirm with the user before: Schema changes"));
+    }
+
+    #[test]
+    fn prompt_sacred_has_preamble() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Goal".into(),
+            identity: None,
+            constraints: Constraints::default(),
+            sacred: vec![SacredEntry {
+                path: "src/auth/**".into(),
+                reason: "Auth".into(),
+                well_formed: true,
+            }],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let output = emit_prompt(&brief);
+        assert!(output.contains("under any circumstances"));
+        assert!(output.contains("STOP and report"));
+    }
+
+    #[test]
+    fn prompt_orders_constraints_and_sacred_before_goal() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "Build the thing".into(),
+            identity: None,
+            constraints: Constraints {
+                hard: vec!["No unsafe code".into()],
+                ..Default::default()
+            },
+            sacred: vec![SacredEntry {
+                path: "db/migrations/**".into(),
+                reason: "Immutable".into(),
+                well_formed: true,
+            }],
+            assumptions: vec![],
+            deliverable: Some("A working binary".into()),
+            unknown_sections: vec![],
+        };
+        let output = emit_prompt(&brief);
+        let hard_pos = output.find("NEVER: unsafe code").unwrap();
+        let sacred_pos = output.find("db/migrations/**").unwrap();
+        let goal_pos = output.find("Build the thing").unwrap();
+        let deliverable_pos = output.find("A working binary").unwrap();
+        // Hard constraints + sacred get primacy position, before the goal.
+        assert!(hard_pos < goal_pos, "hard constraints should precede goal");
+        assert!(sacred_pos < goal_pos, "sacred should precede goal");
+        // Deliverable gets recency position — the final section.
+        assert!(
+            deliverable_pos > goal_pos,
+            "deliverable should come after goal"
+        );
+        assert_eq!(
+            output.trim_end().rfind("A working binary"),
+            Some(deliverable_pos),
+            "deliverable should be the final section"
+        );
     }
 
     #[test]
