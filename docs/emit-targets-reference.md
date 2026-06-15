@@ -1,11 +1,11 @@
 # Emit Targets: Cross-Ecosystem Reference
 
-**Status:** Forward-looking reference, partially unverified.
+**Status:** Cross-ecosystem reference. Per-backend specifics **re-verified 2026-06-12** (see the per-backend folders).
 **Details**: For specific details on individual target formats, read the [Specific Targets Backend Documentation](design/backends/README.md)
-**Source:** Extracted 2026-04-11 from [analysis/archive/emit-integration-audit.md](analysis/archive/emit-integration-audit.md), the Phase 2 Integration Engineer report.
-**Scope:** Cross-ecosystem framing for every emit target brief either ships today or plans to ship under [analysis/phase2-synthesis.md](analysis/phase2-synthesis.md) P4. The live roadmap treats copilot/windsurf/aider as "trivial wrappers" and cursor as "real work" — this document is the high-level reason why; the per-backend folders carry the technical specifics.
+**Source:** Originally extracted 2026-04-11 from the Phase 2 Integration Engineer report; the load-bearing format facts have since been re-verified against current vendor docs (Cursor, Copilot/VS Code, Windsurf, Aider, Claude Code) on 2026-06-12.
+**Scope:** Cross-ecosystem framing for the emit targets brief ships. All five core targets (claude, cursor, copilot, windsurf, aider) **have shipped** under [analysis/phase2-synthesis.md](analysis/phase2-synthesis.md) P4; this document is the high-level cross-cutting view, while the per-backend folders carry the verified technical specifics.
 
-> **Verification note.** Most claims in the per-backend docs are dated to the March 2026 audit. Third-party ecosystems evolve quickly. Before acting on any specific config key, file path, or character limit, cross-check against the target ecosystem's current documentation. Items the audit could not verify are flagged inline as `[open-question]` in the per-backend docs.
+> **Verification note.** The five core backends' format facts were re-verified 2026-06-12 (this corrected the earlier array-form `globs`, confirmed file-level scoping everywhere, and surfaced Claude Code's `.claude/rules` `paths:` glob surface). The `aichat/` backend is still audit-dated. Re-check vendor docs before acting on any specific config key — ecosystems move fast.
 
 ---
 
@@ -15,23 +15,25 @@ Each backend has its own design folder under [design/backends/](design/backends/
 
 | Backend | Folder | One-line summary |
 |---|---|---|
-| Claude Code | [design/backends/claude/](design/backends/claude/) | Shipped. CLAUDE.md, skills, hooks, monorepo + handler-type questions outstanding. |
-| Cursor | [design/backends/cursor/](design/backends/cursor/) | Real work. `.cursor/rules/*.mdc` with frontmatter + 4 activation modes. |
-| GitHub Copilot | [design/backends/copilot/](design/backends/copilot/) | Trivial base case. Path-scoped variant requires brief format growth. |
-| Windsurf | [design/backends/windsurf/](design/backends/windsurf/) | Trivial base case. Several details unverified. |
-| Aider | [design/backends/aider/](design/backends/aider/) | Two-file emit: `CONVENTIONS.md` + `.aider.conf.yml`. Conversational register. |
+| Claude Code | [design/backends/claude/](design/backends/claude/) | Shipped. CLAUDE.md, skills, hooks; nested CLAUDE.md + `.claude/rules` `paths:` = native scoping. |
+| Cursor | [design/backends/cursor/](design/backends/cursor/) | Shipped. `.cursor/rules/*.mdc`; `globs` is a comma-string, file-level. |
+| GitHub Copilot | [design/backends/copilot/](design/backends/copilot/) | Shipped. `.github/copilot-instructions.md`; `applyTo` comma-string, file-level. |
+| Windsurf | [design/backends/windsurf/](design/backends/windsurf/) | Shipped. `.windsurf/rules/*.md`; `trigger` taxonomy verified; `.devin/` migration. |
+| Aider | [design/backends/aider/](design/backends/aider/) | Shipped. Two-file: `CONVENTIONS.md` + `.aider.conf.yml`. No native scoping. |
 
 ---
 
 ## Cross-Ecosystem Divergence Matrix
 
-The single most reusable cross-backend artifact. A compact catalog of the axes along which no single unified emit format is possible. This is the design rationale for any future discussion of per-target overrides, constraint scoping, or `emit:` frontmatter hint maps.
+The single most reusable cross-backend artifact. A compact catalog of the axes along which no single unified emit format is possible. This is the design rationale for any future discussion of per-target overrides, constraint scoping, or `emit:` frontmatter hint maps. *(Verified 2026-06-12.)*
 
 | Axis | Claude Code | Cursor | Copilot | Windsurf | Aider |
 |---|---|---|---|---|---|
-| File-scoped rules | No (hooks only) | Yes (`globs`) | Yes (`applyTo`) | Yes (`globs`) | No |
-| Multi-file vs single | Single CLAUDE.md (+ skills) | Multi (`.cursor/rules/*.mdc`) | Either | Multi (`.windsurf/rules/*.md`) | Two-file (conventions + config) |
-| Activation modes | Always-on + hooks | 4 modes | 2 modes (global + glob) | 4 modes [unverified] | Manual / auto-load |
+| File-scoped rules | **Yes** (`.claude/rules` `paths:`) + nested CLAUDE.md | Yes (`globs`) | Yes (`applyTo`) | Yes (`globs`) | No |
+| Glob serialization | `paths:` YAML list | comma-string | comma-string | scalar | n/a |
+| One glob set per file | yes (per rule file) | yes | yes | yes | n/a |
+| Multi-file vs single | CLAUDE.md (+ skills, + `.claude/rules/*`) | Multi (`.cursor/rules/*.mdc`) | Either | Multi (`.windsurf/rules/*.md`) | Two-file (conventions + config) |
+| Activation modes | Always-on + hooks + `paths`-scoped rules | 4 modes | 2 modes (global + glob) | 4 modes | Manual / auto-load |
 | Operational config | `.claude/settings.json` | Inline in `.mdc` | None | Inline in frontmatter | `.aider.conf.yml` |
 | Commands/workflows | Skills | N/A | N/A | N/A | `/read` commands |
 | Idiomatic register | Imperative (NEVER/MUST) | Descriptive | Descriptive | Descriptive | Conversational |

@@ -2,17 +2,17 @@
 
 Per-backend integration design documentation. Each subfolder captures one emit target's file formats, frontmatter schemas, activation modes, character limits, and any open questions about how brief should integrate with that ecosystem.
 
-These docs are **forward-looking design references**. Most backends except `claude/` are not yet implemented — see [phase2-synthesis.md](../../analysis/phase2-synthesis.md) §P4 for the implementation roadmap.
+These docs are design references for each ecosystem. The five core targets (claude, cursor, copilot, windsurf, aider) have **shipped** under phase2-synthesis P4; the per-backend folders now carry verified format facts (re-verified 2026-06-12). See [phase2-synthesis.md](../../analysis/phase2-synthesis.md) for the roadmap and [../../emit-targets-reference.md](../../emit-targets-reference.md) for the cross-ecosystem framing.
 
 ## Backends
 
 | Backend | Folder | Status |
 |---|---|---|
-| Claude Code | [claude/](claude/) | Shipped (CLAUDE.md, skills, --install). P2 hooks and P5 install enhancements pending. |
-| Cursor | [cursor/](cursor/) | Planned (P4). Real work — meaningfully different format. |
-| GitHub Copilot | [copilot/](copilot/) | Planned (P4). Trivial wrapper for the base case. |
-| Windsurf | [windsurf/](windsurf/) | Planned (P4). Trivial wrapper for the base case. |
-| Aider | [aider/](aider/) | Planned (P4). Two-file emit (CONVENTIONS.md + .aider.conf.yml). |
+| Claude Code | [claude/](claude/) | Shipped — CLAUDE.md, skills, hooks (P2). `--position`/`--uninstall`/`--full` and skill scaffold/install in flight (P5/P7). |
+| Cursor | [cursor/](cursor/) | Shipped (P4) — single bundled `.mdc` rule (no `globs` yet, pending scoped constraints). |
+| GitHub Copilot | [copilot/](copilot/) | Shipped (P4) — single `.github/copilot-instructions.md`. |
+| Windsurf | [windsurf/](windsurf/) | Shipped (P4) — single `always_on` workspace rule. |
+| Aider | [aider/](aider/) | Shipped (P4) — two-file emit (CONVENTIONS.md + .aider.conf.yml). |
 | aichat / eridian-ai | [aichat/](aichat/) | Proposed (off-roadmap). Agents-only target — multi-file directory emit + registry append. |
 
 ## Cross-Ecosystem Divergence Matrix
@@ -21,9 +21,10 @@ The most reusable cross-backend artifact. A compact catalog of the axes along wh
 
 | Axis | Claude Code | Cursor | Copilot | Windsurf | Aider |
 |---|---|---|---|---|---|
-| File-scoped rules | No (hooks only) | Yes (`globs`) | Yes (`applyTo`) | Yes (`globs`) | No |
-| Multi-file vs single | Single CLAUDE.md (+ skills) | Multi (`.cursor/rules/*.mdc`) | Either | Multi (`.windsurf/rules/*.md`) | Two-file (conventions + config) |
-| Activation modes | Always-on + hooks | 4 modes | 2 modes (global + glob) | 4 modes [unverified] | Manual / auto-load |
+| File-scoped rules | **Yes** (`.claude/rules` `paths:`) + nested CLAUDE.md | Yes (`globs`) | Yes (`applyTo`) | Yes (`globs`) | No |
+| Glob form | `paths:` YAML list | comma-string | comma-string | scalar | n/a |
+| Multi-file vs single | Single CLAUDE.md (+ skills, + `.claude/rules/*`) | Multi (`.cursor/rules/*.mdc`) | Either | Multi (`.windsurf/rules/*.md`) | Two-file (conventions + config) |
+| Activation modes | Always-on + hooks + `paths`-scoped rules | 4 modes | 2 modes (global + glob) | 4 modes | Manual / auto-load |
 | Operational config | `.claude/settings.json` | Inline in `.mdc` | None | Inline in frontmatter | `.aider.conf.yml` |
 | Commands/workflows | Skills | N/A | N/A | N/A | `/read` commands |
 | Idiomatic register | Imperative (NEVER/MUST) | Descriptive | Descriptive | Descriptive | Conversational |
@@ -34,7 +35,7 @@ The most reusable cross-backend artifact. A compact catalog of the axes along wh
 
 ## Verification posture
 
-Most claims in these docs are dated to the March 2026 audit that produced them. Third-party ecosystems evolve quickly. Before acting on any specific config key, file path, or character limit, cross-check against the target ecosystem's current documentation. Items the original audit could not verify are flagged inline as `[open-question]`.
+The five core backends (claude, cursor, copilot, windsurf, aider) had their load-bearing format facts **re-verified against current vendor docs on 2026-06-12** — `globs`/`applyTo` serialization, activation modes, file-level scoping, and the Claude `.claude/rules` `paths:` surface. The `aichat/` backend remains audit-dated (2026-04-27). Third-party ecosystems still move fast — re-check before acting on any specific config key, file path, or character limit; remaining unverified items are flagged inline as `[open-question]`.
 
 ## Action checklist when implementing a new backend
 
