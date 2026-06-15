@@ -6,24 +6,51 @@
 
 | Surface | File / location | Status |
 |---|---|---|
-| Project instructions | `CLAUDE.md` (repo root) | Shipped — `--install` injects between `<brief:generated>` markers |
-| Skills | `.claude/skills/<name>/SKILL.md` | Shipped — `brief emit skill --install` |
-| Hooks | `.claude/settings.json` `hooks.PreToolUse` | Planned (P2) — `--install --hooks` |
+| Project instructions | `CLAUDE.md` (repo root) | Shipped — `--install` injects between `<brief:generated>` markers. `--position` / `--uninstall` in flight (P5). |
+| Skills | `.claude/skills/<name>/SKILL.md` | Shipped — `brief emit skill --install`. Full `skill scaffold/install/uninstall` in flight (P7). |
+| Hooks | `.claude/settings.json` `hooks.PreToolUse` | Shipped (P2) — `--install --hooks`. |
+| Command permissions | `.claude/settings.json` `permissions.allow` | In flight (P5) — `--install --full` derives `Bash(<cmd>:*)` from `## Commands`. |
 
 ## Integration surfaces brief does **not** use today
 
-### Hierarchical / monorepo CLAUDE.md discovery
+### Hierarchical / monorepo CLAUDE.md discovery — the directory-hierarchy scoping axis
 
-Claude Code composes multiple CLAUDE.md files at runtime:
-- The closest `.claude/CLAUDE.md` to the current working directory
-- Parent-directory `CLAUDE.md` files up the tree (monorepo support)
-- `~/.claude/CLAUDE.md` for user-global instructions
+**Verified 2026-06-12** against [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory). This is one of the two scoping axes brief must reason about (see [open-questions.md](../../../open-questions.md) `[format]` Scoped Constraints).
 
-`brief emit claude --install` currently assumes a single CLAUDE.md at the repo root. In a monorepo, this may not be the correct injection target — a sub-project may have its own CLAUDE.md that the agent reads in preference.
+How CLAUDE.md files load (precise):
+- **At or above the working directory** — every `CLAUDE.md` / `CLAUDE.local.md` from the filesystem root down to `pwd` is **loaded in full at launch** and **concatenated** (not overridden), ordered root → `pwd`, so the closest-to-`pwd` file is read last. `CLAUDE.local.md` is appended after `CLAUDE.md` at the same level.
+- **In subdirectories below `pwd`** — **not** loaded at launch; each is injected **on-demand the first time Claude reads a file in that subdirectory**. This gives effective per-subtree scoping (e.g. `packages/api/CLAUDE.md` activates when Claude touches `packages/api/`). Not re-injected after `/compact` (reloads on next read in that subtree).
 
-[open-question] In a monorepo, where should `--install` write — the repo root, the closest CLAUDE.md to `pwd`, the closest CLAUDE.md to the `.brief.md` file, or all of the above? Phase 2 synthesis P5 doesn't address this.
+Precedence, broad → specific: managed policy (`/Library/Application Support/ClaudeCode/CLAUDE.md` etc., enterprise, non-excludable) → `~/.claude/CLAUDE.md` (user) → `./CLAUDE.md` or `./.claude/CLAUDE.md` (project) → `./CLAUDE.local.md` (personal, gitignored).
+
+**Why this matters for scoped constraints:** a scope that is a clean **directory prefix** (`packages/api/**`) can emit into `packages/api/CLAUDE.md` — native directory-hierarchy scoping, no prose fallback. An arbitrary glob (`**/*.test.ts`) cannot use this axis and must use `.claude/rules/` (below) or inline prose.
+
+`brief emit claude --install` currently assumes a single CLAUDE.md at the repo root.
+
+[open-question] In a monorepo, where should `--install` write — the repo root, the closest CLAUDE.md to `pwd`, the closest CLAUDE.md to the `.brief.md` file, or (for directory-prefix-scoped constraints) the matching subtree CLAUDE.md? Phase 2 synthesis P5 doesn't address this.
 
 [open-question] Should `--install` walk up looking for an existing CLAUDE.md and inject there, or always create one at the repo root? Either choice has failure modes.
+
+### `.claude/rules/` with `paths:` — native per-glob scoping (the glob-frontmatter axis)
+
+**Verified 2026-06-12** against [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory). This is the discovery that upgrades the scoped-constraints story: **Claude Code has a native per-glob instruction surface**, not just nested-directory scoping.
+
+- Rule files live in `.claude/rules/*.md` (project) or `~/.claude/rules/*.md` (user).
+- A rule may carry `paths:` glob frontmatter:
+  ```yaml
+  ---
+  paths:
+    - "src/api/**/*.ts"
+  ---
+  ```
+- Path-scoped rules apply **only when Claude reads files matching the patterns** (full glob + brace expansion: `src/**/*.{ts,tsx}`). Rules with no `paths` load unconditionally at launch (same priority as `.claude/CLAUDE.md`).
+- These are **context, not enforcement** — to block an action, a PreToolUse hook is still the only deterministic layer.
+
+**Implication for brief:** an arbitrary-glob scoped constraint (`**/*.test.ts`) — which has no home in the CLAUDE.md hierarchy — can emit to a `.claude/rules/<scope>.md` with `paths:` set. So between nested CLAUDE.md (directory prefixes) and `.claude/rules` (arbitrary globs), the Claude target can express **every** scoped constraint natively, never falling back to prose. This is the strongest single argument that format-level scoped constraints pay off for brief's primary target. (Distinct from the skill-frontmatter `paths` field in the skills table below, which gates *skill* auto-activation.)
+
+### AGENTS.md is not read natively by Claude Code
+
+**Verified 2026-06-12** against [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory) and [agents.md](https://agents.md): Claude Code reads `CLAUDE.md`, **not** `AGENTS.md`. To use an AGENTS.md with Claude Code, import it (`@AGENTS.md` inside CLAUDE.md) or symlink (`ln -s AGENTS.md CLAUDE.md`). AGENTS.md itself has **no glob frontmatter** — its only scoping is nested directory placement (nearest file wins). brief's `agents-md` emit target is for the cross-vendor AGENTS.md convention (Codex et al.), independent of Claude Code.
 
 ### PreToolUse hook handler types
 

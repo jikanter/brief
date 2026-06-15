@@ -1,6 +1,6 @@
 # Aider Backend
 
-**Status:** Planned (phase2-synthesis P4). Listed as "trivial" in the live roadmap, but the integration audit found this characterization is incomplete — Aider is genuinely a two-file emit if the user wants conventions to auto-load.
+**Status:** Shipped (phase2-synthesis P4) — `brief emit aider [--install]` is implemented in `src/emit/aider.rs`, writing `CONVENTIONS.md` plus an idempotent `.aider.conf.yml` merge (`read:` + `model:`). Format re-verified 2026-06-12 against [aider.chat/docs](https://aider.chat/docs/usage/conventions.html): `CONVENTIONS.md` is **not** auto-loaded (needs `/read` or `read:` in config); `read:` accepts a scalar **or a list** (relevant if brief ever maps `context:` files alongside conventions); `model:` is the default-model key. Aider has **no native path/glob scoping** — conventions are session-global, so brief's sacred/scoped semantics flatten into prose (e.g. the "Files not to modify" section). The "two-file emit" characterization holds.
 
 ## Target file structure
 

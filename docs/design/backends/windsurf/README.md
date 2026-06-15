@@ -1,6 +1,6 @@
 # Windsurf Backend
 
-**Status:** Planned (phase2-synthesis P4). Trivial wrapper for the base case. Several details from the original audit are unverified — flagged inline as `[open-question]`.
+**Status:** Shipped (phase2-synthesis P4) — `brief emit windsurf [--install]` is implemented in `src/emit/windsurf.rs` (single `always_on` workspace rule). Core facts re-verified 2026-06-12 against [docs.windsurf.com](https://docs.windsurf.com/windsurf/cascade/memories); the trigger taxonomy is now confirmed and the `globs` form corrected.
 
 ## Target file locations
 
@@ -9,16 +9,16 @@
 | `.windsurf/rules/<name>.md` | Workspace-level rules (per project) |
 | `~/.codeium/windsurf/memories/global_rules.md` | Global rules (per user) |
 
-[open-question] Are these still the canonical paths in current Windsurf? The audit was dated March 2026; the path under `~/.codeium/` in particular has historically moved as Windsurf has evolved.
+**Path migration (2026-06-12):** current Windsurf prefers `.devin/` for workspace rules and keeps `.windsurf/` as a backward-compatible fallback. brief's emitter writes `.windsurf/rules/brief.md` today, which still loads; revisit when `.devin/` becomes the primary.
 
-## Frontmatter schema (unverified)
+## Frontmatter schema
 
-The audit reported that workspace rule files carry YAML frontmatter with a `trigger` field selecting one of four activation modes:
+Workspace rule files carry YAML frontmatter with a `trigger` field selecting an activation mode. **`globs` is a bare/comma-separated glob scalar, not a YAML array** (the earlier `globs: ["src/**/*.rs"]` array form was an audit artifact):
 
 ```yaml
 ---
-trigger: always_on   # or: model_decision | glob | manual
-globs: ["src/**/*.rs"]
+trigger: glob
+globs: "**/*.test.ts"
 ---
 ```
 
@@ -29,7 +29,7 @@ globs: ["src/**/*.rs"]
 | `glob` | Loaded when editing files matching `globs` |
 | `manual` | Only loaded by explicit user invocation |
 
-[open-question] Is this trigger taxonomy accurate for current Windsurf? Audit-cited but unverified. The four-mode structure mirrors Cursor closely, which makes it plausible but not confirmed.
+**Verified 2026-06-12:** the four-mode `trigger` taxonomy (`always_on` / `model_decision` / `glob` / `manual`) is accurate for current Windsurf. As with Cursor and Copilot, the `globs` is **file-level** — one glob set per rule file; scope different rules by writing separate files.
 
 ## Character limits (unverified)
 

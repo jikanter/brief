@@ -3,6 +3,8 @@
 *2026-05-10T02:23:45Z by Showboat 0.6.1*
 <!-- showboat-id: 109a26f4-40bf-4283-a43b-3f1d76ac224f -->
 
+> **Correction (2026-06-12):** the illustrative `globs: ["src/**/*.tsx"]` / `globs: ["src/auth/**"]` examples below use a YAML-array form that is **wrong for current Cursor**. Cursor's `globs` is a **comma-separated string** (`globs: "src/**/*.tsx"`). The shipped emitter omits `globs` entirely (it sets `alwaysApply: true`), so no output was ever affected — but the array form in the scoping discussion below is illustrative only and should be read as comma-string. See [design/backends/cursor/README.md](../design/backends/cursor/README.md) "Glob field format" for the verified schema.
+
 The `brief emit cursor` target produces a Cursor `.mdc` rule from a `.brief.md`. Cursor consumes `.cursor/rules/*.mdc` files with their own YAML frontmatter (`description`, `globs`, `alwaysApply`) — a different schema than brief's, which the emitter constructs from scratch. This demo walks through emitting to stdout, installing into `.cursor/rules/brief.mdc`, coexistence with hand-written rules, idempotency, and the design rationale for why the emitter currently produces a single bundled rule with `alwaysApply: true`.
 
 ## 1. Set up a scratch project with a brief
