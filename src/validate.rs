@@ -69,6 +69,40 @@ pub fn validate(brief: &Brief, base_dir: &Path) -> Vec<Diagnostic> {
         }
     }
 
+    // 5b. Check constraint scope globs match at least one file. A scope that
+    //     matches nothing is dead weight — the constraint never activates for any
+    //     real file. Warn (like sacred); never block.
+    let scoped = brief
+        .constraints
+        .hard
+        .iter()
+        .chain(&brief.constraints.soft)
+        .chain(&brief.constraints.ask_first)
+        .filter(|c| c.is_scoped());
+    for constraint in scoped {
+        for glob_pat in &constraint.scope {
+            let pattern = base_dir.join(glob_pat).to_string_lossy().to_string();
+            match glob::glob(&pattern) {
+                Ok(paths) => {
+                    if paths.count() == 0 && !directory_prefix_exists(base_dir, glob_pat) {
+                        diagnostics.push(Diagnostic {
+                            severity: Severity::Warning,
+                            message: format!("Constraint scope `{glob_pat}` matches no files"),
+                        });
+                    }
+                }
+                Err(e) => {
+                    diagnostics.push(Diagnostic {
+                        severity: Severity::Warning,
+                        message: format!(
+                            "Invalid glob pattern in constraint scope `{glob_pat}`: {e}"
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
     // 6. Check assumptions have checkboxes
     for assumption in &brief.assumptions {
         if !assumption.has_checkbox {
@@ -104,6 +138,19 @@ pub fn validate(brief: &Brief, base_dir: &Path) -> Vec<Diagnostic> {
     }
 
     diagnostics
+}
+
+/// For a directory-prefix scope (`src/ui/**`, `src/ui/`), the `glob` crate does
+/// not expand a trailing `/**` to the directory's direct children, so a literal
+/// glob count of zero is not proof the scope is dead. Fall back to checking that
+/// the prefix directory exists. Arbitrary globs (`**/*.test.ts`) have no such
+/// prefix and rely solely on the glob match.
+fn directory_prefix_exists(base_dir: &Path, glob_pat: &str) -> bool {
+    if !crate::model::Constraint::is_directory_prefix(glob_pat) {
+        return false;
+    }
+    let prefix = glob_pat.trim_end_matches("/**").trim_end_matches('/');
+    !prefix.is_empty() && base_dir.join(prefix).is_dir()
 }
 
 /// A constraint is vague when it is short *and* names nothing concrete — no
@@ -158,7 +205,7 @@ mod tests {
             goal: "Fix the bug".to_string(),
             identity: None,
             constraints: Constraints {
-                hard: vec!["Don't break tests".to_string()],
+                hard: vec![Constraint::new("Don't break tests")],
                 soft: vec![],
                 ask_first: vec![],
             },
@@ -225,6 +272,43 @@ mod tests {
     }
 
     #[test]
+    fn constraint_scope_matching_no_files_is_warning() {
+        let tmp = TempDir::new().unwrap();
+        let mut brief = make_valid_brief();
+        brief.constraints.hard = vec![Constraint::scoped("WCAG 2.1 AA", vec!["src/ui/**".into()])];
+        let diags = validate(&brief, tmp.path());
+        let warnings: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Warning)
+            .collect();
+        assert!(
+            warnings
+                .iter()
+                .any(|d| d.message.contains("src/ui/**") && d.message.contains("matches no files")),
+            "expected scope-matches-nothing warning, got: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn constraint_scope_matching_files_is_not_warned() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("src/ui")).unwrap();
+        std::fs::write(tmp.path().join("src/ui/button.tsx"), "x").unwrap();
+        let mut brief = make_valid_brief();
+        brief.constraints.hard = vec![Constraint::scoped(
+            "WCAG 2.1 AA compliance",
+            vec!["src/ui/**".into()],
+        )];
+        let diags = validate(&brief, tmp.path());
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("src/ui/**") && d.message.contains("matches no files")),
+            "matching scope should not warn, got: {diags:?}"
+        );
+    }
+
+    #[test]
     fn malformed_sacred_is_error() {
         let tmp = TempDir::new().unwrap();
         let mut brief = make_valid_brief();
@@ -245,7 +329,7 @@ mod tests {
     fn vague_constraint_is_a_warning_not_error() {
         let tmp = TempDir::new().unwrap();
         let mut brief = make_valid_brief();
-        brief.constraints.soft = vec!["Follow best practices".to_string()];
+        brief.constraints.soft = vec![Constraint::new("Follow best practices")];
         let diags = validate(&brief, tmp.path());
         assert!(
             diags
@@ -266,9 +350,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let mut brief = make_valid_brief();
         brief.constraints.hard = vec![
-            "All public functions must return `Result<T, AppError>`".to_string(), // backtick + type
-            "Do not modify src/auth/handler.rs".to_string(),                      // path
-            "Keep response latency under 200ms for the search endpoint".to_string(), // long + digit
+            Constraint::new("All public functions must return `Result<T, AppError>`"), // backtick + type
+            Constraint::new("Do not modify src/auth/handler.rs"),                      // path
+            Constraint::new("Keep response latency under 200ms for the search endpoint"), // long + digit
         ];
         let diags = validate(&brief, tmp.path());
         assert!(
@@ -282,7 +366,7 @@ mod tests {
         // Short, but names a concrete symbol — precise despite brevity.
         let tmp = TempDir::new().unwrap();
         let mut brief = make_valid_brief();
-        brief.constraints.hard = vec!["No `unsafe`".to_string()];
+        brief.constraints.hard = vec![Constraint::new("No `unsafe`")];
         let diags = validate(&brief, tmp.path());
         assert!(!diags.iter().any(|d| d.message.contains("Vague constraint")));
     }

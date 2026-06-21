@@ -3,6 +3,7 @@ use std::path::Path;
 use serde_yaml::{Mapping, Value};
 
 use crate::emit::markers::{inject_section, wrap_with_markers};
+use crate::framing::with_scope;
 use crate::model::Brief;
 
 /// The conventions file Aider auto-loads via its config `read:` key.
@@ -42,7 +43,7 @@ pub fn emit_aider(brief: &Brief) -> String {
     if !brief.constraints.hard.is_empty() {
         out.push_str("## Guidelines\n\n");
         for c in &brief.constraints.hard {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }
@@ -50,7 +51,7 @@ pub fn emit_aider(brief: &Brief) -> String {
     if !brief.constraints.soft.is_empty() {
         out.push_str("## Preferences\n\n");
         for c in &brief.constraints.soft {
-            out.push_str(&format!("- Prefer: {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(&format!("Prefer: {c}"), c)));
         }
         out.push('\n');
     }
@@ -58,7 +59,10 @@ pub fn emit_aider(brief: &Brief) -> String {
     if !brief.constraints.ask_first.is_empty() {
         out.push_str("## Ask first\n\n");
         for c in &brief.constraints.ask_first {
-            out.push_str(&format!("- Ask before: {c}\n"));
+            out.push_str(&format!(
+                "- {}\n",
+                with_scope(&format!("Ask before: {c}"), c)
+            ));
         }
         out.push('\n');
     }

@@ -626,12 +626,14 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
             EmitTarget::Cursor => {
                 let base = std::env::current_dir().context("Failed to get current directory")?;
                 let written = emit::install_cursor(&brief, &base)
-                    .with_context(|| "Failed to install briefing into .cursor/rules/brief.mdc")?;
-                println!(
-                    "{} briefing into {}",
-                    "Installed".green().bold(),
-                    written.display()
-                );
+                    .with_context(|| "Failed to install briefing into .cursor/rules/")?;
+                for path in &written {
+                    println!(
+                        "{} briefing into {}",
+                        "Installed".green().bold(),
+                        path.display()
+                    );
+                }
             }
             EmitTarget::Copilot => {
                 let base = std::env::current_dir().context("Failed to get current directory")?;

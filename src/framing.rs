@@ -142,6 +142,33 @@ pub fn frame_ask_first_short(constraint: &str) -> String {
     format!("STOP before: {c}")
 }
 
+/// Render the scope of a constraint as a backtick-wrapped, comma-joined clause
+/// (`` `src/ui/**`, `src/api/**` ``), or `None` when the constraint is
+/// project-wide. Used by emitters with no native glob-frontmatter home to keep
+/// scoped constraints non-destructive — the scope survives as prose.
+pub fn scope_clause(c: &crate::model::Constraint) -> Option<String> {
+    if c.scope.is_empty() {
+        return None;
+    }
+    Some(
+        c.scope
+            .iter()
+            .map(|g| format!("`{g}`"))
+            .collect::<Vec<_>>()
+            .join(", "),
+    )
+}
+
+/// Prefix an already-rendered constraint line with its scope clause, when the
+/// constraint is scoped. Project-wide constraints pass through unchanged so
+/// existing emit output is byte-for-byte stable.
+pub fn with_scope(rendered: &str, c: &crate::model::Constraint) -> String {
+    match scope_clause(c) {
+        Some(clause) => format!("When working in {clause}: {rendered}"),
+        None => rendered.to_string(),
+    }
+}
+
 /// Strip the first matching prefix (case-insensitively) and return the
 /// remainder, preserving the remainder's original casing. Returns the input
 /// unchanged if no prefix matches.
@@ -227,7 +254,35 @@ mod tests {
         assert_eq!(frame_hard("MUST: ship it"), "MUST: ship it");
         assert_eq!(frame_hard("NEVER: leak PII"), "NEVER: leak PII");
         assert_eq!(frame_soft("PREFER: small modules"), "PREFER: small modules");
-        assert_eq!(frame_ask_first("STOP: schema changes"), "STOP: schema changes");
+        assert_eq!(
+            frame_ask_first("STOP: schema changes"),
+            "STOP: schema changes"
+        );
+    }
+
+    #[test]
+    fn scope_clause_backticks_and_joins() {
+        use crate::model::Constraint;
+        let c = Constraint::scoped("x", vec!["src/ui/**".into(), "src/api/**".into()]);
+        assert_eq!(scope_clause(&c).unwrap(), "`src/ui/**`, `src/api/**`");
+    }
+
+    #[test]
+    fn unscoped_constraint_passes_through_unchanged() {
+        use crate::model::Constraint;
+        let c = Constraint::new("MUST: pass CI");
+        assert_eq!(scope_clause(&c), None);
+        assert_eq!(with_scope("MUST: pass CI", &c), "MUST: pass CI");
+    }
+
+    #[test]
+    fn with_scope_prefixes_scoped_constraint() {
+        use crate::model::Constraint;
+        let c = Constraint::scoped("WCAG 2.1 AA", vec!["src/ui/**".into()]);
+        assert_eq!(
+            with_scope("WCAG 2.1 AA", &c),
+            "When working in `src/ui/**`: WCAG 2.1 AA"
+        );
     }
 
     #[test]

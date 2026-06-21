@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use crate::model::Brief;
+use crate::framing::with_scope;
+use crate::model::{Brief, Constraint};
 
 /// Emit a Cursor `.mdc` rule from a Brief.
 ///
@@ -8,11 +9,11 @@ use crate::model::Brief;
 /// frontmatter (`description`, `globs`, `alwaysApply`) which differs from
 /// brief's frontmatter and must be constructed from scratch.
 ///
-/// This is the trivial-base-case mapping: a single bundled rule with
-/// `alwaysApply: true`. Brief has no native concept of glob-scoped constraints,
-/// so we cannot meaningfully populate Cursor's `globs` field today. When the
-/// format grows scoped constraints, this emitter is the first place that
-/// expressivity unlocks (see docs/design/backends/cursor/README.md).
+/// This is the always-apply bundle: every constraint in one file with
+/// `alwaysApply: true`. Scoped constraints still appear here (their scope shown
+/// inline as prose) so the stdout form is lossless. On `--install`,
+/// [`install_cursor`] instead fans scoped constraints out into per-glob files
+/// that use Cursor's native `globs:` activation — see [`emit_cursor_files`].
 pub fn emit_cursor(brief: &Brief) -> String {
     let mut out = String::new();
 
@@ -44,7 +45,7 @@ pub fn emit_cursor(brief: &Brief) -> String {
     if !brief.constraints.hard.is_empty() {
         out.push_str("## Required\n\n");
         for c in &brief.constraints.hard {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }
@@ -52,7 +53,7 @@ pub fn emit_cursor(brief: &Brief) -> String {
     if !brief.constraints.soft.is_empty() {
         out.push_str("## Preferred\n\n");
         for c in &brief.constraints.soft {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }
@@ -60,7 +61,7 @@ pub fn emit_cursor(brief: &Brief) -> String {
     if !brief.constraints.ask_first.is_empty() {
         out.push_str("## Ask First\n\n");
         for c in &brief.constraints.ask_first {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }
@@ -133,21 +134,154 @@ fn yaml_scalar(s: &str) -> String {
     }
 }
 
-/// Install a Cursor rule into `<base>/.cursor/rules/brief.mdc`.
+/// A set of constraints sharing one path scope — the unit of Cursor glob fan-out.
+struct ScopeGroup {
+    scope: Vec<String>,
+    hard: Vec<Constraint>,
+    soft: Vec<Constraint>,
+    ask_first: Vec<Constraint>,
+}
+
+impl ScopeGroup {
+    /// Deterministic `brief-<slug>.mdc` filename derived from the scope globs.
+    fn filename(&self) -> String {
+        let mut s: String = self
+            .scope
+            .join("-")
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        while s.contains("--") {
+            s = s.replace("--", "-");
+        }
+        let s = s.trim_matches('-');
+        format!("brief-{}.mdc", if s.is_empty() { "scoped" } else { s })
+    }
+}
+
+/// Clone a brief with only its project-wide (unscoped) constraints retained.
+fn unscoped_only(brief: &Brief) -> Brief {
+    let mut b = brief.clone();
+    b.constraints.hard.retain(|c| !c.is_scoped());
+    b.constraints.soft.retain(|c| !c.is_scoped());
+    b.constraints.ask_first.retain(|c| !c.is_scoped());
+    b
+}
+
+/// Group every scoped constraint by its exact scope set, preserving first-seen
+/// order so output is deterministic.
+fn scope_groups(brief: &Brief) -> Vec<ScopeGroup> {
+    let mut groups: Vec<ScopeGroup> = Vec::new();
+    let mut push = |c: &Constraint, tier: u8| {
+        if !c.is_scoped() {
+            return;
+        }
+        let g = match groups.iter_mut().find(|g| g.scope == c.scope) {
+            Some(g) => g,
+            None => {
+                groups.push(ScopeGroup {
+                    scope: c.scope.clone(),
+                    hard: Vec::new(),
+                    soft: Vec::new(),
+                    ask_first: Vec::new(),
+                });
+                groups.last_mut().unwrap()
+            }
+        };
+        match tier {
+            0 => g.hard.push(c.clone()),
+            1 => g.soft.push(c.clone()),
+            _ => g.ask_first.push(c.clone()),
+        }
+    };
+    for c in &brief.constraints.hard {
+        push(c, 0);
+    }
+    for c in &brief.constraints.soft {
+        push(c, 1);
+    }
+    for c in &brief.constraints.ask_first {
+        push(c, 2);
+    }
+    groups
+}
+
+/// Render one scoped Cursor rule file using native `globs:` activation.
+fn emit_scoped_rule(brief: &Brief, group: &ScopeGroup) -> String {
+    let mut out = String::new();
+    out.push_str("---\n");
+    out.push_str(&format!("description: {}\n", yaml_scalar(&brief.goal)));
+    out.push_str(&format!("globs: {}\n", group.scope.join(", ")));
+    out.push_str("alwaysApply: false\n");
+    out.push_str("---\n\n");
+
+    out.push_str(&format!(
+        "# {} — scoped to `{}`\n\n",
+        brief.goal,
+        group.scope.join("`, `")
+    ));
+
+    let section = |out: &mut String, heading: &str, items: &[Constraint]| {
+        if !items.is_empty() {
+            out.push_str(&format!("## {heading}\n\n"));
+            for c in items {
+                out.push_str(&format!("- {}\n", c.text));
+            }
+            out.push('\n');
+        }
+    };
+    section(&mut out, "Required", &group.hard);
+    section(&mut out, "Preferred", &group.soft);
+    section(&mut out, "Ask First", &group.ask_first);
+
+    out
+}
+
+/// Build every Cursor rule file for a brief: the always-apply base bundle
+/// (`brief.mdc`, project-wide constraints only) plus one `brief-<slug>.mdc` per
+/// distinct constraint scope, each carrying native `globs:` frontmatter.
+pub fn emit_cursor_files(brief: &Brief) -> Vec<(String, String)> {
+    let mut files = vec![("brief.mdc".to_string(), emit_cursor(&unscoped_only(brief)))];
+    for group in scope_groups(brief) {
+        files.push((group.filename(), emit_scoped_rule(brief, &group)));
+    }
+    files
+}
+
+/// Install a brief's Cursor rules into `<base>/.cursor/rules/`.
 ///
-/// Brief owns this file end-to-end (unlike CLAUDE.md/AGENTS.md which mix with
-/// hand-written content), so each install overwrites the file outright — no
-/// `<brief:generated>` markers, no marker migration. The directory is created
-/// if it does not already exist.
+/// Writes `brief.mdc` (always-apply bundle) plus one `brief-<slug>.mdc` per
+/// scoped constraint group. Brief owns the `brief*.mdc` namespace end-to-end, so
+/// each install first removes any prior `brief-*.mdc` scoped files (a scope the
+/// brief no longer carries should not linger) and overwrites the rest — no
+/// `<brief:generated>` markers. Hand-written rules without the `brief-` prefix
+/// are never touched. Returns every path written.
 pub fn install_cursor(
     brief: &Brief,
     base_dir: &Path,
-) -> Result<std::path::PathBuf, std::io::Error> {
+) -> Result<Vec<std::path::PathBuf>, std::io::Error> {
     let rules_dir = base_dir.join(".cursor").join("rules");
     std::fs::create_dir_all(&rules_dir)?;
-    let target = rules_dir.join("brief.mdc");
-    std::fs::write(&target, emit_cursor(brief))?;
-    Ok(target)
+
+    // Sweep brief-owned scoped files from a prior install so removed scopes
+    // don't leave orphans behind. brief.mdc is overwritten, not swept.
+    if let Ok(entries) = std::fs::read_dir(&rules_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with("brief-") && name.ends_with(".mdc") {
+                let _ = std::fs::remove_file(entry.path());
+            }
+        }
+    }
+
+    let mut written = Vec::new();
+    for (name, content) in emit_cursor_files(brief) {
+        let target = rules_dir.join(name);
+        std::fs::write(&target, content)?;
+        written.push(target);
+    }
+    Ok(written)
 }
 
 #[cfg(test)]
@@ -416,6 +550,78 @@ mod tests {
         );
     }
 
+    // -- scoped fan-out --
+
+    fn scoped_brief() -> Brief {
+        let mut b = full_brief();
+        b.constraints.hard.push(Constraint::scoped(
+            "Use design tokens, not raw hex",
+            vec!["src/ui/**".into()],
+        ));
+        b
+    }
+
+    #[test]
+    fn scoped_constraint_produces_a_globbed_rule_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let written = install_cursor(&scoped_brief(), dir.path()).unwrap();
+
+        assert!(
+            written.len() >= 2,
+            "expected fan-out files, got {written:?}"
+        );
+        let scoped = written
+            .iter()
+            .find(|p| p.file_name().unwrap() != "brief.mdc")
+            .expect("a per-scope rule file");
+        let content = std::fs::read_to_string(scoped).unwrap();
+        // Native Cursor glob frontmatter, scoped activation (not always-on).
+        assert!(content.contains("globs: src/ui/**"), "got:\n{content}");
+        assert!(content.contains("alwaysApply: false"), "got:\n{content}");
+        assert!(content.contains("Use design tokens, not raw hex"));
+    }
+
+    #[test]
+    fn base_bundle_excludes_scoped_constraints() {
+        let dir = tempfile::tempdir().unwrap();
+        install_cursor(&scoped_brief(), dir.path()).unwrap();
+        let base = std::fs::read_to_string(dir.path().join(".cursor/rules/brief.mdc")).unwrap();
+        assert!(
+            !base.contains("Use design tokens, not raw hex"),
+            "scoped constraint leaked into always-apply bundle:\n{base}"
+        );
+        // Unscoped constraints still ride in the base bundle, always-on.
+        assert!(base.contains("Must not degrade page load time"));
+        assert!(base.contains("alwaysApply: true"));
+    }
+
+    #[test]
+    fn unscoped_only_brief_writes_single_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let written = install_cursor(&full_brief(), dir.path()).unwrap();
+        assert_eq!(written.len(), 1);
+        assert_eq!(written[0].file_name().unwrap(), "brief.mdc");
+    }
+
+    #[test]
+    fn reinstall_sweeps_orphaned_scoped_files() {
+        let dir = tempfile::tempdir().unwrap();
+        install_cursor(&scoped_brief(), dir.path()).unwrap();
+        // Re-install an unscoped brief: the prior scoped file must be swept.
+        install_cursor(&full_brief(), dir.path()).unwrap();
+        let rules = dir.path().join(".cursor/rules");
+        let orphans: Vec<_> = std::fs::read_dir(&rules)
+            .unwrap()
+            .flatten()
+            .filter(|e| {
+                let n = e.file_name();
+                let n = n.to_string_lossy();
+                n.starts_with("brief-") && n.ends_with(".mdc")
+            })
+            .collect();
+        assert!(orphans.is_empty(), "orphaned scoped files: {orphans:?}");
+    }
+
     // -- install_cursor --
 
     #[test]
@@ -426,7 +632,7 @@ mod tests {
         let written = install_cursor(&brief, dir.path()).unwrap();
 
         let expected = dir.path().join(".cursor").join("rules").join("brief.mdc");
-        assert_eq!(written, expected);
+        assert!(written.contains(&expected));
         assert!(expected.exists(), "expected file at {expected:?}");
     }
 

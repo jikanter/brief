@@ -1,4 +1,4 @@
-use crate::framing::{SACRED_PREAMBLE, frame_ask_first, frame_hard, frame_soft};
+use crate::framing::{SACRED_PREAMBLE, frame_ask_first, frame_hard, frame_soft, with_scope};
 use crate::model::Brief;
 
 /// Emit a raw system prompt suitable for direct API use.
@@ -23,7 +23,7 @@ pub fn emit_prompt(brief: &Brief) -> String {
     if !brief.constraints.hard.is_empty() {
         out.push_str("HARD CONSTRAINTS:\n");
         for c in &brief.constraints.hard {
-            out.push_str(&format!("- {}\n", frame_hard(c)));
+            out.push_str(&format!("- {}\n", with_scope(&frame_hard(c), c)));
         }
         out.push('\n');
     }
@@ -58,7 +58,7 @@ pub fn emit_prompt(brief: &Brief) -> String {
     if !brief.constraints.soft.is_empty() {
         out.push_str("SOFT CONSTRAINTS:\n");
         for c in &brief.constraints.soft {
-            out.push_str(&format!("- {}\n", frame_soft(c)));
+            out.push_str(&format!("- {}\n", with_scope(&frame_soft(c), c)));
         }
         out.push('\n');
     }
@@ -66,7 +66,7 @@ pub fn emit_prompt(brief: &Brief) -> String {
     if !brief.constraints.ask_first.is_empty() {
         out.push_str("ASK BEFORE PROCEEDING:\n");
         for c in &brief.constraints.ask_first {
-            out.push_str(&format!("- {}\n", frame_ask_first(c)));
+            out.push_str(&format!("- {}\n", with_scope(&frame_ask_first(c), c)));
         }
         out.push('\n');
     }

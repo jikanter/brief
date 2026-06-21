@@ -268,9 +268,10 @@ fn emit_xml_from_full_fixture() {
     assert!(output.contains("MUST: WebSocket connections"));
     // "Prefer Yjs..." is a soft constraint; the "Prefer" lead folds into PREFER:.
     assert!(output.contains("<rule>PREFER: Yjs"));
-    assert!(output.contains(
-        "STOP and confirm with the user before: Changes to the shared state schema"
-    ));
+    assert!(
+        output
+            .contains("STOP and confirm with the user before: Changes to the shared state schema")
+    );
 
     // Sacred.
     assert!(output.contains("<sacred>"));

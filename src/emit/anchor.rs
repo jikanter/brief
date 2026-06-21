@@ -77,9 +77,12 @@ mod tests {
             goal: "Ship the thing".into(),
             identity: None,
             constraints: Constraints {
-                hard: hard.into_iter().map(String::from).collect(),
+                hard: hard
+                    .into_iter()
+                    .map(crate::model::Constraint::new)
+                    .collect(),
                 soft: vec!["Prefer small commits".into()],
-                ask_first: ask.into_iter().map(String::from).collect(),
+                ask_first: ask.into_iter().map(crate::model::Constraint::new).collect(),
             },
             sacred: sacred
                 .into_iter()
