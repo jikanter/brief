@@ -10,7 +10,7 @@
 
 Brief currently emits to four text targets (`claude`, `prompt`, `agents-md`, `json`) and one structured target (`skill`). The `prompt` target produces plain uppercase-labeled text; the `claude` target produces Markdown. Neither is optimized for token efficiency or for how LLMs actually parse structured instructions.
 
-The Phase 2 priorities (see [phase2-synthesis.md](./phase2-synthesis.md)) identify **emit quality** and **context budget awareness** as the top two concerns. A terse, structured emit format directly addresses both.
+The Phase 2 priorities (see [phase2-synthesis.md](../phase2-synthesis.md)) identify **emit quality** and **context budget awareness** as the top two concerns. A terse, structured emit format directly addresses both.
 
 ---
 
@@ -97,7 +97,7 @@ sacred:
 
 **Adoption:** Moderate. YAML prompts are common in practice; PDL is IBM-backed but Python-only.
 
-**Assessment:** Most token-efficient option, but brief's own [design-decisions.md](../design-decisions.md) identifies YAML's indentation sensitivity as a liability: "YAML's indentation sensitivity causes silent, catastrophic errors." An emit target producing YAML creates a fragile artifact if users ever hand-edit the output. Also, [arxiv 2411.10541](https://arxiv.org/abs/2411.10541) shows YAML doesn't consistently outperform on Claude-class models specifically.
+**Assessment:** Most token-efficient option, but brief's own [design-decisions.md](../../design-decisions.md) identifies YAML's indentation sensitivity as a liability: "YAML's indentation sensitivity causes silent, catastrophic errors." An emit target producing YAML creates a fragile artifact if users ever hand-edit the output. Also, [arxiv 2411.10541](https://arxiv.org/abs/2411.10541) shows YAML doesn't consistently outperform on Claude-class models specifically.
 
 ---
 
@@ -213,7 +213,7 @@ This directly validates brief's multi-target emit architecture: the same `.brief
 
 2. **Terse where it matters.** XML tags eliminate prose scaffolding while preserving machine-parseable structure. The constraint taxonomy (`<hard>`, `<soft>`, `<ask-first>`) maps 1:1 to brief's model with zero wasted tokens.
 
-3. **Phase 2 alignment.** The NEVER/MUST/PREFER/STOP constraint reframing (see [design-decisions.md](../design-decisions.md), "Emit-time reframing") applies naturally inside semantic XML tags. Section ordering for primacy/recency attention dynamics is straightforward.
+3. **Phase 2 alignment.** The NEVER/MUST/PREFER/STOP constraint reframing (see [design-decisions.md](../../design-decisions.md), "Emit-time reframing") applies naturally inside semantic XML tags. Section ordering for primacy/recency attention dynamics is straightforward.
 
 4. **System prompt sweet spot.** The `prompt` target produces plain text. XML tags give the model a parseable structure it can reference back to ("as specified in `<sacred>`") without Markdown rendering overhead. This is the highest-leverage position in the context hierarchy.
 
