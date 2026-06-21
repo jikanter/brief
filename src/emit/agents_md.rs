@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::emit::markers::{inject_section, wrap_with_markers};
+use crate::framing::with_scope;
 use crate::model::Brief;
 
 /// Emit an AGENTS.md-compatible section from a Brief.
@@ -42,13 +43,13 @@ pub fn emit_agents_md(brief: &Brief) -> String {
     if has_constraints {
         out.push_str("## Instructions\n\n");
         for c in &brief.constraints.hard {
-            out.push_str(&format!("- {c} **(REQUIRED)**\n"));
+            out.push_str(&format!("- {} **(REQUIRED)**\n", with_scope(c, c)));
         }
         for c in &brief.constraints.soft {
-            out.push_str(&format!("- {c} *(preferred)*\n"));
+            out.push_str(&format!("- {} *(preferred)*\n", with_scope(c, c)));
         }
         for c in &brief.constraints.ask_first {
-            out.push_str(&format!("- {c} **(ASK FIRST)**\n"));
+            out.push_str(&format!("- {} **(ASK FIRST)**\n", with_scope(c, c)));
         }
         out.push('\n');
     }

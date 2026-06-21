@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::emit::markers::{Position, inject_section_at, remove_sections, wrap_with_markers};
-use crate::framing::{SACRED_PREAMBLE, frame_ask_first, frame_hard, frame_soft};
+use crate::framing::{SACRED_PREAMBLE, frame_ask_first, frame_hard, frame_soft, with_scope};
 use crate::model::Brief;
 
 /// Preamble added above a top-positioned brief section, telling the model how to
@@ -46,7 +46,7 @@ pub fn emit_claude(brief: &Brief) -> String {
             out.push_str("### Hard (Non-negotiable)\n\n");
             out.push_str("<rules priority=\"required\">\n");
             for c in &brief.constraints.hard {
-                out.push_str(&format!("- {}\n", frame_hard(c)));
+                out.push_str(&format!("- {}\n", with_scope(&frame_hard(c), c)));
             }
             out.push_str("</rules>\n\n");
         }
@@ -55,7 +55,7 @@ pub fn emit_claude(brief: &Brief) -> String {
             out.push_str("### Soft (Preferred)\n\n");
             out.push_str("<rules priority=\"preferred\">\n");
             for c in &brief.constraints.soft {
-                out.push_str(&format!("- {}\n", frame_soft(c)));
+                out.push_str(&format!("- {}\n", with_scope(&frame_soft(c), c)));
             }
             out.push_str("</rules>\n\n");
         }
@@ -64,7 +64,7 @@ pub fn emit_claude(brief: &Brief) -> String {
             out.push_str("### Ask First (Requires approval)\n\n");
             out.push_str("<rules priority=\"ask-first\">\n");
             for c in &brief.constraints.ask_first {
-                out.push_str(&format!("- {}\n", frame_ask_first(c)));
+                out.push_str(&format!("- {}\n", with_scope(&frame_ask_first(c), c)));
             }
             out.push_str("</rules>\n\n");
         }

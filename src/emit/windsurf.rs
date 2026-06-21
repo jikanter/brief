@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::framing::with_scope;
 use crate::model::Brief;
 
 /// Emit a Windsurf workspace rule (`.windsurf/rules/brief.md`) from a Brief.
@@ -42,7 +43,7 @@ pub fn emit_windsurf(brief: &Brief) -> String {
     if !brief.constraints.hard.is_empty() {
         out.push_str("## Required\n\n");
         for c in &brief.constraints.hard {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }
@@ -50,7 +51,7 @@ pub fn emit_windsurf(brief: &Brief) -> String {
     if !brief.constraints.soft.is_empty() {
         out.push_str("## Preferred\n\n");
         for c in &brief.constraints.soft {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }
@@ -58,7 +59,7 @@ pub fn emit_windsurf(brief: &Brief) -> String {
     if !brief.constraints.ask_first.is_empty() {
         out.push_str("## Ask First\n\n");
         for c in &brief.constraints.ask_first {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }

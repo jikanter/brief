@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::framing::with_scope;
 use crate::model::Brief;
 
 /// Compute the relative path from `from_dir` to `to_path`.
@@ -88,7 +89,7 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
     if !brief.constraints.hard.is_empty() {
         out.push_str("\n## Rules\n\nYou MUST follow these rules:\n\n");
         for c in &brief.constraints.hard {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
     }
 
@@ -96,7 +97,7 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
     if !brief.constraints.soft.is_empty() {
         out.push_str("\nPrefer these approaches when possible:\n\n");
         for c in &brief.constraints.soft {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
     }
 
@@ -104,7 +105,7 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
     if !brief.constraints.ask_first.is_empty() {
         out.push_str("\nAsk the user before proceeding with:\n\n");
         for c in &brief.constraints.ask_first {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
     }
 
