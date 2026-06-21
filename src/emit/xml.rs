@@ -7,7 +7,17 @@
 //! output is prompt content for an LLM, not data for an XML parser.
 
 use crate::framing::{frame_ask_first, frame_hard, frame_soft};
-use crate::model::Brief;
+use crate::model::{Brief, Constraint};
+
+/// Render a constraint's path scope as an XML attribute (` scope="a b"`), or an
+/// empty string when the constraint is project-wide. Globs are space-separated
+/// and XML-escaped inside the attribute value.
+fn scope_attr(c: &Constraint) -> String {
+    if c.scope.is_empty() {
+        return String::new();
+    }
+    format!(" scope=\"{}\"", escape_xml(&c.scope.join(" ")))
+}
 
 /// Emit an XML-tagged briefing suitable for direct use in an Anthropic API
 /// system prompt.
@@ -44,7 +54,11 @@ pub fn emit_xml(brief: &Brief) -> String {
         if !brief.constraints.hard.is_empty() {
             out.push_str("<hard>\n");
             for c in &brief.constraints.hard {
-                out.push_str(&format!("<rule>{}</rule>\n", escape_xml(&frame_hard(c))));
+                out.push_str(&format!(
+                    "<rule{}>{}</rule>\n",
+                    scope_attr(c),
+                    escape_xml(&frame_hard(c))
+                ));
             }
             out.push_str("</hard>\n");
         }
@@ -52,7 +66,11 @@ pub fn emit_xml(brief: &Brief) -> String {
         if !brief.constraints.soft.is_empty() {
             out.push_str("<soft>\n");
             for c in &brief.constraints.soft {
-                out.push_str(&format!("<rule>{}</rule>\n", escape_xml(&frame_soft(c))));
+                out.push_str(&format!(
+                    "<rule{}>{}</rule>\n",
+                    scope_attr(c),
+                    escape_xml(&frame_soft(c))
+                ));
             }
             out.push_str("</soft>\n");
         }
@@ -61,7 +79,8 @@ pub fn emit_xml(brief: &Brief) -> String {
             out.push_str("<ask-first>\n");
             for c in &brief.constraints.ask_first {
                 out.push_str(&format!(
-                    "<rule>{}</rule>\n",
+                    "<rule{}>{}</rule>\n",
+                    scope_attr(c),
                     escape_xml(&frame_ask_first(c))
                 ));
             }
@@ -206,7 +225,9 @@ mod tests {
         assert!(output.contains("<rule>PREFER: Use async where reasonable</rule>"));
         assert!(output.contains("<rule>PREFER: Keep modules under 200 lines</rule>"));
         assert!(
-            output.contains("<rule>STOP and confirm with the user before: Changing the schema</rule>")
+            output.contains(
+                "<rule>STOP and confirm with the user before: Changing the schema</rule>"
+            )
         );
     }
 

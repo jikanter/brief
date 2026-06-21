@@ -185,26 +185,36 @@ These are conventions, not parser primitives:
 
 ---
 
-## 8. Under consideration (NOT yet part of version 1)
+## 8. Format extensions
 
-The following are proposed in [open-questions.md](open-questions.md) and are
-**not** implemented. Documented here so the reserved surface is visible before it
-is built. Do not author against these yet.
+§8.1 is **shipped in version 1**. §8.2 is still proposed in
+[open-questions.md](open-questions.md) and **not** implemented — do not author
+against it yet.
 
-### 8.1 Scoped constraints `[format]`
+### 8.1 Scoped constraints `[format]` — shipped
 
-A constraint that applies only to files matching a path scope, rather than the
-whole project. Proposed authoring form (flat bracket prefix):
+A constraint may apply only to files matching a path scope, rather than the whole
+project. Authoring form: an optional leading bracket carries a comma-separated
+list of glob patterns the constraint is scoped to.
 
 ```markdown
 ### Hard
-- Must pass CI                                    ← global (no scope)
-- [src/ui/**] WCAG 2.1 AA on all components        ← scoped
-- [src/api/**, src/lib/**] Return Result<T, AppError>
+- Must pass CI                                      ← global (no scope)
+- [`src/ui/**`] WCAG 2.1 AA on all components        ← scoped
+- [`src/api/**`, `src/lib/**`] Return `Result<T, AppError>`
 ```
 
+**Authoring rule:** wrap any glob containing `*` in backticks (as shown). Bare
+`**` is Markdown bold and gets mangled — backticks make the glob a code span that
+survives parsing, the same convention sacred paths already use. A leading bracket
+with no globs (`[]`) is treated as literal text, not a scope.
+
+In the model a constraint is `Constraint { text, scope: Vec<Glob> }`; an empty
+`scope` means project-wide (the historical behavior). The canonical store is the
+glob list — each emitter serializes its own form.
+
 Two distinct scoping mechanisms exist across target ecosystems and the model
-must serve both (see the research note in [open-questions.md](open-questions.md)
+serves both (see the research note in [open-questions.md](open-questions.md)
 `[format]` Scoped Constraints):
 
 1. **Glob-frontmatter scoping** — Cursor `globs`, Copilot `applyTo`, Windsurf
@@ -216,8 +226,31 @@ must serve both (see the research note in [open-questions.md](open-questions.md)
 
 A scope that is a **directory prefix** (`src/api/**`) has a native home in both
 mechanisms; an **arbitrary glob** (`**/*.test.ts`) only has a home in the
-glob-frontmatter mechanism and degrades to inline prose for whole-file targets.
-The decision between format-level scope vs. emit-only hints is **undecided**.
+glob-frontmatter mechanism. `Constraint::is_directory_prefix` exposes the
+distinction so the emitter can pick hierarchy vs. glob-file vs. prose.
+
+**Emit behavior (shipped):**
+
+- **Native glob fan-out — `cursor`.** `brief emit cursor --install` writes the
+  always-apply `brief.mdc` bundle (project-wide constraints only) plus one
+  `brief-<slug>.mdc` per distinct scope, each carrying native `globs:`
+  frontmatter and `alwaysApply: false`. The brief owns the `brief*.mdc`
+  namespace; re-install sweeps stale scoped files. The non-install stdout form
+  stays a single lossless bundle with scope shown inline.
+- **Inline prose — all other emitters.** Targets with no native per-rule glob
+  home keep scoped constraints non-destructive by prefixing the rendered line
+  with `When working in `glob`, `glob`: …`. The `xml` target instead carries a
+  structured `scope="…"` attribute on each `<rule>`. JSON emits the `scope`
+  array (omitted when empty).
+- **Validation.** `brief validate` warns (never errors) when a scope glob matches
+  no files — dead weight that never activates. Directory-prefix scopes fall back
+  to a directory-existence check since the `glob` crate does not expand a
+  trailing `/**` to a directory's direct children.
+
+*Deferred (tracked):* native fan-out for `copilot` (`applyTo`), `windsurf`
+(`trigger: glob`), and Claude `.claude/rules/` `paths:` — the `cursor` emitter
+proves the mechanism; the remaining glob-frontmatter targets reuse it when taken
+up.
 
 ### 8.2 Behavioral instructions `[format]`
 

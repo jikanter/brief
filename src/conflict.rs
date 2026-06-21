@@ -77,7 +77,7 @@ pub fn detect_conflicts(brief: &Brief, host_text: &str) -> Vec<Conflict> {
                 && c_tokens.intersection(l_tokens).count() >= 1
             {
                 conflicts.push(Conflict {
-                    brief_constraint: constraint.clone(),
+                    brief_constraint: constraint.text.clone(),
                     existing_line: line.clone(),
                 });
             }
@@ -169,7 +169,10 @@ mod tests {
             goal: "Goal".into(),
             identity: None,
             constraints: Constraints {
-                hard: hard.into_iter().map(String::from).collect(),
+                hard: hard
+                    .into_iter()
+                    .map(crate::model::Constraint::new)
+                    .collect(),
                 soft: vec![],
                 ask_first: vec![],
             },

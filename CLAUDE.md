@@ -76,6 +76,7 @@ Human-authored intent using a defined heading convention:
 - H2 (`##`) = top-level section. Known sections: Constraints, Sacred, Assumptions, Deliverable.
 - H3 (`###`) under Constraints = constraint type: Hard, Soft, Ask First.
 - List items under headings = the actual content.
+- A constraint item may carry an optional leading **scope**: a bracketed, comma-separated list of backtick-wrapped globs the constraint applies to — `` - [`src/ui/**`] WCAG 2.1 AA ``. Empty scope (the common case) = project-wide. See `docs/brief-format.md` §8.1.
 - Sacred items follow the pattern: `` `<path>` — <reason> `` (backtick-wrapped path, em dash or double hyphen, then reason).
 - Assumption items use Markdown checkbox syntax: `- [ ]` unvalidated, `- [x]` validated.
 - Unknown H2 sections are preserved as-is (extensibility).

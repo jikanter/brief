@@ -259,6 +259,19 @@ This makes the SKILL.md a true co-edit surface: the user can rename, rewrite, or
 
 **Status.** Proposed. The boundary itself is forced — any of the three commands needs it — so it is the first sub-task regardless of which command ships first. P5 must be revised to call P7's `brief skill uninstall` rather than unconditionally removing the skill directory.
 
+### P8: Scoped constraints — format-level path scoping (effort: 3-5 days) — **SHIPPED**
+
+**Status (2026-06-21): shipped.** Resolves the highest-leverage open format question ([open-questions.md](../open-questions.md) `[format]` Scoped Constraints) in favor of **Direction 1** (format-level scope, not emit-only hints). A constraint is now `Constraint { text, scope: Vec<Glob> }` in `src/model.rs`; an empty scope is project-wide, preserving the historical model. The type carries `From<&str>`/`Deref<Target=str>`/`Display`/`AsRef<str>`/`PartialEq<&str>` so the eleven existing emitters compiled against the new type with near-zero churn, and `is_directory_prefix()` exposes the directory-prefix vs. arbitrary-glob distinction the emitter needs.
+
+- **Authoring syntax** (`src/parse/body.rs`). A constraint list item may carry a leading bracket of comma-separated globs: `` - [`src/ui/**`, `src/api/**`] text ``. Globs are backtick-wrapped (the sacred-path convention) so Markdown does not fold `**` into bold emphasis; `[]` with no globs is literal text.
+- **Native glob fan-out — `cursor`** (`src/emit/cursor.rs`). `emit cursor --install` writes the always-apply `brief.mdc` bundle (project-wide constraints only) **plus** one `brief-<slug>.mdc` per distinct scope, each with native `globs:` frontmatter and `alwaysApply: false` (the split-by-scope pattern the research note identified — one rule file per scope, since every glob-frontmatter format is file-level). brief owns the `brief*.mdc` namespace; re-install sweeps orphaned scoped files. stdout stays a single lossless bundle.
+- **Non-destructive prose — all other emitters** (`src/framing.rs::with_scope`). Targets with no native per-rule glob home prefix the rendered line with `When working in `glob`, `glob`: …` so scope is never silently dropped. `xml` instead emits a structured `scope="…"` attribute per `<rule>`. JSON serializes the `scope` array (omitted when empty).
+- **Validation** (`src/validate.rs`). `brief validate` warns (never errors) when a scope glob matches no files; directory-prefix scopes fall back to a directory-existence check because the `glob` crate does not expand a trailing `/**` to a directory's direct children.
+
+Unit suites in `src/model.rs`, `src/parse/body.rs`, `src/framing.rs`, `src/emit/cursor.rs`, `src/emit/json.rs`, `src/validate.rs` + CLI integration tests in `tests/p8_cli.rs`.
+
+*Deferred (tracked, not in this slice):* native fan-out for `copilot` (`applyTo`), `windsurf` (`trigger: glob`), and Claude `.claude/rules/` `paths:`. The cursor emitter proves the split-by-scope mechanism; the remaining glob-frontmatter targets reuse it when taken up. The emitter-trait refactor (one model, N serializers) is the natural home for that work — see the Long-term table.
+
 ### Long-term / On-demand
 
 | Item | When to build | Notes |

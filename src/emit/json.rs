@@ -46,9 +46,31 @@ mod tests {
 
         assert_eq!(value["goal"], "Build feature");
         assert_eq!(value["frontmatter"]["stack"][0], "Rust");
-        assert_eq!(value["constraints"]["hard"][0], "No breakage");
+        // Constraints serialize as objects carrying `text` (+ `scope` when set).
+        assert_eq!(value["constraints"]["hard"][0]["text"], "No breakage");
         assert_eq!(value["sacred"][0]["path"], "src/auth/**");
         assert_eq!(value["assumptions"][0]["validated"], true);
         assert_eq!(value["deliverable"], "Working code");
+    }
+
+    #[test]
+    fn scoped_constraint_serializes_scope() {
+        let brief = Brief {
+            frontmatter: Frontmatter::default(),
+            goal: "G".into(),
+            identity: None,
+            constraints: Constraints {
+                hard: vec![Constraint::scoped("WCAG", vec!["src/ui/**".into()])],
+                soft: vec![],
+                ask_first: vec![],
+            },
+            sacred: vec![],
+            assumptions: vec![],
+            deliverable: None,
+            unknown_sections: vec![],
+        };
+        let value: serde_json::Value = serde_json::from_str(&emit_json(&brief)).unwrap();
+        assert_eq!(value["constraints"]["hard"][0]["text"], "WCAG");
+        assert_eq!(value["constraints"]["hard"][0]["scope"][0], "src/ui/**");
     }
 }

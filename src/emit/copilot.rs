@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::emit::markers::{inject_section, wrap_with_markers};
+use crate::framing::with_scope;
 use crate::model::Brief;
 
 /// Emit a GitHub Copilot `.github/copilot-instructions.md` section from a Brief.
@@ -36,7 +37,7 @@ pub fn emit_copilot(brief: &Brief) -> String {
     if !brief.constraints.hard.is_empty() {
         out.push_str("## Requirements\n\n");
         for c in &brief.constraints.hard {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }
@@ -44,7 +45,7 @@ pub fn emit_copilot(brief: &Brief) -> String {
     if !brief.constraints.soft.is_empty() {
         out.push_str("## Preferences\n\n");
         for c in &brief.constraints.soft {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }
@@ -52,7 +53,7 @@ pub fn emit_copilot(brief: &Brief) -> String {
     if !brief.constraints.ask_first.is_empty() {
         out.push_str("## Check before proceeding\n\n");
         for c in &brief.constraints.ask_first {
-            out.push_str(&format!("- {c}\n"));
+            out.push_str(&format!("- {}\n", with_scope(c, c)));
         }
         out.push('\n');
     }

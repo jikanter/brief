@@ -72,19 +72,18 @@ pub fn parse_body(input: &str) -> ParsedBody {
                 heading_text.clear();
 
                 // Finalize unknown section on new H1/H2
-                if level <= HeadingLevel::H2 {
-                    if let (Section::Unknown(name), Some(start)) =
+                if level <= HeadingLevel::H2
+                    && let (Section::Unknown(name), Some(start)) =
                         (&current_section, unknown_section_start)
-                    {
-                        let raw = input[start..range.start].trim();
-                        if !raw.is_empty() {
-                            unknown_sections.push(UnknownSection {
-                                heading: name.clone(),
-                                content: raw.to_string(),
-                            });
-                        }
-                        unknown_section_start = None;
+                {
+                    let raw = input[start..range.start].trim();
+                    if !raw.is_empty() {
+                        unknown_sections.push(UnknownSection {
+                            heading: name.clone(),
+                            content: raw.to_string(),
+                        });
                     }
+                    unknown_section_start = None;
                 }
             }
 
@@ -255,10 +254,11 @@ fn process_item(
         Section::Constraints => {
             let text = segments_to_plain_text(segments);
             if !text.is_empty() {
+                let constraint = parse_constraint(&text);
                 match constraint_type {
-                    Some(ConstraintType::Hard) => state.constraints.hard.push(text),
-                    Some(ConstraintType::Soft) => state.constraints.soft.push(text),
-                    Some(ConstraintType::AskFirst) => state.constraints.ask_first.push(text),
+                    Some(ConstraintType::Hard) => state.constraints.hard.push(constraint),
+                    Some(ConstraintType::Soft) => state.constraints.soft.push(constraint),
+                    Some(ConstraintType::AskFirst) => state.constraints.ask_first.push(constraint),
                     None => {} // no recognized H3 — validator will catch
                 }
             }
@@ -294,6 +294,33 @@ fn process_item(
         // Unknown sections use raw Markdown capture, not event-based accumulation
         Section::Unknown(_) | Section::None => {}
     }
+}
+
+/// Parse a constraint list item into text + optional path scope.
+///
+/// Authoring syntax: an optional leading bracket carries a comma-separated list
+/// of glob patterns the constraint is scoped to — `[src/ui/**, src/api/**] text`.
+/// Backtick-wrapped globs (`` [`src/api`] ``) are accepted and unwrapped; wrap
+/// any glob containing `*` in backticks so Markdown does not fold `**` into bold
+/// emphasis (the same reason sacred paths are backtick-wrapped). A leading
+/// bracket with no globs (`[]`) is treated as literal text, not a scope.
+fn parse_constraint(text: &str) -> Constraint {
+    let trimmed = text.trim();
+    if let Some(rest) = trimmed.strip_prefix('[')
+        && let Some(close) = rest.find(']')
+    {
+        let inside = &rest[..close];
+        let body = rest[close + 1..].trim();
+        let scope: Vec<String> = inside
+            .split(',')
+            .map(|g| g.trim().trim_matches('`').trim().to_string())
+            .filter(|g| !g.is_empty())
+            .collect();
+        if !scope.is_empty() {
+            return Constraint::scoped(body, scope);
+        }
+    }
+    Constraint::new(trimmed)
 }
 
 fn segments_to_plain_text(segments: &[ItemSegment]) -> String {
@@ -400,6 +427,57 @@ mod tests {
         assert_eq!(body.constraints.hard.len(), 2);
         assert_eq!(body.constraints.hard[0], "Do not break tests");
         assert_eq!(body.constraints.hard[1], "Keep backward compat");
+    }
+
+    #[test]
+    fn parse_scoped_hard_constraint() {
+        let md = "## Constraints\n\n### Hard\n- [src/ui/**] WCAG 2.1 AA compliance\n";
+        let body = parse_body(md);
+        assert_eq!(body.constraints.hard.len(), 1);
+        assert_eq!(body.constraints.hard[0].text, "WCAG 2.1 AA compliance");
+        assert_eq!(
+            body.constraints.hard[0].scope,
+            vec!["src/ui/**".to_string()]
+        );
+    }
+
+    #[test]
+    fn parse_multi_glob_scope() {
+        // Globs containing `*` are backtick-wrapped (matching the sacred-path
+        // convention) so Markdown does not mangle `**` into bold emphasis.
+        let md =
+            "## Constraints\n\n### Hard\n- [`src/ui/**`, `src/components/**`] Use design tokens\n";
+        let body = parse_body(md);
+        assert_eq!(
+            body.constraints.hard[0].scope,
+            vec!["src/ui/**".to_string(), "src/components/**".to_string()]
+        );
+        assert_eq!(body.constraints.hard[0].text, "Use design tokens");
+    }
+
+    #[test]
+    fn unscoped_constraint_has_empty_scope() {
+        let md = "## Constraints\n\n### Hard\n- Do not break tests\n";
+        let body = parse_body(md);
+        assert!(!body.constraints.hard[0].is_scoped());
+        assert_eq!(body.constraints.hard[0].text, "Do not break tests");
+    }
+
+    #[test]
+    fn scope_strips_backticked_globs() {
+        let md = "## Constraints\n\n### Soft\n- [`src/api`] Return Result\n";
+        let body = parse_body(md);
+        assert_eq!(body.constraints.soft[0].scope, vec!["src/api".to_string()]);
+        assert_eq!(body.constraints.soft[0].text, "Return Result");
+    }
+
+    #[test]
+    fn empty_brackets_are_not_a_scope() {
+        // `- [] text` carries no globs; treat the whole thing as text.
+        let md = "## Constraints\n\n### Hard\n- [] still a constraint\n";
+        let body = parse_body(md);
+        assert!(!body.constraints.hard[0].is_scoped());
+        assert_eq!(body.constraints.hard[0].text, "[] still a constraint");
     }
 
     #[test]
