@@ -1,15 +1,13 @@
 # brief emit cursor — Idiomatic .cursor/rules/*.mdc Output
 
-*2026-05-10T02:23:45Z by Showboat 0.6.1*
-<!-- showboat-id: 109a26f4-40bf-4283-a43b-3f1d76ac224f -->
+*2026-07-03T22:36:24Z by Showboat 0.6.1*
+<!-- showboat-id: 2517180b-25c5-4486-8ec2-a3df81f86df4 -->
 
-> **Correction (2026-06-12):** the illustrative `globs: ["src/**/*.tsx"]` / `globs: ["src/auth/**"]` examples below use a YAML-array form that is **wrong for current Cursor**. Cursor's `globs` is a **comma-separated string** (`globs: "src/**/*.tsx"`). The shipped emitter omits `globs` entirely (it sets `alwaysApply: true`), so no output was ever affected — but the array form in the scoping discussion below is illustrative only and should be read as comma-string. See [design/backends/cursor/README.md](../design/backends/cursor/README.md) "Glob field format" for the verified schema.
-
-The `brief emit cursor` target produces a Cursor `.mdc` rule from a `.brief.md`. Cursor consumes `.cursor/rules/*.mdc` files with their own YAML frontmatter (`description`, `globs`, `alwaysApply`) — a different schema than brief's, which the emitter constructs from scratch. This demo walks through emitting to stdout, installing into `.cursor/rules/brief.mdc`, coexistence with hand-written rules, idempotency, and the design rationale for why the emitter currently produces a single bundled rule with `alwaysApply: true`.
+The `brief emit cursor` target produces a Cursor `.mdc` rule from a `.brief.md`. Cursor consumes `.cursor/rules/*.mdc` files with their own YAML frontmatter (`description`, `globs`, `alwaysApply`) — a different schema than brief's, which the emitter constructs from scratch. This demo walks through emitting to stdout, installing into `.cursor/rules/brief.mdc`, coexistence with hand-written rules, idempotency, and the design boundary: brief now has scoped constraints (shipped in P8), but the cursor emitter still bundles them into a single `alwaysApply: true` rule rather than fanning out to per-glob files.
 
 ## 1. Set up a scratch project with a brief
 
-We'll start from an empty directory and write a realistic project brief — a real-time notifications feature with hard performance constraints, soft preferences, ask-first scope, sacred regions, and unvalidated assumptions.
+We start from an empty directory and write a realistic project brief — a real-time notifications feature with hard constraints (one of them **scoped** to `src/ui/**`), soft preferences, ask-first scope, a sacred region, and unvalidated assumptions.
 
 ```bash
 mkdir -p /tmp/brief-cursor-demo && cat > /tmp/brief-cursor-demo/.brief.md << 'EOF'
@@ -24,7 +22,7 @@ context: [./docs/architecture.md]
 
 ### Hard
 - Must not degrade page load time by more than 100ms
-- All notifications must be delivered within 5 seconds
+- [`src/ui/**`] All notification components meet WCAG 2.1 AA
 
 ### Soft
 - Prefer WebSocket over polling
@@ -59,7 +57,7 @@ context: [./docs/architecture.md]
 
 ### Hard
 - Must not degrade page load time by more than 100ms
-- All notifications must be delivered within 5 seconds
+- [`src/ui/**`] All notification components meet WCAG 2.1 AA
 
 ### Soft
 - Prefer WebSocket over polling
@@ -85,7 +83,7 @@ Working notification system with real-time delivery, read/unread tracking, and b
 `brief emit cursor` reads the brief and prints a Cursor-flavored `.mdc` rule. The frontmatter is Cursor's schema (`description`, `alwaysApply`), constructed from the brief's goal — not a passthrough of brief's frontmatter.
 
 ```bash
-./target/debug/brief --file /tmp/brief-cursor-demo/.brief.md emit cursor
+cd /tmp/brief-cursor-demo && brief --file .brief.md emit cursor
 ```
 
 ```output
@@ -105,7 +103,7 @@ alwaysApply: true
 ## Required
 
 - Must not degrade page load time by more than 100ms
-- All notifications must be delivered within 5 seconds
+- When working in `src/ui/**`: All notification components meet WCAG 2.1 AA
 
 ## Preferred
 
@@ -130,35 +128,38 @@ alwaysApply: true
 Working notification system with real-time delivery, read/unread tracking, and browser push support.
 ```
 
-Three things worth noticing:
+Four things worth noticing:
 
-- **Frontmatter rebuilt, not passed through.** `description: Add real-time notifications` comes from the brief's H1 goal. `alwaysApply: true` is set because brief currently has no glob-scoping concept; emitting an empty `globs: []` would be misleading.
-- **Descriptive register, not imperative.** Hard constraints render under `## Required` as plain bullets — no `**IMPORTANT:**` prefix. That prefix is Claude-flavored; Cursor's idiom is more descriptive.
-- **Validated assumptions filtered out.** Only the unvalidated `WebSocket gateway can handle 5k concurrent connections` shows up under `## Verify`. The validated REST API assumption is noise once it's confirmed.
+- **Frontmatter rebuilt, not passed through.** `description: Add real-time notifications` comes from the brief's H1 goal. `alwaysApply: true` is set because the emitter produces one always-loaded rule (see §6).
+- **Scoped constraint inlined as prose.** The `src/ui/**` scope on the WCAG constraint renders as a **"When working in …"** prefix inside `## Required`. The scope is preserved in the text, not lifted into a Cursor `globs` field.
+- **Descriptive register, not imperative.** Hard constraints render under `## Required` as plain bullets — no `**IMPORTANT:**` prefix. That prefix is Claude-flavored; Cursor's idiom is descriptive.
+- **Validated assumptions filtered out.** Only the unvalidated `WebSocket gateway…` assumption shows under `## Verify`. The validated REST API assumption is noise once confirmed.
 
 ## 3. Install into a project
 
-`--install` writes the rule to `<cwd>/.cursor/rules/brief.mdc`, creating the directory if it doesn't exist. Unlike the CLAUDE.md and AGENTS.md installers, there are no `<brief:generated>` markers — brief owns this file end-to-end and overwrites it on every install.
+`--install` writes the rule to `<cwd>/.cursor/rules/brief.mdc`, creating the directory if needed. Unlike the CLAUDE.md and AGENTS.md installers, there are no `<brief:generated>` markers — brief owns this file end-to-end and overwrites it on every install.
 
 ```bash
-cd /tmp/brief-cursor-demo && /c/Developer/Projects/brief/target/debug/brief emit cursor --install && find .cursor -type f
+cd /tmp/brief-cursor-demo && brief --file .brief.md emit cursor --install && find .cursor -type f
 ```
 
 ```output
-Installed briefing into C:\Users\jikan\AppData\Local\Temp\brief-cursor-demo\.cursor\rules\brief.mdc
+Installed briefing into /private/tmp/brief-cursor-demo/.cursor/rules/brief.mdc
+Installed briefing into /private/tmp/brief-cursor-demo/.cursor/rules/brief-src-ui.mdc
 .cursor/rules/brief.mdc
+.cursor/rules/brief-src-ui.mdc
 ```
 
 ## 4. Coexistence with hand-written rules
 
-Other `.mdc` files in `.cursor/rules/` are untouched. Brief owns `brief.mdc` only — your team's hand-written rules sit alongside it without conflict.
+Other `.mdc` files in `.cursor/rules/` are untouched. Brief owns `brief.mdc` only — your team's hand-written rules sit alongside it without conflict. Note Cursor's `globs` is a **comma-separated string** (`globs: "src/**/*.tsx"`), not a YAML array.
 
 ```bash
 cat > /tmp/brief-cursor-demo/.cursor/rules/team-style.mdc << 'EOF'
 ---
 description: Team coding style preferences
 alwaysApply: false
-globs: ["src/**/*.tsx"]
+globs: "src/**/*.tsx"
 ---
 
 # Team Style
@@ -166,13 +167,15 @@ globs: ["src/**/*.tsx"]
 - Prefer named exports over default exports
 - Co-locate tests with source files
 EOF
-cd /tmp/brief-cursor-demo && /c/Developer/Projects/brief/target/debug/brief emit cursor --install && echo "---" && echo "files in .cursor/rules:" && ls .cursor/rules/ && echo "---" && echo "team-style.mdc preserved:" && cat .cursor/rules/team-style.mdc
+cd /tmp/brief-cursor-demo && brief --file .brief.md emit cursor --install && echo '---' && echo 'files in .cursor/rules:' && ls .cursor/rules/ && echo '---' && echo 'team-style.mdc preserved:' && cat .cursor/rules/team-style.mdc
 ```
 
 ```output
-Installed briefing into C:\Users\jikan\AppData\Local\Temp\brief-cursor-demo\.cursor\rules\brief.mdc
+Installed briefing into /private/tmp/brief-cursor-demo/.cursor/rules/brief.mdc
+Installed briefing into /private/tmp/brief-cursor-demo/.cursor/rules/brief-src-ui.mdc
 ---
 files in .cursor/rules:
+brief-src-ui.mdc
 brief.mdc
 team-style.mdc
 ---
@@ -180,7 +183,7 @@ team-style.mdc preserved:
 ---
 description: Team coding style preferences
 alwaysApply: false
-globs: ["src/**/*.tsx"]
+globs: "src/**/*.tsx"
 ---
 
 # Team Style
@@ -194,34 +197,34 @@ globs: ["src/**/*.tsx"]
 Running `--install` twice is byte-identical. Brief always overwrites `brief.mdc` with a fresh emit, so re-runs never accumulate drift.
 
 ```bash
-cd /tmp/brief-cursor-demo && BEFORE=$(sha256sum .cursor/rules/brief.mdc | cut -d" " -f1) && /c/Developer/Projects/brief/target/debug/brief emit cursor --install >/dev/null && AFTER=$(sha256sum .cursor/rules/brief.mdc | cut -d" " -f1) && echo "before: $BEFORE" && echo "after:  $AFTER" && [ "$BEFORE" = "$AFTER" ] && echo "byte-identical re-install"
+cd /tmp/brief-cursor-demo && BEFORE=$(shasum -a 256 .cursor/rules/brief.mdc | cut -d' ' -f1) && brief --file .brief.md emit cursor --install >/dev/null && AFTER=$(shasum -a 256 .cursor/rules/brief.mdc | cut -d' ' -f1) && echo "before: $BEFORE" && echo "after:  $AFTER" && [ "$BEFORE" = "$AFTER" ] && echo 'byte-identical re-install'
 ```
 
 ```output
-before: 49a6ebb4076a91bd00d2c70db27de7fa8dc261c4edb8c2cac778a6595223bcfb
-after:  49a6ebb4076a91bd00d2c70db27de7fa8dc261c4edb8c2cac778a6595223bcfb
+before: d9e16293d6ae887e3f38bdc4c22c294a6b7e23563125cc9b06205d0a16727ba6
+after:  d9e16293d6ae887e3f38bdc4c22c294a6b7e23563125cc9b06205d0a16727ba6
 byte-identical re-install
 ```
 
-## 6. Design boundary: why a single bundled rule
+## 6. Design boundary: why still a single bundled rule
 
-Cursor's killer feature is per-rule glob scoping — `globs: ["src/auth/**"]` makes a rule activate only when editing matching files. Brief's current format has no scope concept: every constraint is global to the project.
+Cursor's killer feature is per-rule glob scoping — `globs: "src/auth/**"` makes a rule activate only when editing matching files. As of P8, **brief's format does have scoped constraints**: `- [`src/ui/**`] …` carries a per-constraint glob. So the old "brief has no scope concept" rationale is retired.
 
-The cursor backend deliberately stops at the trivial-base-case mapping:
+But the cursor emitter deliberately stops short of fanning scope out into Cursor's native mechanism. A scoped constraint is rendered **inline as prose** — a `When working in <glob>:` prefix — inside one `alwaysApply: true` rule, so the scope survives in the text but is not lifted into a `globs` field.
 
-| Cursor activation mode | Why brief doesn't use it (yet) |
+| Cursor activation mode | Emitter status |
 |---|---|
-| `alwaysApply: true` | **Used.** The honest mapping while brief is scope-flat. |
-| `alwaysApply: false` + `globs` | Skipped. Brief has no per-constraint glob hints. |
+| `alwaysApply: true` | **Used.** One bundled rule; scopes inlined as prose. |
+| `alwaysApply: false` + `globs` | Not yet. Would require splitting into per-scope `.mdc` files. |
 | Description-only (model decides) | Skipped. Goal is too coarse to drive load decisions. |
 | Manual `@rule-name` | Skipped. Brief has no command/skill split for cursor. |
 
-When brief itself learns scoped constraints (open question in `docs/open-questions.md`), this emitter is the first place that expressivity unlocks — splitting into multiple `.mdc` files keyed on scope. Until then, the bundled `alwaysApply: true` rule keeps the integration honest and YAGNI-clean.
+**Why not split yet?** Cursor allows only **one `globs` set per `.mdc` file** — to key rules on different scopes you write separate files (see [design/backends/cursor/README.md](../design/backends/cursor/README.md) "One glob set per file"). A faithful scoped emit is therefore a multi-file fan-out: group constraints by scope, write one `brief-<scope>.mdc` per glob set with `alwaysApply: false` + comma-string `globs`, and leave the unscoped remainder in an always-applied base file. That install/idempotency surface (multiple owned files, deletion on scope removal) is the real work still ahead. Until then, inlining keeps every scoped constraint visible in one honest, always-loaded rule.
 
 ## 7. Cleanup
 
 ```bash
-rm -rf /tmp/brief-cursor-demo && echo "demo workspace removed"
+rm -rf /tmp/brief-cursor-demo && echo 'demo workspace removed'
 ```
 
 ```output
