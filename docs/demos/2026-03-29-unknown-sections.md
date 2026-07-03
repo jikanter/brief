@@ -1,15 +1,13 @@
 # Unknown Section Passthrough — Extensible Briefs Without Format Changes
 
-*2026-03-30T04:52:48Z by Showboat 0.6.1*
-<!-- showboat-id: b3549479-773e-4716-878f-607321d9b2ac -->
+*2026-06-22T04:18:50Z by Showboat 0.6.1*
+<!-- showboat-id: 466228af-2a13-4467-9456-04bfbe9c820e -->
 
-The `.brief.md` format now supports arbitrary sections that pass through to all emit targets with full Markdown fidelity. Users can add `## Commands`, `## Code Style`, `## Architecture`, or any other section — and it will appear in the emitted output. No parser changes needed, no new dependencies. Just write the heading and go.
+The `.brief.md` format supports arbitrary `##` sections that pass through to **every** emit target with full Markdown fidelity. Add `## Commands`, `## Code Style`, `## Architecture`, or any heading the parser does not recognize — it survives to the output verbatim. No parser changes, no new dependencies: write the heading and go. This demo proves passthrough across the claude, prompt, agents-md, json, and skill targets, and shows that rich nested Markdown survives intact.
 
-This demo also covers two Claude emitter improvements: `@` references for context files and `**IMPORTANT:**` emphasis on hard constraints.
+## 1. The fixture carries unknown sections
 
-## 1. The full fixture now includes unknown sections
-
-The test fixture `tests/fixtures/full.brief.md` now includes two unknown sections — Commands and Code Style — after the standard brief sections.
+The test fixture `tests/fixtures/full.brief.md` ends with two unknown sections — `Commands` and `Code Style` — after the standard brief sections.
 
 ```bash
 tail -14 tests/fixtures/full.brief.md
@@ -32,65 +30,18 @@ test coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.
 - Use `zod` for runtime type validation at API boundaries
 ```
 
-## 2. Claude emit: unknown sections, `@` references, and emphasis
+## 2. Claude target
 
-`brief emit claude` now produces output with three improvements:
-
-- **Unknown sections emitted** — Commands and Code Style appear at the end
-- **`@` references** — context files rendered as `@docs/architecture.md` instead of backtick-wrapped paths
-- **Emphasis on hard constraints** — each prefixed with `**IMPORTANT:**`
+The unknown `Commands` and `Code Style` sections appear at the end of the CLAUDE.md output, after the standard sections. (Standard constraints render in the current framed form — `<rules priority="required">` with `MUST:`/`PREFER:` prefixes — while unknown sections pass through as plain Markdown.)
 
 ```bash
-cargo run --quiet -- emit claude tests/fixtures/full.brief.md
+brief --file tests/fixtures/full.brief.md emit claude | tail -16
 ```
 
 ```output
-# Briefing: Build real-time collaborative document editor
-
-**Stack:** TypeScript 5.4, React 18, PostgreSQL 16, Redis 7, AWS ECS
-
-## Reference Context
-
-Read these files for background before starting work:
-- @docs/architecture.md
-- @docs/api-spec.yaml
-- @README.md
-
-## Constraints
-
-### Hard (Non-negotiable)
-- **IMPORTANT:** WebSocket connections must support 10k concurrent users per node
-- **IMPORTANT:** All data mutations go through event sourcing, no direct DB writes
-- **IMPORTANT:** WCAG 2.1 AA compliance on all new UI components
-- **IMPORTANT:** Must pass existing E2E test suite before merge
-
-### Soft (Preferred)
-- Prefer Yjs over Automerge for CRDT implementation
-- Keep bundle size under 200KB gzipped for editor module
-- Use server-sent events for read-only viewers when possible
-
-### Ask First (Requires approval)
-- Changes to the shared state schema
-- New npm dependencies over 50KB
-- Modifications to the WebSocket gateway
-- Any changes to authentication flow
-
-## Sacred Regions (Do Not Modify)
-- `src/core/crdt-engine/**` — Battle-tested CRDT implementation, 2 years of edge case fixes
-- `src/auth/**` — SOC2 audited authentication module
-- `migrations/**` — Historical migrations must never be altered
-- `e2e/` — End-to-end test suite, modify only by adding new tests
-
-## Assumptions
-- [ ] Redis pub/sub can handle cross-node message fanout at 10k users
-- [ ] Yjs document size stays under 5MB for typical documents
-- [x] Existing REST API can coexist with WebSocket gateway
-- [ ] Browser IndexedDB is sufficient for offline draft storage
-
-## Deliverable
-Working collaborative editor with real-time cursor presence, conflict-free
 concurrent editing, offline support with sync-on-reconnect, and comprehensive
 test coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.
+</deliverable>
 
 ## Commands
 
@@ -106,28 +57,16 @@ test coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.
 - Use `zod` for runtime type validation at API boundaries
 ```
 
-Notice three improvements in the output:
+## 3. Prompt target
 
-| Before | After |
-|--------|-------|
-| `- \`./docs/architecture.md\`` | `- @docs/architecture.md` |
-| `- WebSocket connections must...` | `- **IMPORTANT:** WebSocket connections must...` |
-| Commands and Code Style silently dropped | Commands and Code Style sections emitted |
-
-## 3. Prompt emit: unknown sections with uppercase labels
-
-The prompt emitter formats unknown section headings in uppercase, matching its existing convention for known sections like `HARD CONSTRAINTS:` and `DO NOT MODIFY:`.
+The prompt emitter uppercases unknown section headings, matching its convention for known sections like `HARD CONSTRAINTS:`.
 
 ```bash
-brief emit prompt tests/fixtures/full.brief.md | tail -14
+brief --file tests/fixtures/full.brief.md emit prompt | tail -14
 ```
 
 ```output
-Working collaborative editor with real-time cursor presence, conflict-free
-concurrent editing, offline support with sync-on-reconnect, and comprehensive
-test coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.
-
-COMMANDS:
+warning: prompt output is ~567 tokens, over the 500-token budget; consider --compact
 - Build: `npm run build`
 - Test: `npm test`
 - Lint: `npm run lint`
@@ -137,12 +76,19 @@ CODE STYLE:
 - Use TypeScript strict mode for all new files
 - Prefer functional components with hooks over class components
 - Use `zod` for runtime type validation at API boundaries
+
+DELIVERABLE:
+Working collaborative editor with real-time cursor presence, conflict-free
+concurrent editing, offline support with sync-on-reconnect, and comprehensive
+test coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.
 ```
 
-## 4. AGENTS.md emit: unknown sections as Markdown headings
+## 4. AGENTS.md target
+
+AGENTS.md keeps unknown sections as Markdown `##` headings.
 
 ```bash
-brief emit agents-md tests/fixtures/full.brief.md | tail -14
+brief --file tests/fixtures/full.brief.md emit agents-md | tail -14
 ```
 
 ```output
@@ -162,12 +108,12 @@ test coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.
 - Use `zod` for runtime type validation at API boundaries
 ```
 
-## 5. JSON emit: unknown sections already worked
+## 5. JSON target
 
-The JSON emitter always serialized unknown sections via serde. No change was needed here, but we can confirm the structure:
+The JSON emitter serializes unknown sections into an `unknown_sections` array via serde — each with its `heading` and raw `content`.
 
 ```bash
-brief emit json tests/fixtures/full.brief.md | python3 -c "import sys,json; d=json.load(sys.stdin); [print(f'{s[\"heading\"]}: {s[\"content\"][:50]}...') for s in d['unknown_sections']]"
+brief --file tests/fixtures/full.brief.md emit json | python3 -c "import sys,json; d=json.load(sys.stdin); [print(f'{s[\"heading\"]}: {s[\"content\"][:50]}...') for s in d['unknown_sections']]"
 ```
 
 ```output
@@ -178,32 +124,15 @@ Code Style: - Use TypeScript strict mode for all new files
 - P...
 ```
 
-## 6. Raw Markdown preservation
+## 6. Rich Markdown survives intact
 
-The key parser change: unknown sections now capture the raw Markdown substring between H2 boundaries, instead of flattening through pulldown-cmark events. This means code blocks, sub-headings, emphasis, links, and nested structure all survive intact.
-
-Here is a brief with rich Markdown in its unknown sections:
+Unknown sections capture the **raw** Markdown substring between `##` boundaries rather than flattening through the event stream. Code blocks, sub-headings, emphasis, links, and nested structure all survive. The fixture `tests/fixtures/rich-unknown.brief.md` puts H3 sub-headings, bold, code spans, and a fenced diagram inside its `## Architecture` and `## Workflow` sections:
 
 ```bash
-cat /tmp/rich-unknown.brief.md
+sed -n "/## Architecture/,/## Deliverable/p" tests/fixtures/rich-unknown.brief.md
 ```
 
 ````output
----
-stack: [Rust, PostgreSQL 16]
-context: [./docs/architecture.md]
----
-
-# Optimize database query layer
-
-## Constraints
-
-### Hard
-- Do not break backward compatibility with v2 API
-
-## Sacred
-- `src/auth/**` — SOC2 audited authentication
-
 ## Architecture
 
 The query layer sits between the API handlers and the database pool.
@@ -217,8 +146,8 @@ The query layer sits between the API handlers and the database pool.
 ### Data Flow
 
 ```
-API Handler → QueryBuilder → ConnectionPool → PostgreSQL
-                  ↓
+API Handler -> QueryBuilder -> ConnectionPool -> PostgreSQL
+                  |
              ResultCache
 ```
 
@@ -229,36 +158,15 @@ API Handler → QueryBuilder → ConnectionPool → PostgreSQL
 - Run the full test suite after each change
 
 ## Deliverable
-Query response time under 50ms at p95 for the `/search` endpoint.
 ````
 
-The `## Architecture` section contains H3 sub-headings, bold text, code spans, and a fenced code block. The `## Workflow` section has em-dash separated items. All of this should survive emission:
+Emitting to claude preserves the `## Architecture` H3 sub-headings, bold `**prepared statement**`, the `` `lru` `` code span, and the fenced diagram verbatim:
 
 ```bash
-brief emit claude /tmp/rich-unknown.brief.md
+brief --file tests/fixtures/rich-unknown.brief.md emit claude | awk "/## Architecture/{f=1} f"
 ```
 
 ````output
-# Briefing: Optimize database query layer
-
-**Stack:** Rust, PostgreSQL 16
-
-## Reference Context
-
-Read these files for background before starting work:
-- @docs/architecture.md
-
-## Constraints
-
-### Hard (Non-negotiable)
-- **IMPORTANT:** Do not break backward compatibility with v2 API
-
-## Sacred Regions (Do Not Modify)
-- `src/auth/**` — SOC2 audited authentication
-
-## Deliverable
-Query response time under 50ms at p95 for the `/search` endpoint.
-
 ## Architecture
 
 The query layer sits between the API handlers and the database pool.
@@ -272,8 +180,8 @@ The query layer sits between the API handlers and the database pool.
 ### Data Flow
 
 ```
-API Handler → QueryBuilder → ConnectionPool → PostgreSQL
-                  ↓
+API Handler -> QueryBuilder -> ConnectionPool -> PostgreSQL
+                  |
              ResultCache
 ```
 
@@ -284,12 +192,12 @@ API Handler → QueryBuilder → ConnectionPool → PostgreSQL
 - Run the full test suite after each change
 ````
 
-The `## Architecture` section passes through intact: H3 sub-headings (`### Key Components`, `### Data Flow`), bold text (`**prepared statement**`), code spans (`\`lru\``), and the fenced code block with the ASCII diagram all survive verbatim. Previously, all of this would have been flattened to plain text or dropped entirely.
+## 7. Skill target
 
-## 7. Skill emit: unknown sections pass through too
+Skills get the passthrough too — unknown sections append after the generated skill body.
 
 ```bash
-brief emit skill tests/fixtures/full.brief.md | grep -A 20 '## Commands'
+brief --file tests/fixtures/full.brief.md skill emit | grep -A 6 "## Commands"
 ```
 
 ```output
@@ -300,30 +208,4 @@ brief emit skill tests/fixtures/full.brief.md | grep -A 20 '## Commands'
 - Lint: `npm run lint`
 - Type Check: `tsc --noEmit`
 
-## Code Style
-
-- Use TypeScript strict mode for all new files
-- Prefer functional components with hooks over class components
-- Use `zod` for runtime type validation at API boundaries
-```
-
-## 8. All tests pass
-
-69 tests across unit, integration, parse, and validation suites — including 6 new tests for unknown section handling.
-
-## 8. All tests pass
-
-69 tests across unit, integration, parse, and validation suites — including 6 new tests for unknown section handling.
-
-```bash
-cargo test 2>&1 | grep '^test result'
-```
-
-```output
-test result: ok. 57 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 ```
