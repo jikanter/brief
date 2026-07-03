@@ -20,7 +20,8 @@
       "Bash(cd /Volumes/ExternalData/admin/Developer/Projects/brief *)",
       "Bash(sed -n '/pub fn frame_soft/,/^}/p' src/framing.rs)",
       "Bash(sed -n '/pub fn frame_ask_first\\\\b/,/^}/p' src/framing.rs)",
-      "Bash(git restore *)"
+      "Bash(git restore *)",
+      "Bash(showboat --help)"
     ],
     "additionalDirectories": [
       "/Volumes/ExternalData/admin/Developer/Projects/brief/src",

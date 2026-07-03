@@ -59,7 +59,7 @@ The format maps directly to the `Brief` struct: frontmatter (`stack`, `context`,
 The parser extracts YAML frontmatter via `serde_yaml`, then runs the Markdown body through a `pulldown-cmark` state machine that maps H1 → goal, H2 → known sections, H3 under Constraints → severity tiers. Unrecognized H2 sections are preserved as `UnknownSection` for extensibility.
 
 ```bash
-brief emit json examples/sample.brief.md | python3 -c "
+brief --file examples/sample.brief.md emit json | python3 -c "
 import sys, json
 b = json.load(sys.stdin)
 print(f'Goal: {b[\"goal\"]}')
@@ -87,19 +87,20 @@ Assumptions: 3 (1 validated)
 `brief validate` checks format correctness and codebase alignment: stack is non-empty, H1 goal exists, sacred entries are well-formed (backtick-wrapped paths), sacred globs match actual files, context files exist, and assumptions use checkbox syntax.
 
 ```bash
-brief validate tests/fixtures/minimal.brief.md; echo "exit: $?"
+brief --file tests/fixtures/minimal.brief.md validate; echo "exit: $?"
 ```
 
 ```output
 warning: Sacred path `src/auth.rs` matches no files
-✓ briefing is valid (with 1 warning(s))
+warning: Vague constraint (name a specific file, type, or command): "Do not break existing tests"
+✓ briefing is valid (with 2 warning(s))
 exit: 0
 ```
 
 Valid briefs exit 0. Now a malformed brief — missing goal, missing stack, bad sacred formatting, missing checkboxes:
 
 ```bash
-brief validate tests/fixtures/malformed.brief.md 2>&1; echo "exit: $?"
+brief --file tests/fixtures/malformed.brief.md validate 2>&1; echo "exit: $?"
 ```
 
 ```output
@@ -110,6 +111,7 @@ error: Malformed sacred entry: path `not-in-backticks` should be wrapped in back
 warning: Sacred path `not-in-backticks` matches no files
 warning: Sacred path `valid/path/**` matches no files
 error: Assumption missing checkbox syntax: "Missing checkbox syntax on this assumption"
+warning: Vague constraint (name a specific file, type, or command): "A valid constraint"
 exit: 1
 ```
 
@@ -124,7 +126,7 @@ Errors exit 1. Warnings alone exit 0. Every diagnostic has a severity level so C
 The primary emit target. Produces a CLAUDE.md section with structured headings, constraint severity labels, and sacred region formatting.
 
 ```bash
-brief emit claude tests/fixtures/minimal.brief.md
+brief --file tests/fixtures/minimal.brief.md emit claude
 ```
 
 ```output
@@ -135,10 +137,18 @@ brief emit claude tests/fixtures/minimal.brief.md
 ## Constraints
 
 ### Hard (Non-negotiable)
-- **IMPORTANT:** Do not break existing tests
+
+<rules priority="required">
+- NEVER: break existing tests
+</rules>
 
 ## Sacred Regions (Do Not Modify)
+
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+
+<protected_files>
 - `src/auth.rs` — Authentication logic, do not refactor
+</protected_files>
 
 ```
 
@@ -147,10 +157,21 @@ brief emit claude tests/fixtures/minimal.brief.md
 Raw system prompt text for direct API use — uppercase labels, flat structure, validated and unvalidated assumptions separated.
 
 ```bash
-brief emit prompt examples/sample.brief.md
+brief --file examples/sample.brief.md emit prompt
 ```
 
 ```output
+HARD CONSTRAINTS:
+- MUST: v2 API backward compatibility must be maintained
+- MUST: All SQL must target PostgreSQL 16, not MySQL
+- MUST: Infrastructure budget ceiling is $500/month
+
+SACRED REGIONS:
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+- src/auth/**: Proprietary tenant resolution logic, legally reviewed
+- src/compliance/**: GDPR audit trail, approved by legal
+- migrations/: Historical migration files must never be modified
+
 GOAL: Redesign event pipeline for 10M events/day
 
 STACK: Python 3.12, PostgreSQL 16, Kafka 3.7, GCP/k8s
@@ -159,24 +180,14 @@ REFERENCE CONTEXT:
 - ./docs/current-architecture.md
 - ./benchmarks/performance-baseline.csv
 
-HARD CONSTRAINTS:
-- v2 API backward compatibility must be maintained
-- All SQL must target PostgreSQL 16, not MySQL
-- Infrastructure budget ceiling is $500/month
-
 SOFT CONSTRAINTS:
-- Prefer async write patterns where possible
-- Favor composition over inheritance in new code
+- PREFER: async write patterns where possible
+- PREFER: Favor composition over inheritance in new code
 
 ASK BEFORE PROCEEDING:
-- Database schema changes
-- Adding new dependencies to requirements.txt
-- Changes to the CI/CD pipeline
-
-DO NOT MODIFY:
-- src/auth/**: Proprietary tenant resolution logic, legally reviewed
-- src/compliance/**: GDPR audit trail, approved by legal
-- migrations/: Historical migration files must never be modified
+- STOP and confirm with the user before: Database schema changes
+- STOP and confirm with the user before: Adding new dependencies to requirements.txt
+- STOP and confirm with the user before: Changes to the CI/CD pipeline
 
 ASSUMPTIONS (UNVALIDATED):
 - Bottleneck is synchronous DB writes (validate against perf baseline)
@@ -195,7 +206,7 @@ and working code with tests achieving >80% coverage on new modules.
 Merges all constraints into a single Instructions section with inline severity markers — `**(REQUIRED)**`, `*(preferred)*`, `**(ASK FIRST)**` — matching the AGENTS.md convention.
 
 ```bash
-brief emit agents-md tests/fixtures/minimal.brief.md
+brief --file tests/fixtures/minimal.brief.md emit agents-md
 ```
 
 ```output
@@ -204,9 +215,11 @@ brief emit agents-md tests/fixtures/minimal.brief.md
 **Stack:** Rust
 
 ## Instructions
+
 - Do not break existing tests **(REQUIRED)**
 
 ## Protected Files
+
 - `src/auth.rs`: Authentication logic, do not refactor
 
 ```
