@@ -34,6 +34,7 @@ pub fn estimate_tokens(text: &str) -> usize {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
     Prompt,
+    Readme,
     Claude,
     AgentsMd,
     Cursor,
@@ -50,6 +51,7 @@ impl Target {
         match self {
             Target::Prompt => "prompt",
             Target::Claude => "claude",
+            Target::Readme => "readme",
             Target::AgentsMd => "agents-md",
             Target::Cursor => "cursor",
             Target::Copilot => "copilot",
@@ -72,6 +74,7 @@ impl Target {
         match self {
             Target::Prompt => Some(500),
             Target::Claude
+            | Target::Readme
             | Target::AgentsMd
             | Target::Cursor
             | Target::Copilot
