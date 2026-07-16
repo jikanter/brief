@@ -243,6 +243,8 @@ enum EmitTarget {
     Claude,
     /// Emit raw system prompt text
     Prompt,
+    /// Emit a README.md
+    Readme,
     /// Emit an AGENTS.md section
     AgentsMd,
     /// Emit a Cursor `.cursor/rules/brief.mdc` rule
@@ -267,6 +269,7 @@ impl EmitTarget {
         match self {
             EmitTarget::Claude => budget::Target::Claude,
             EmitTarget::Prompt => budget::Target::Prompt,
+            EmitTarget::Readme => budget::Target::Readme,
             EmitTarget::AgentsMd => budget::Target::AgentsMd,
             EmitTarget::Cursor => budget::Target::Cursor,
             EmitTarget::Copilot => budget::Target::Copilot,
@@ -565,6 +568,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
     let output = match target {
         EmitTarget::Claude => emit::emit_claude(&brief),
         EmitTarget::Prompt => emit::emit_prompt(&brief),
+        EmitTarget::Readme => emit::emit_readme(&brief),
         EmitTarget::AgentsMd => emit::emit_agents_md(&brief),
         EmitTarget::Cursor => emit::emit_cursor(&brief),
         EmitTarget::Copilot => emit::emit_copilot(&brief),
@@ -611,6 +615,17 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
                 if full {
                     cmd_full_install_permissions(&brief)?;
                 }
+            }
+            EmitTarget::Readme => {
+                let readme = PathBuf::from("README.md");
+                warn_conflicts(&brief, &readme);
+                emit::install_readme(&brief, &readme)
+                    .with_context(|| "Failed to install briefing into README.md")?;
+                println!(
+                    "{} briefing into {}",
+                    "Installed".green().bold(),
+                    readme.display()
+                );
             }
             EmitTarget::AgentsMd => {
                 let agents_md = PathBuf::from("AGENTS.md");

@@ -33,6 +33,8 @@ fn slugify(goal: &str) -> String {
         .join("-")
 }
 
+
+
 /// Emit a Claude Code SKILL.md file from a Brief.
 ///
 /// `source` is the relative path back to the originating `.brief.md`, computed

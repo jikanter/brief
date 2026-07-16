@@ -10,8 +10,10 @@ pub mod prompt;
 pub mod skill;
 pub mod windsurf;
 pub mod xml;
+pub mod readme;
 
 pub use agents_md::{emit_agents_md, install_agents_md};
+pub use readme::{emit_readme, install_readme};
 pub use aider::{emit_aider, install_aider};
 pub use anchor::emit_anchor;
 pub use claude::{emit_claude, install_claude, install_claude_at, uninstall_claude};
