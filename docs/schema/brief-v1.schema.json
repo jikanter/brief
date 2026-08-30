@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/jikanter/brief/main/docs/schema/brief-v1.schema.json",
+  "title": "Brief v1",
+  "description": "Canonical machine representation of a well-formed `.brief.md` (format version 1). This is the JSON object produced by `brief emit json` after parse. The authoring form remains Markdown with YAML frontmatter; see docs/brief-format.md and docs/schema/SPEC.md. The parser is tolerant and will still emit a ParsedBrief for malformed files — this schema is the validity contract (`brief validate` / E1).",
+  "allOf": [
+    { "$ref": "#/$defs/ParsedBrief" },
+    { "$ref": "#/$defs/ValidityConstraints" }
+  ],
+  "$defs": {
+    "ParsedBrief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frontmatter",
+        "goal",
+        "identity",
+        "constraints",
+        "sacred",
+        "assumptions",
+        "deliverable",
+        "unknown_sections"
+      ],
+      "properties": {
+        "frontmatter": { "$ref": "#/$defs/Frontmatter" },
+        "goal": {
+          "type": "string",
+          "description": "The H1 heading. Exactly one H1 is required in a valid brief; the parser stores an empty string when missing."
+        },
+        "identity": {
+          "description": "Optional `## Identity` section. JSON `null` when absent.",
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/Identity" }
+          ]
+        },
+        "constraints": { "$ref": "#/$defs/Constraints" },
+        "sacred": {
+          "type": "array",
+          "description": "`## Sacred` entries. Each names a protected path glob and why it must not be modified.",
+          "items": { "$ref": "#/$defs/SacredEntry" }
+        },
+        "assumptions": {
+          "type": "array",
+          "description": "`## Assumptions` checkbox items.",
+          "items": { "$ref": "#/$defs/Assumption" }
+        },
+        "deliverable": {
+          "description": "Free-text `## Deliverable` (what done looks like). JSON `null` when the section is absent or empty.",
+          "anyOf": [{ "type": "null" }, { "type": "string" }]
+        },
+        "unknown_sections": {
+          "type": "array",
+          "description": "Unrecognized H2 sections, preserved verbatim for extensibility. Not reframed at emit time.",
+          "items": { "$ref": "#/$defs/UnknownSection" }
+        }
+      }
+    },
+    "ValidityConstraints": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "minLength": 1
+        },
+        "frontmatter": {
+          "type": "object",
+          "properties": {
+            "stack": {
+              "minItems": 1
+            }
+          }
+        },
+        "sacred": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "well_formed": { "const": true }
+            }
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "has_checkbox": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    "Frontmatter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stack",
+        "context",
+        "model",
+        "version",
+        "skill_name",
+        "skill_description"
+      ],
+      "properties": {
+        "stack": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Technologies, languages, frameworks. Required and non-empty on a valid brief. Defaults to `[]` if omitted in YAML."
+        },
+        "context": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "File paths or URLs of reference material. Optional. `brief validate` warns if a path does not exist."
+        },
+        "model": {
+          "description": "Preferred model identifier (task-specific hint, not a session or runtime config).",
+          "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
+        },
+        "version": {
+          "type": "string",
+          "description": "Brief format version. Defaults to `\"1\"` when omitted in YAML. Unknown versions are a later schema-versioning concern (E1-S2)."
+        },
+        "skill_name": {
+          "description": "kebab-case name for an emitted Agent Skill.",
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            }
+          ]
+        },
+        "skill_description": {
+          "description": "One-line description for an emitted Agent Skill.",
+          "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
+        }
+      }
+    },
+    "FrontmatterAuthoring": {
+      "title": "YAML frontmatter as JSON (authoring)",
+      "description": "Shape of the YAML block at the top of `.brief.md` before parse defaults. Unknown keys are ignored (forward-compatible). New keys must clear the YAGNI bar in docs/design/frontmatter-additions.md. Execution-implying keys (session, tools, decoding, tool-loop) are not part of this format.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "stack": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "context": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "model": { "type": "string" },
+        "version": { "type": "string" },
+        "skill_name": { "type": "string" },
+        "skill_description": { "type": "string" }
+      }
+    },
+    "Constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hard", "soft", "ask_first"],
+      "properties": {
+        "hard": {
+          "type": "array",
+          "description": "`### Hard` — non-negotiable. Must hold, or the agent aborts.",
+          "items": { "$ref": "#/$defs/Constraint" }
+        },
+        "soft": {
+          "type": "array",
+          "description": "`### Soft` — preferred but flexible.",
+          "items": { "$ref": "#/$defs/Constraint" }
+        },
+        "ask_first": {
+          "type": "array",
+          "description": "`### Ask First` — requires human approval before proceeding.",
+          "items": { "$ref": "#/$defs/Constraint" }
+        }
+      }
+    },
+    "Constraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Plain-language constraint. Emitters reframe by register; the source is not RFC-2119."
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Glob patterns this constraint applies to. Omitted when empty (project-wide). Authoring: optional leading `[`glob`, …]` on the list item (docs/brief-format.md §8.1)."
+        }
+      }
+    },
+    "SacredEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "reason", "well_formed"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Protected path glob. Authoring wraps the path in backticks."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the path must not be modified. Separator in authoring is an em dash or `--`."
+        },
+        "well_formed": {
+          "type": "boolean",
+          "description": "True when the source item had a backtick-wrapped path plus a separator. A valid brief requires this to be true."
+        }
+      }
+    },
+    "Assumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "validated", "has_checkbox"],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validated": {
+          "type": "boolean",
+          "description": "`- [x]` is true; `- [ ]` is false."
+        },
+        "has_checkbox": {
+          "type": "boolean",
+          "description": "True when the source item used Markdown checkbox syntax. A valid brief requires this to be true."
+        }
+      }
+    },
+    "Identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["heading", "content"],
+      "properties": {
+        "heading": {
+          "type": "string",
+          "const": "Identity",
+          "description": "Recognized H2 name. The parser only treats `## Identity` as this section."
+        },
+        "content": {
+          "type": "string"
+        }
+      }
+    },
+    "UnknownSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["heading", "content"],
+      "properties": {
+        "heading": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The H2 text of an unrecognized section (e.g. Commands, Code Style, Architecture)."
+        },
+        "content": {
+          "type": "string",
+          "description": "Raw Markdown body of the section, preserved as authored."
+        }
+      }
+    }
+  }
+}

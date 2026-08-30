@@ -9,7 +9,7 @@ These docs are design references for each ecosystem. The five core targets (clau
 | Backend | Folder | Status |
 |---|---|---|
 | Claude Code | [claude/](claude/) | Shipped — CLAUDE.md, skills, hooks (P2). `--position`/`--uninstall`/`--full` and skill scaffold/install in flight (P5/P7). |
-| Cursor | [cursor/](cursor/) | Shipped (P4) — single bundled `.mdc` rule (no `globs` yet, pending scoped constraints). |
+| Cursor | [cursor/](cursor/) | Shipped — `.cursor/rules/brief.mdc` plus per-scope / Ask First fan-out; `--hooks` writes `.cursor/hooks.json`. |
 | GitHub Copilot | [copilot/](copilot/) | Shipped (P4) — single `.github/copilot-instructions.md`. |
 | Windsurf | [windsurf/](windsurf/) | Shipped (P4) — single `always_on` workspace rule. |
 | Aider | [aider/](aider/) | Shipped (P4) — two-file emit (CONVENTIONS.md + .aider.conf.yml). |

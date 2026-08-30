@@ -1,33 +1,44 @@
-//! Claude Code hooks integration.
+//! Claude Code and Cursor hooks integration.
 //!
 //! Two concerns, both pure and unit-tested here so the CLI layer stays thin:
 //!
-//! 1. The PreToolUse I/O protocol for `brief check --hook` — parse the event
-//!    JSON Claude Code sends on stdin, and build the deny decision it expects on
-//!    stdout.
-//! 2. Idempotently registering the PreToolUse hook in `.claude/settings.json`
-//!    for `brief emit claude --install --hooks`.
+//! 1. The PreToolUse / preToolUse I/O protocol for `brief check --hook` — parse
+//!    the event JSON on stdin, and build the deny decision the host expects
+//!    (Claude's `hookSpecificOutput` vs Cursor's `permission` field).
+//! 2. Idempotently registering the sacred-region hook in `.claude/settings.json`
+//!    (`brief emit claude --install --hooks`) and `.cursor/hooks.json`
+//!    (`brief emit cursor --install --hooks`).
 
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 
-/// Tool matcher for the sacred-region hook.
+/// Tool matcher for the sacred-region hook (Claude Code).
 pub const HOOK_MATCHER: &str = "Edit|Write";
-/// Command the hook runs.
+/// Command the hook runs (both Claude Code and Cursor).
 pub const HOOK_COMMAND: &str = "brief check --hook";
+/// Cursor `preToolUse` matcher — Cursor's write tool, not Claude's `Edit`.
+pub const CURSOR_HOOK_MATCHER: &str = "Write";
+/// Same command as Claude; deny JSON is selected from the inbound event.
+pub const CURSOR_HOOK_COMMAND: &str = HOOK_COMMAND;
 
-/// Extract the target file path from a PreToolUse hook event JSON.
+/// Extract the target file path from a PreToolUse / preToolUse hook event JSON.
 ///
-/// Returns `None` when the event has no `tool_input.file_path` (e.g. a tool that
-/// doesn't touch a file) — the caller should treat that as "nothing to guard".
+/// Returns `None` when the event has no file path (e.g. a tool that doesn't
+/// touch a file) — the caller should treat that as "nothing to guard".
 pub fn extract_file_path(event_json: &str) -> Option<String> {
     let event: Value = serde_json::from_str(event_json).ok()?;
+    if let Some(p) = event
+        .get("tool_input")
+        .and_then(|t| t.get("file_path").or_else(|| t.get("path")))
+        .and_then(Value::as_str)
+    {
+        return Some(p.to_string());
+    }
     event
-        .get("tool_input")?
-        .get("file_path")?
-        .as_str()
+        .get("file_path")
+        .and_then(Value::as_str)
         .map(str::to_string)
 }
 
@@ -52,6 +63,35 @@ pub fn deny_json(reason: &str) -> String {
         }
     });
     payload.to_string()
+}
+
+/// True when the inbound hook event is from Cursor (camelCase `preToolUse`
+/// and/or a `cursor_version` field). Claude Code uses `PreToolUse`.
+pub fn is_cursor_event(event_json: &str) -> bool {
+    let Ok(event) = serde_json::from_str::<Value>(event_json) else {
+        return false;
+    };
+    event.get("cursor_version").is_some()
+        || event.get("hook_event_name").and_then(Value::as_str) == Some("preToolUse")
+}
+
+/// Cursor `preToolUse` deny payload (`permission: deny`).
+pub fn cursor_deny_json(reason: &str) -> String {
+    json!({
+        "permission": "deny",
+        "user_message": reason,
+        "agent_message": reason,
+    })
+    .to_string()
+}
+
+/// Pick the deny JSON the host will honor, based on the inbound event.
+pub fn deny_for_event(event_json: &str, reason: &str) -> String {
+    if is_cursor_event(event_json) {
+        cursor_deny_json(reason)
+    } else {
+        deny_json(reason)
+    }
 }
 
 /// Return a `.claude/settings.json` string with the sacred-region PreToolUse
@@ -164,6 +204,55 @@ pub fn ensure_permissions_allow(existing: Option<&str>, entries: &[String]) -> R
     serde_json::to_string_pretty(&root).map_err(Into::into)
 }
 
+/// Return a `.cursor/hooks.json` string with the sacred-region `preToolUse`
+/// hook registered. Idempotent: if a matching command already exists, the
+/// input is returned semantically unchanged (re-serialized). Other hooks are
+/// preserved. `version: 1` is set when absent.
+pub fn ensure_cursor_pretooluse_hook(existing: Option<&str>) -> Result<String> {
+    let mut root: Value = match existing {
+        Some(s) if !s.trim().is_empty() => {
+            serde_json::from_str(s).context("Existing .cursor/hooks.json is not valid JSON")?
+        }
+        _ => json!({ "version": 1 }),
+    };
+
+    if !root.is_object() {
+        anyhow::bail!("Existing .cursor/hooks.json is not a JSON object");
+    }
+
+    let obj = root.as_object_mut().unwrap();
+    obj.entry("version").or_insert(json!(1));
+    let hooks = obj
+        .entry("hooks")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .context("`hooks` in hooks.json is not an object")?;
+
+    let pre = hooks
+        .entry("preToolUse")
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .context("`hooks.preToolUse` in hooks.json is not an array")?;
+
+    if pre.iter().any(cursor_has_brief_hook) {
+        return serde_json::to_string_pretty(&root).map_err(Into::into);
+    }
+
+    pre.push(json!({
+        "command": CURSOR_HOOK_COMMAND,
+        "matcher": CURSOR_HOOK_MATCHER,
+    }));
+
+    serde_json::to_string_pretty(&root).map_err(Into::into)
+}
+
+fn cursor_has_brief_hook(entry: &Value) -> bool {
+    entry
+        .get("command")
+        .and_then(Value::as_str)
+        .is_some_and(|c| c.contains(CURSOR_HOOK_COMMAND))
+}
+
 /// True when a PreToolUse matcher entry already runs the brief sacred-region hook.
 fn matcher_has_brief_hook(entry: &Value) -> bool {
     entry
@@ -187,6 +276,24 @@ mod tests {
     fn extracts_file_path_from_edit_event() {
         let ev = r#"{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/auth/h.rs"}}"#;
         assert_eq!(extract_file_path(ev).as_deref(), Some("src/auth/h.rs"));
+    }
+
+    #[test]
+    fn extracts_file_path_from_cursor_write_event() {
+        let ev = r#"{"hook_event_name":"preToolUse","cursor_version":"2.4.0","tool_name":"Write","tool_input":{"file_path":"/repo/src/auth/h.rs"}}"#;
+        assert_eq!(
+            extract_file_path(ev).as_deref(),
+            Some("/repo/src/auth/h.rs")
+        );
+    }
+
+    #[test]
+    fn extracts_top_level_file_path() {
+        let ev = r#"{"hook_event_name":"beforeReadFile","file_path":"/repo/src/auth/h.rs"}"#;
+        assert_eq!(
+            extract_file_path(ev).as_deref(),
+            Some("/repo/src/auth/h.rs")
+        );
     }
 
     #[test]
@@ -215,6 +322,25 @@ mod tests {
             v["hookSpecificOutput"]["permissionDecisionReason"],
             "sacred: auth"
         );
+    }
+
+    #[test]
+    fn deny_for_event_uses_cursor_permission_when_cursor_event() {
+        let ev = r#"{"hook_event_name":"preToolUse","cursor_version":"2.4.0","tool_name":"Write","tool_input":{"file_path":"src/auth/h.rs"}}"#;
+        let out = deny_for_event(ev, "sacred: auth");
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["permission"], "deny");
+        assert_eq!(v["user_message"], "sacred: auth");
+        assert_eq!(v["agent_message"], "sacred: auth");
+        assert!(v.get("hookSpecificOutput").is_none());
+    }
+
+    #[test]
+    fn deny_for_event_keeps_claude_protocol_for_pretooluse() {
+        let ev = r#"{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/auth/h.rs"}}"#;
+        let out = deny_for_event(ev, "sacred: auth");
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "deny");
     }
 
     #[test]
@@ -321,5 +447,36 @@ mod tests {
         assert_eq!(v["model"], "opus");
         let allow = v["permissions"]["allow"].as_array().unwrap();
         assert_eq!(allow.len(), 2);
+    }
+
+    #[test]
+    fn ensure_cursor_hook_writes_versioned_hooks_json() {
+        let out = ensure_cursor_pretooluse_hook(None).unwrap();
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["version"], 1);
+        let entry = &v["hooks"]["preToolUse"][0];
+        assert_eq!(entry["command"], CURSOR_HOOK_COMMAND);
+        assert_eq!(entry["matcher"], CURSOR_HOOK_MATCHER);
+    }
+
+    #[test]
+    fn ensure_cursor_hook_is_idempotent() {
+        let first = ensure_cursor_pretooluse_hook(None).unwrap();
+        let second = ensure_cursor_pretooluse_hook(Some(&first)).unwrap();
+        let v: Value = serde_json::from_str(&second).unwrap();
+        assert_eq!(v["hooks"]["preToolUse"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn ensure_cursor_hook_preserves_other_hooks() {
+        let existing =
+            r#"{"version":1,"hooks":{"afterFileEdit":[{"command":".cursor/hooks/fmt.sh"}]}}"#;
+        let out = ensure_cursor_pretooluse_hook(Some(existing)).unwrap();
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(
+            v["hooks"]["afterFileEdit"][0]["command"],
+            ".cursor/hooks/fmt.sh"
+        );
+        assert_eq!(v["hooks"]["preToolUse"].as_array().unwrap().len(), 1);
     }
 }

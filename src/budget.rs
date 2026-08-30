@@ -98,6 +98,18 @@ impl Target {
             _ => None,
         }
     }
+
+    /// Soft per-file line guidance from the target ecosystem, if any.
+    ///
+    /// Cursor's project-rules docs recommend keeping each `.mdc` under ~500
+    /// lines (community convention, not a hard parser cap). Brief warns on
+    /// overrun and never silently truncates.
+    pub fn line_limit(self) -> Option<usize> {
+        match self {
+            Target::Cursor => Some(500),
+            _ => None,
+        }
+    }
 }
 
 /// The measured budget of an emitted section against its target's limits.
@@ -105,8 +117,10 @@ impl Target {
 pub struct BudgetReport {
     pub tokens: usize,
     pub chars: usize,
+    pub lines: usize,
     pub token_threshold: Option<usize>,
     pub char_limit: Option<usize>,
+    pub line_limit: Option<usize>,
 }
 
 impl BudgetReport {
@@ -119,6 +133,11 @@ impl BudgetReport {
     pub fn over_chars(&self) -> bool {
         matches!(self.char_limit, Some(l) if self.chars > l)
     }
+
+    /// True when the line count exceeds the target ecosystem's size guidance.
+    pub fn over_lines(&self) -> bool {
+        matches!(self.line_limit, Some(l) if self.lines > l)
+    }
 }
 
 /// Measure an emitted `section` against `target`'s budget thresholds.
@@ -126,8 +145,10 @@ pub fn measure(section: &str, target: Target) -> BudgetReport {
     BudgetReport {
         tokens: estimate_tokens(section),
         chars: section.chars().count(),
+        lines: section.lines().count(),
         token_threshold: target.token_threshold(),
         char_limit: target.char_limit(),
+        line_limit: target.line_limit(),
     }
 }
 
@@ -198,6 +219,25 @@ mod tests {
         assert_eq!(Target::Windsurf.char_limit(), Some(12_000));
         assert_eq!(Target::Claude.char_limit(), None);
         assert_eq!(Target::Prompt.char_limit(), None);
+    }
+
+    #[test]
+    fn only_cursor_has_a_line_limit() {
+        assert_eq!(Target::Cursor.line_limit(), Some(500));
+        assert_eq!(Target::Claude.line_limit(), None);
+        assert_eq!(Target::Windsurf.line_limit(), None);
+    }
+
+    #[test]
+    fn measure_flags_over_cursor_line_limit() {
+        let section = (0..501)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let report = measure(&section, Target::Cursor);
+        assert!(report.over_lines());
+        let short = measure("short\nbrief", Target::Cursor);
+        assert!(!short.over_lines());
     }
 
     #[test]

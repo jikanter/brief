@@ -1,71 +1,92 @@
 # Cursor Backend
 
-**Status:** Shipped (phase2-synthesis P4) — `brief emit cursor [--install]` is implemented in `src/emit/cursor.rs`, currently emitting a single bundled rule with `alwaysApply: true` (no `globs`, pending scoped constraints). Was the one P4 emitter flagged as "real work — meaningfully different format requiring a dedicated emitter."
+**Status:** Shipped — `brief emit cursor [--install] [--hooks]`. Format facts re-verified against [cursor.com/docs/context/rules](https://cursor.com/docs/context/rules) and [cursor.com/docs/hooks](https://cursor.com/docs/hooks) on 2026-08-30.
 
-**Format facts verified against [cursor.com/docs/context/rules](https://cursor.com/docs/context/rules) on 2026-06-12.** The 2026-03 audit's array-form `globs` was wrong — see "Glob field format" below.
+The emitter is not a CLAUDE.md wrapper. Cursor's project rules are `.mdc` files with their own frontmatter (`description`, `globs`, `alwaysApply`) and four activation modes. `--install` maps brief's constraint model onto those modes instead of dumping everything into one always-on rule.
 
 ## Target file format
 
-`.cursor/rules/<name>.mdc` — a Markdown body with YAML frontmatter. The legacy `.cursorrules` single-file format (~12,000 character limit) still works but is superseded by `.mdc` rules. Rule files can be organized in nested folders under `.cursor/rules/` (e.g. `.cursor/rules/frontend/components.mdc`) — but subfolders are organizational only; they do **not** auto-scope a rule to that directory (scoping is via `globs`, not location).
+`.cursor/rules/<name>.mdc` — Markdown body with YAML frontmatter. A plain `.md` file in `.cursor/rules` is ignored (no frontmatter). Nested folders under `.cursor/rules/` are organizational only; scoping is via `globs`, not location.
+
+`AGENTS.md` is a separate emit target (`brief emit agents-md`), not part of this backend.
 
 ## Frontmatter schema
 
 ```yaml
 ---
 description: short human-readable rule summary
-globs: "src/**/*.ts, src/**/*.tsx"
+globs: src/**/*.ts, src/**/*.tsx
 alwaysApply: false
 ---
 ```
 
-### Glob field format (corrected 2026-06-12)
+### Glob field format
 
-`globs` is a **comma-separated string**, NOT a YAML array. Multiple patterns are joined with commas within one string value: `globs: "docs/**/*.md, docs/**/*.mdx"`. (The earlier `globs: ["src/**/*.ts"]` array form in this doc was from the March 2026 audit and is incorrect for current Cursor — the emitter must serialize a comma-joined string.)
+`globs` is a **comma-separated string**, not a YAML array. Multiple patterns are joined with commas: `globs: docs/**/*.md, docs/**/*.mdx`. The emitter quotes the value only when YAML itself would misparse it (colon, `#`, quotes, …); glob metacharacters (`*`, `?`) stay unquoted so the documented form is preserved.
 
 ### One glob set per file
 
-A single `.mdc` file carries **one `globs` set covering the whole file**. There is no way to scope different rules to different globs within one file — to do that you write **separate `.mdc` files**, one per scope. This is the forcing function behind brief's scoped-constraint emit (split-by-scope file fan-out).
+A single `.mdc` file carries **one `globs` set covering the whole file**. Different scopes become separate files — that is why `--install` fans out.
 
 ## Activation modes
 
-The combination of `alwaysApply` and `globs` produces four activation modes (current Cursor names in parentheses):
-
-| `alwaysApply` | `globs`/`description` | Activation |
+| `alwaysApply` | `globs` / `description` | Activation |
 |---|---|---|
-| `true` | — | **Always** — present in every session (`globs` parsed but ignored) |
-| `false` | `globs` set | **Apply to Specific Files** (Auto Attached) — loaded when editing matching files |
-| `false` | `description` only | **Apply Intelligently** (Agent Requested) — model consults `description` and decides |
-| `false` | neither | **Apply Manually** — only via `@rule-name` in chat |
+| `true` | — | **Always** — present in every session (`globs` ignored) |
+| `false` | `globs` set | **Apply to Specific Files** — loaded when matching files are in context |
+| `false` | `description` only | **Apply Intelligently** — model consults `description` and decides |
+| `false` | neither | **Apply Manually** — only via `@rule-name` |
+
+## What `brief emit cursor` produces
+
+**Stdout** (`brief emit cursor`) is a single lossless `alwaysApply: true` rule so piping stays complete: scoped constraints keep an inline `When working in …:` prefix; Ask First stays in the body.
+
+**`--install`** writes into `.cursor/rules/` (directory created if missing). Brief owns the `brief*.mdc` namespace: prior `brief-*.mdc` files are swept, then rewritten. Hand-written rules without the `brief-` prefix are never touched.
+
+| File | Activation | Contents |
+|---|---|---|
+| `brief.mdc` | Always | Goal, stack, `@context` includes, identity, unscoped Hard/Soft, sacred regions (with preamble), unvalidated assumptions, deliverable, unknown sections |
+| `brief-ask-first.mdc` | Apply Intelligently | Unscoped Ask First. `alwaysApply: false`, description `Ask before proceeding: <goal>`, no `globs` |
+| `brief-<slug>.mdc` | Auto Attached | One file per distinct constraint scope; `globs:` is the comma-joined scope set |
+
+Register is **descriptive** (`## Required` / `## Preferred`), not Claude's `**IMPORTANT:**` / NEVER/MUST.
+
+Context paths emit as Cursor `@path` includes (leading `./` stripped) so matching files can be pulled into the rule.
+
+## Sacred-region hooks
+
+`brief emit cursor --install --hooks` registers an idempotent project hook in `.cursor/hooks.json`:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      { "command": "brief check --hook", "matcher": "Write" }
+    ]
+  }
+}
+```
+
+`brief check --hook` detects Cursor events (`cursor_version` or `hook_event_name: preToolUse`) and denies with Cursor's `{ "permission": "deny", "user_message", "agent_message" }` payload. Claude Code's `hookSpecificOutput` protocol is unchanged for `PreToolUse` events.
+
+Other entries in `hooks.json` are preserved.
 
 ## Soft size guidance
 
-Best-practice guidance is to keep individual rule files under ~500 lines.
+Keep individual rule files under ~500 lines (Cursor docs; not a parser cap). Brief warns when cursor emit exceeds 500 lines and never truncates.
 
-[open-question] Is the 500-line guidance a hard limit enforced by Cursor, or community convention? The original audit cited it as best-practice. The answer determines whether the brief emitter should fail/warn/ignore when output exceeds it.
+## Mapping brief's taxonomy to Cursor activation
 
-## Why this is "real work" in P4
-
-Three concrete reasons the cursor emitter is not a trivial wrapper:
-
-1. **Frontmatter translation.** Cursor's frontmatter schema is meaningfully different from brief's (`description`/`globs`/`alwaysApply` vs. brief's `stack`/`context`/`version`). The emitter has to construct it from scratch rather than pass-through.
-2. **No native scoping in brief.** Cursor's main feature is per-rule glob scoping. Brief's current flat constraint model has no concept of scope, so every emitted rule defaults to `alwaysApply: true` until brief itself learns about scoped constraints. This throws away most of what makes Cursor's rule format useful.
-3. **Multi-file emit.** Idiomatically, a project would have several `.mdc` files clustered by purpose (e.g. `auth-rules.mdc`, `ui-rules.mdc`, `test-conventions.mdc`). Brief's single-source model has to decide whether to bundle everything into one rule file or split by some axis.
-
-## Mapping brief's three-tier taxonomy to Cursor activation modes
-
-A reasonable mapping if/when scoped constraints exist in brief:
-
-| Brief tier | Cursor activation |
+| Brief | Cursor activation |
 |---|---|
-| `### Hard` (sacred + non-negotiable) | `alwaysApply: true` |
-| `### Soft` with a glob hint | `alwaysApply: false` + `globs` |
-| `### Ask First` | `alwaysApply: false`, no globs (model-decision via description) |
+| Unscoped `### Hard` + sacred + standing project context | `alwaysApply: true` (`brief.mdc`) |
+| Scoped constraint (any tier) | `alwaysApply: false` + `globs:` (`brief-<slug>.mdc`) |
+| Unscoped `### Ask First` | `alwaysApply: false`, description only (`brief-ask-first.mdc`) |
 
-[open-question] Without scoped constraints in brief, should the cursor emitter produce one bundled `alwaysApply: true` rule, or split by tier (one rule per Hard/Soft/Ask First)? Splitting by tier is probably closer to idiomatic Cursor usage but loses the connection between related constraints across tiers.
-
-[open-question] Should brief add format-level scoped constraints to make the cursor emitter idiomatic? See [open-questions.md](../../../open-questions.md) `[format]` scoped constraints for the broader format-level question. The cursor backend is the strongest forcing function for resolving that question.
+Unscoped Soft stays in the always-apply bundle so preferences are not left to chance under Apply Intelligently.
 
 ## Connection to other docs
 
-- Format-level scoping question: [open-questions.md](../../../open-questions.md) `[format]` scoped constraints
-- Per-target hint mechanism that could provide cursor-specific emit metadata: [emit-quality-refinements.md](../../../analysis/emit-quality-refinements.md) §5 (`emit:` frontmatter map)
+- Format-level scoping: [open-questions.md](../../../open-questions.md) `[format]` scoped constraints (DECIDED, P8)
+- Per-target tone: [emit-quality-refinements.md](../../../analysis/emit-quality-refinements.md) §3

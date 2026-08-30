@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::framing::with_scope;
+use crate::framing::{SACRED_PREAMBLE, with_scope};
 use crate::model::{Brief, Constraint};
 
 /// Emit a Cursor `.mdc` rule from a Brief.
@@ -9,11 +9,11 @@ use crate::model::{Brief, Constraint};
 /// frontmatter (`description`, `globs`, `alwaysApply`) which differs from
 /// brief's frontmatter and must be constructed from scratch.
 ///
-/// This is the always-apply bundle: every constraint in one file with
-/// `alwaysApply: true`. Scoped constraints still appear here (their scope shown
-/// inline as prose) so the stdout form is lossless. On `--install`,
-/// [`install_cursor`] instead fans scoped constraints out into per-glob files
-/// that use Cursor's native `globs:` activation — see [`emit_cursor_files`].
+/// This is the always-apply bundle for stdout: every constraint in one file
+/// with `alwaysApply: true` so piping is lossless (scoped constraints keep an
+/// inline "When working in …" prefix). On `--install`, [`install_cursor`] fans
+/// native Cursor activation out: unscoped Ask First → Apply Intelligently,
+/// scoped constraints → `globs:` files — see [`emit_cursor_files`].
 pub fn emit_cursor(brief: &Brief) -> String {
     let mut out = String::new();
 
@@ -36,9 +36,17 @@ pub fn emit_cursor(brief: &Brief) -> String {
     if !brief.frontmatter.context.is_empty() {
         out.push_str("## Context\n\n");
         for ctx in &brief.frontmatter.context {
-            out.push_str(&format!("- `{ctx}`\n"));
+            let clean = ctx.strip_prefix("./").unwrap_or(ctx);
+            out.push_str(&format!("- @{clean}\n"));
         }
         out.push('\n');
+    }
+
+    if let Some(ref identity) = brief.identity {
+        out.push_str(&format!("## {}\n\n", identity.heading));
+        if !identity.content.is_empty() {
+            out.push_str(&format!("{}\n\n", identity.content));
+        }
     }
 
     // Hard — descriptive register, no IMPORTANT prefix
@@ -68,6 +76,7 @@ pub fn emit_cursor(brief: &Brief) -> String {
 
     if !brief.sacred.is_empty() {
         out.push_str("## Protected Files\n\n");
+        out.push_str(&format!("{SACRED_PREAMBLE}\n\n"));
         for entry in &brief.sacred {
             out.push_str(&format!("- `{}` — {}\n", entry.path, entry.reason));
         }
@@ -99,6 +108,24 @@ pub fn emit_cursor(brief: &Brief) -> String {
     }
 
     out
+}
+
+/// Cursor `globs` is a comma-separated string (not a YAML array). Glob
+/// metacharacters are left unquoted so the documented form
+/// `globs: src/**/*.tsx` is preserved; quote only when YAML itself would
+/// misparse the value.
+fn globs_field(patterns: &[String]) -> String {
+    let joined = patterns.join(", ");
+    if joined.chars().any(|c| {
+        matches!(
+            c,
+            ':' | '#' | '\'' | '"' | '\n' | '&' | '!' | '%' | '@' | '`'
+        )
+    }) {
+        yaml_scalar(&joined)
+    } else {
+        joined
+    }
 }
 
 /// Quote a YAML scalar if it contains characters that would confuse the parser.
@@ -168,6 +195,44 @@ fn unscoped_only(brief: &Brief) -> Brief {
     b
 }
 
+/// The always-apply bundle: project-wide hard/soft only. Ask First is a
+/// description-driven (Apply Intelligently) rule; scoped constraints fan out
+/// to `globs:` files.
+fn always_apply_only(brief: &Brief) -> Brief {
+    let mut b = unscoped_only(brief);
+    b.constraints.ask_first.clear();
+    b
+}
+
+fn unscoped_ask_first(brief: &Brief) -> Vec<Constraint> {
+    brief
+        .constraints
+        .ask_first
+        .iter()
+        .filter(|c| !c.is_scoped())
+        .cloned()
+        .collect()
+}
+
+/// Render Ask First as Cursor's Apply Intelligently mode: `alwaysApply: false`,
+/// `description` set, no `globs`. The agent consults the description and loads
+/// the rule when the task might need approval.
+fn emit_ask_first_rule(brief: &Brief, items: &[Constraint]) -> String {
+    let mut out = String::new();
+    let description = format!("Ask before proceeding: {}", brief.goal);
+    out.push_str("---\n");
+    out.push_str(&format!("description: {}\n", yaml_scalar(&description)));
+    out.push_str("alwaysApply: false\n");
+    out.push_str("---\n\n");
+    out.push_str(&format!("# {} — ask first\n\n", brief.goal));
+    out.push_str("## Ask First\n\n");
+    for c in items {
+        out.push_str(&format!("- {}\n", c.text));
+    }
+    out.push('\n');
+    out
+}
+
 /// Group every scoped constraint by its exact scope set, preserving first-seen
 /// order so output is deterministic.
 fn scope_groups(brief: &Brief) -> Vec<ScopeGroup> {
@@ -210,8 +275,13 @@ fn scope_groups(brief: &Brief) -> Vec<ScopeGroup> {
 fn emit_scoped_rule(brief: &Brief, group: &ScopeGroup) -> String {
     let mut out = String::new();
     out.push_str("---\n");
-    out.push_str(&format!("description: {}\n", yaml_scalar(&brief.goal)));
-    out.push_str(&format!("globs: {}\n", group.scope.join(", ")));
+    let description = format!(
+        "{} (when working in {})",
+        brief.goal,
+        group.scope.join(", ")
+    );
+    out.push_str(&format!("description: {}\n", yaml_scalar(&description)));
+    out.push_str(&format!("globs: {}\n", globs_field(&group.scope)));
     out.push_str("alwaysApply: false\n");
     out.push_str("---\n\n");
 
@@ -238,10 +308,21 @@ fn emit_scoped_rule(brief: &Brief, group: &ScopeGroup) -> String {
 }
 
 /// Build every Cursor rule file for a brief: the always-apply base bundle
-/// (`brief.mdc`, project-wide constraints only) plus one `brief-<slug>.mdc` per
-/// distinct constraint scope, each carrying native `globs:` frontmatter.
+/// (`brief.mdc`, project-wide hard/soft), an Apply Intelligently
+/// `brief-ask-first.mdc` when unscoped Ask First exists, plus one
+/// `brief-<slug>.mdc` per distinct constraint scope with native `globs:`.
 pub fn emit_cursor_files(brief: &Brief) -> Vec<(String, String)> {
-    let mut files = vec![("brief.mdc".to_string(), emit_cursor(&unscoped_only(brief)))];
+    let mut files = vec![(
+        "brief.mdc".to_string(),
+        emit_cursor(&always_apply_only(brief)),
+    )];
+    let ask = unscoped_ask_first(brief);
+    if !ask.is_empty() {
+        files.push((
+            "brief-ask-first.mdc".to_string(),
+            emit_ask_first_rule(brief, &ask),
+        ));
+    }
     for group in scope_groups(brief) {
         files.push((group.filename(), emit_scoped_rule(brief, &group)));
     }
@@ -250,12 +331,12 @@ pub fn emit_cursor_files(brief: &Brief) -> Vec<(String, String)> {
 
 /// Install a brief's Cursor rules into `<base>/.cursor/rules/`.
 ///
-/// Writes `brief.mdc` (always-apply bundle) plus one `brief-<slug>.mdc` per
-/// scoped constraint group. Brief owns the `brief*.mdc` namespace end-to-end, so
-/// each install first removes any prior `brief-*.mdc` scoped files (a scope the
-/// brief no longer carries should not linger) and overwrites the rest — no
-/// `<brief:generated>` markers. Hand-written rules without the `brief-` prefix
-/// are never touched. Returns every path written.
+/// Writes `brief.mdc` (always-apply), `brief-ask-first.mdc` when needed, plus
+/// one `brief-<slug>.mdc` per scoped constraint group. Brief owns the `brief*.mdc`
+/// namespace end-to-end, so each install first removes any prior `brief-*.mdc`
+/// files (a scope or Ask First rule the brief no longer carries should not linger)
+/// and overwrites the rest — no `<brief:generated>` markers. Hand-written rules
+/// without the `brief-` prefix are never touched. Returns every path written.
 pub fn install_cursor(
     brief: &Brief,
     base_dir: &Path,
@@ -297,7 +378,10 @@ mod tests {
                 ..Default::default()
             },
             goal: "Add real-time notifications".into(),
-            identity: None,
+            identity: Some(Identity {
+                heading: "Identity".into(),
+                content: "Notifications team, real-time platform.".into(),
+            }),
             constraints: Constraints {
                 hard: vec![
                     "Must not degrade page load time by more than 100ms".into(),
@@ -486,7 +570,29 @@ mod tests {
         let brief = full_brief();
         let output = emit_cursor(&brief);
         assert!(output.contains("## Context"));
-        assert!(output.contains("`./docs/architecture.md`"));
+        // Cursor's native include is @path — backticks are not attached.
+        assert!(
+            output.contains("@docs/architecture.md"),
+            "expected @-reference for context, got:\n{output}"
+        );
+    }
+
+    #[test]
+    fn emit_renders_identity() {
+        let brief = full_brief();
+        let output = emit_cursor(&brief);
+        assert!(output.contains("## Identity"));
+        assert!(output.contains("Notifications team, real-time platform."));
+    }
+
+    #[test]
+    fn emit_protected_files_include_sacred_preamble() {
+        let brief = full_brief();
+        let output = emit_cursor(&brief);
+        assert!(
+            output.contains(crate::framing::SACRED_PREAMBLE),
+            "expected sacred preamble under Protected Files, got:\n{output}"
+        );
     }
 
     #[test]
@@ -572,13 +678,22 @@ mod tests {
         );
         let scoped = written
             .iter()
-            .find(|p| p.file_name().unwrap() != "brief.mdc")
+            .find(|p| {
+                let n = p.file_name().unwrap();
+                n != "brief.mdc" && n != "brief-ask-first.mdc"
+            })
             .expect("a per-scope rule file");
         let content = std::fs::read_to_string(scoped).unwrap();
         // Native Cursor glob frontmatter, scoped activation (not always-on).
         assert!(content.contains("globs: src/ui/**"), "got:\n{content}");
         assert!(content.contains("alwaysApply: false"), "got:\n{content}");
         assert!(content.contains("Use design tokens, not raw hex"));
+        let fm_end = content.find("\n---\n").expect("frontmatter");
+        let parsed: serde_yaml::Value =
+            serde_yaml::from_str(content[..fm_end].trim_start_matches("---\n"))
+                .expect("scoped frontmatter must be valid YAML");
+        assert_eq!(parsed["globs"].as_str(), Some("src/ui/**"));
+        assert_eq!(parsed["alwaysApply"].as_bool(), Some(false));
     }
 
     #[test]
@@ -596,11 +711,16 @@ mod tests {
     }
 
     #[test]
-    fn unscoped_only_brief_writes_single_file() {
+    fn unscoped_only_brief_writes_base_and_ask_first() {
         let dir = tempfile::tempdir().unwrap();
         let written = install_cursor(&full_brief(), dir.path()).unwrap();
-        assert_eq!(written.len(), 1);
-        assert_eq!(written[0].file_name().unwrap(), "brief.mdc");
+        let names: Vec<_> = written
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(written.len(), 2, "got {names:?}");
+        assert!(names.contains(&"brief.mdc".into()));
+        assert!(names.contains(&"brief-ask-first.mdc".into()));
     }
 
     #[test]
@@ -616,10 +736,51 @@ mod tests {
             .filter(|e| {
                 let n = e.file_name();
                 let n = n.to_string_lossy();
-                n.starts_with("brief-") && n.ends_with(".mdc")
+                n.starts_with("brief-") && n.ends_with(".mdc") && n != "brief-ask-first.mdc"
             })
             .collect();
         assert!(orphans.is_empty(), "orphaned scoped files: {orphans:?}");
+    }
+
+    #[test]
+    fn unscoped_ask_first_fans_out_to_intelligent_rule() {
+        let dir = tempfile::tempdir().unwrap();
+        let written = install_cursor(&full_brief(), dir.path()).unwrap();
+        let ask = written
+            .iter()
+            .find(|p| p.file_name().unwrap() == "brief-ask-first.mdc")
+            .expect("ask-first rule file");
+        let content = std::fs::read_to_string(ask).unwrap();
+        assert!(content.contains("alwaysApply: false"), "got:\n{content}");
+        let fm_end = content.find("\n---\n").expect("frontmatter");
+        let fm = &content[..fm_end];
+        assert!(
+            !fm.contains("globs:"),
+            "intelligent mode omits globs:\n{fm}"
+        );
+        assert!(content.contains("## Ask First"));
+        assert!(content.contains("Changes to the notification schema"));
+
+        let base = std::fs::read_to_string(dir.path().join(".cursor/rules/brief.mdc")).unwrap();
+        assert!(
+            !base.contains("Changes to the notification schema"),
+            "ask-first leaked into always-apply bundle:\n{base}"
+        );
+        assert!(!base.contains("## Ask First"));
+    }
+
+    #[test]
+    fn brief_without_ask_first_does_not_write_intelligent_rule() {
+        let mut brief = full_brief();
+        brief.constraints.ask_first.clear();
+        let dir = tempfile::tempdir().unwrap();
+        let written = install_cursor(&brief, dir.path()).unwrap();
+        assert!(
+            written
+                .iter()
+                .all(|p| p.file_name().unwrap() != "brief-ask-first.mdc"),
+            "unexpected ask-first file: {written:?}"
+        );
     }
 
     // -- install_cursor --

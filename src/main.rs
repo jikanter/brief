@@ -50,8 +50,8 @@ enum Commands {
         #[arg(long)]
         install: bool,
 
-        /// Also register the sacred-region PreToolUse hook in .claude/settings.json
-        /// (claude target only; implies --install)
+        /// Also register the sacred-region hook (`claude`: `.claude/settings.json`;
+        /// `cursor`: `.cursor/hooks.json`). Implies --install.
         #[arg(long)]
         hooks: bool,
 
@@ -82,8 +82,8 @@ enum Commands {
 
     /// Check if a file path falls within a sacred region
     ///
-    /// With --hook, reads a Claude Code PreToolUse event on stdin and denies the
-    /// edit when the target file is sacred (for use as a settings.json hook).
+    /// With --hook, reads a Claude Code PreToolUse or Cursor preToolUse event
+    /// on stdin and denies the edit when the target file is sacred.
     #[command(verbatim_doc_comment)]
     Check {
         /// The file path to check (omit when using --hook)
@@ -522,11 +522,13 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         uninstall,
     } = args;
 
-    // --hooks / --full / --uninstall / --position are claude-only (they touch
+    // --full / --uninstall / --position are claude-only (they touch
     // CLAUDE.md, .claude/settings.json, and .claude/skills).
+    // --hooks is claude or cursor (sacred-region PreToolUse / preToolUse).
     let claude = matches!(target, EmitTarget::Claude);
-    if hooks && !claude {
-        anyhow::bail!("--hooks is only supported for the claude target");
+    let cursor = matches!(target, EmitTarget::Cursor);
+    if hooks && !(claude || cursor) {
+        anyhow::bail!("--hooks is only supported for the claude and cursor targets");
     }
     if full && !claude {
         anyhow::bail!("--full is only supported for the claude target");
@@ -649,6 +651,15 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
                         path.display()
                     );
                 }
+                if hooks {
+                    let settings = install_cursor_pretooluse_hook()
+                        .context("Failed to register preToolUse hook in .cursor/hooks.json")?;
+                    println!(
+                        "{} sacred-region preToolUse hook in {}",
+                        "Registered".green().bold(),
+                        settings.display()
+                    );
+                }
             }
             EmitTarget::Copilot => {
                 let base = std::env::current_dir().context("Failed to get current directory")?;
@@ -761,6 +772,17 @@ fn report_budget(
             target.label(),
             report.chars,
             report.char_limit.unwrap(),
+            target.label()
+        );
+    }
+
+    if report.over_lines() {
+        eprintln!(
+            "{} {} output is {} lines, over the {}-line {} rule-size guidance; split the brief (never silently truncated)",
+            "warning:".yellow().bold(),
+            target.label(),
+            report.lines,
+            report.line_limit.unwrap(),
             target.label()
         );
     }
@@ -939,7 +961,7 @@ fn run_check_hook(brief: &brief_cli::model::Brief, base_dir: &std::path::Path) -
         let pattern = result.matching_pattern.as_deref().unwrap_or("unknown");
         let reason = result.reason.as_deref().unwrap_or("");
         let msg = format!("{raw_path} is in sacred region `{pattern}` — {reason}");
-        println!("{}", brief_cli::hooks::deny_json(&msg));
+        println!("{}", brief_cli::hooks::deny_for_event(&buf, &msg));
     }
     Ok(())
 }
@@ -952,6 +974,23 @@ fn install_pretooluse_hook() -> Result<PathBuf> {
 
     let existing = std::fs::read_to_string(&settings_path).ok();
     let updated = brief_cli::hooks::ensure_pretooluse_hook(existing.as_deref())?;
+
+    std::fs::create_dir_all(&settings_dir)
+        .with_context(|| format!("Failed to create {}", settings_dir.display()))?;
+    std::fs::write(&settings_path, format!("{updated}\n"))
+        .with_context(|| format!("Failed to write {}", settings_path.display()))?;
+
+    Ok(settings_path)
+}
+
+/// Merge the sacred-region preToolUse hook into `.cursor/hooks.json`
+/// (idempotent). Returns the hooks.json path written.
+fn install_cursor_pretooluse_hook() -> Result<PathBuf> {
+    let settings_dir = PathBuf::from(".cursor");
+    let settings_path = settings_dir.join("hooks.json");
+
+    let existing = std::fs::read_to_string(&settings_path).ok();
+    let updated = brief_cli::hooks::ensure_cursor_pretooluse_hook(existing.as_deref())?;
 
     std::fs::create_dir_all(&settings_dir)
         .with_context(|| format!("Failed to create {}", settings_dir.display()))?;

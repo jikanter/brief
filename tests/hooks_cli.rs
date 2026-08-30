@@ -37,6 +37,24 @@ fn hook_denies_edit_to_sacred_file() {
 }
 
 #[test]
+fn hook_denies_cursor_write_with_permission_field() {
+    let dir = tempdir().unwrap();
+    let brief = write_brief(dir.path());
+
+    let event = r#"{"hook_event_name":"preToolUse","cursor_version":"2.4.0","tool_name":"Write","tool_input":{"file_path":"src/auth/handler.rs"}}"#;
+    bin()
+        .arg("--file")
+        .arg(&brief)
+        .arg("check")
+        .arg("--hook")
+        .write_stdin(event)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"permission\":\"deny\""))
+        .stdout(predicate::str::contains("Authentication boundary"));
+}
+
+#[test]
 fn hook_allows_edit_to_normal_file() {
     let dir = tempdir().unwrap();
     let brief = write_brief(dir.path());
@@ -121,7 +139,24 @@ fn install_hooks_is_idempotent() {
 }
 
 #[test]
-fn hooks_flag_rejected_for_non_claude_target() {
+fn hooks_flag_rejected_for_unsupported_target() {
+    let dir = tempdir().unwrap();
+    write_brief(dir.path());
+
+    bin()
+        .current_dir(dir.path())
+        .arg("emit")
+        .arg("copilot")
+        .arg("--hooks")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "only supported for the claude and cursor targets",
+        ));
+}
+
+#[test]
+fn install_hooks_registers_cursor_hooks_json() {
     let dir = tempdir().unwrap();
     write_brief(dir.path());
 
@@ -129,10 +164,15 @@ fn hooks_flag_rejected_for_non_claude_target() {
         .current_dir(dir.path())
         .arg("emit")
         .arg("cursor")
+        .arg("--install")
         .arg("--hooks")
         .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "only supported for the claude target",
-        ));
+        .success()
+        .stdout(predicate::str::contains("Registered"));
+
+    let hooks = fs::read_to_string(dir.path().join(".cursor/hooks.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&hooks).unwrap();
+    assert_eq!(v["version"], 1);
+    assert_eq!(v["hooks"]["preToolUse"][0]["command"], "brief check --hook");
+    assert_eq!(v["hooks"]["preToolUse"][0]["matcher"], "Write");
 }

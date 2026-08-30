@@ -13,6 +13,10 @@ The format is deliberately **not** a DSL. It rides on Markdown so any developer
 can author it with zero learning curve and any tool can render it. Structure
 comes from headings and a small set of conventions, not from new syntax.
 
+The canonical **machine** form of a parsed brief is JSON Schema Draft 2020-12:
+[schema/brief-v1.schema.json](schema/brief-v1.schema.json), specified in
+[schema/SPEC.md](schema/SPEC.md). `brief emit json` writes that object.
+
 ---
 
 ## 1. File shape
