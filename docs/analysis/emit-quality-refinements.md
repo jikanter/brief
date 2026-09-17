@@ -1,7 +1,7 @@
 # Emit Quality Refinements
 
 **Status:** Forward-looking analysis extending [phase2-synthesis.md](phase2-synthesis.md) §P0 and §P6.
-**Source:** Extracted 2026-04-11 from [archive/flexibility-gap.md](archive/flexibility-gap.md) and [archive/format-expressiveness.md](archive/format-expressiveness.md) — refinements the original archives surfaced that are not yet captured in the live roadmap.
+**Source:** Extracted 2026-04-11 from `archive/flexibility-gap.md` and `archive/format-expressiveness.md` (both removed from the tree in b2b8518; recoverable with `git show a466afa:docs/analysis/<path>`) — refinements the original archives surfaced that are not yet captured in the live roadmap.
 
 Phase 2 synthesis established the core emit-quality thesis: the emitter is a prompt engineering problem, not a template rendering problem. NEVER/MUST/PREFER/STOP framing, primacy/recency section ordering, and sacred region reframing are in the live roadmap. This document captures the *refinements* to that thesis that came out of the archived reports and deserve to outlive them.
 

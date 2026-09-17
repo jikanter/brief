@@ -2,7 +2,7 @@
 
 **Tool:** Linear (Projects = Epics, Issues = Stories, Sub-issues = tasks)
 **Repo:** `https://github.com/jikanter/brief`
-**Design doc:** `brief-design-doc.md` (companion, v2)
+**Design doc:** [new-surfaces-design-doc.md](new-surfaces-design-doc.md) (companion, v2)
 **Author:** Jordan Kanter
 **Last updated:** 2026-08-30
 

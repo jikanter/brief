@@ -5,6 +5,8 @@ description: Walk the YAGNI bar before adding a new field to .brief.md frontmatt
 
 You are evaluating a proposal to add a new field to `.brief.md` frontmatter. Brief has rejected several proposed fields (`extends`, `environment`, `permissions.deny`) because they failed checks like the ones below. Your job is to walk the proposer through the bar and produce a verdict.
 
+Scope: task fields of the `Frontmatter` type only. Document-provenance keys (`dateModified`, `isBasedOn`, `superseded_by`, …) are not `Frontmatter` fields; they are governed by `docs/design/provenance-schema.md` §1.1. If the proposal is one of those, say so and stop.
+
 ## The bar (all six must pass)
 
 1. **Task-specific.** Does the value change task-to-task within the same project? If it would be the same across every brief in this repo, it's standing context — belongs in CLAUDE.md, not `.brief.md`.

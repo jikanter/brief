@@ -46,7 +46,9 @@ Root `$ref` composition:
 | `## Deliverable` | `/deliverable` | Prose string, or `null`. |
 | Other `##` headings | `/unknown_sections[]` | `{ heading, content }` raw Markdown. |
 
-Unrecognized YAML keys are **ignored** (forward-compatible). They do not appear in canonical JSON. New frontmatter fields must pass the [YAGNI bar](../design/frontmatter-additions.md).
+Unrecognized YAML keys are **ignored** (forward-compatible). They do not appear in canonical JSON, and any command that rewrites the file conserves them byte-identical. New frontmatter fields must pass the [YAGNI bar](../design/frontmatter-additions.md).
+
+Document-provenance keys (`dateModified`, `isBasedOn`, …) are such unrecognized keys as far as this schema is concerned. They are specified separately in [provenance-schema.md](../design/provenance-schema.md) §1.1 and are not part of `Frontmatter` or of canonical JSON.
 
 ## 3. Constraint object
 

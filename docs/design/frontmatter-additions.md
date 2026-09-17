@@ -2,6 +2,8 @@
 
 A six-check bar for adding fields to `.brief.md` frontmatter. Add a field only when **all six** checks pass. Any "no" defers the decision until that check flips.
 
+**Scope:** the task fields of the Rust `Frontmatter` type ([schema](../schema/brief-frontmatter-v1.schema.json)). Document-provenance keys (`dateModified`, `isBasedOn`, …) are a separate vocabulary with its own admission rule — see [provenance-schema.md](provenance-schema.md) §1.1. Moving a provenance key into `Frontmatter` would have to pass this bar.
+
 For in-conversation use, invoke the `frontmatter-yagni` skill ([.claude/skills/frontmatter-yagni/SKILL.md](../../.claude/skills/frontmatter-yagni/SKILL.md)) — it walks proposers through the checks. This doc is the reference and rationale.
 
 ## The bar
@@ -26,6 +28,8 @@ For in-conversation use, invoke the `frontmatter-yagni` skill ([.claude/skills/f
 | `skill_name`, `skill_description` | ✅ added | Driven by skill emit target |
 | `extends:` (composition) | ❌ rejected | Fails 2 (two-file composition exists), 4 (ambiguous semantics), 5 (wrong direction) |
 | `environment:` | ❌ rejected | Fails 1 (standing context), 5 (infrastructure drift) |
+| `brief_version` | ✅ added | Format version; renamed from `version` after 0.6.x |
+| provenance keys (`dateModified`, …) | Out of scope | Not `Frontmatter` fields; ignored by the brief parser, governed by [provenance-schema.md](provenance-schema.md) |
 | `commands:` | Deferred | 0/6 pass — see [../open-questions.md](../open-questions.md) `[format]` Frontmatter-Only Commands for the walkthrough |
 | `cassettes:` / `## Fixtures` | Deferred | 2/6 fail firmly, 3 soft — eval-replay binding for the astrophage tool; see [../open-questions.md](../open-questions.md) `[format]` Cassette / `## Fixtures` Field for the walkthrough. Companion to aichat `SPEC-astrophage.md`. |
 

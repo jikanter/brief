@@ -1,2 +1,5 @@
 [ ] - Brief currently strips markdown links from soft sections
 [ ] - Brief still does not emit valid markdown (no spaces between headings and body). 
+[ ] - `brief check` flags non-sacred files: `flat/**` marks `flatter/x.md` sacred. `src/check.rs` falls back to a string `starts_with` on the pattern with `/**` trimmed, so `src/auth/**` also blocks `src/authz/` and `src/authentication/`. Reaches the sacred-region hooks, which then refuse legitimate edits. Fix brief: `bugfix-sacred-glob-aider.brief.md`.
+[ ] - `brief validate` warns "Sacred path `dir/**` matches no files" when `dir` holds files but no subdirectories. `glob::glob` yields only directories for a trailing `**`. `brief check` on the same pattern works, and the constraint-scope check in the same file already guards with `directory_prefix_exists`; the sacred check does not. Workaround: write `dir/*`.
+[ ] - `brief emit aider --install` drops comments from a user's `.aider.conf.yml`. `merge_aider_conf` deserializes the file and re-emits it, so a leading `# comment` and an inline `read: other.md # keep` are both lost. Breaks the non-destructive-install hard constraint.

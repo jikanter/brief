@@ -70,9 +70,15 @@ A pipeline sustaining 10M events/day with no v2 API breakage.
 | `skill_name` | `string` | no | kebab-case name for an emitted Agent Skill. |
 | `skill_description` | `string` | no | One-line description for an emitted Agent Skill. |
 
-Unknown frontmatter keys are ignored (forward-compatible). New fields are added
+Unknown frontmatter keys are ignored (forward-compatible) and conserved
+byte-identical by any command that rewrites the file. New fields are added
 only when they clear the YAGNI bar in
 [design/frontmatter-additions.md](design/frontmatter-additions.md).
+
+Document-provenance keys (`dateModified`, `isBasedOn`, `superseded_by`, …) are
+not fields of this table. They are a separate vocabulary that can sit in the
+frontmatter of any Markdown file brief reads, specified in
+[design/provenance-schema.md](design/provenance-schema.md) (draft).
 
 The machine form of this table is
 [schema/brief-frontmatter-v1.schema.json](schema/brief-frontmatter-v1.schema.json),
