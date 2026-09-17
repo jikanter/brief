@@ -107,6 +107,16 @@ of a *parsed* brief (what `brief emit json` writes) is
 [docs/schema/brief-v1.schema.json](docs/schema/brief-v1.schema.json), specified
 in [docs/schema/SPEC.md](docs/schema/SPEC.md).
 
+`brief validate` also reads the frontmatter of the brief and of each local
+`context:` document and reports what their provenance keys say: a `isBasedOn`
+or `superseded_by` pointing at a missing file, a context document that has been
+superseded, a `dateModified` older than the file's last commit. All of it is
+advisory — these keys live in documents brief did not write, so none of it is an
+error and none of it changes the exit code. `brief validate --hints` adds the
+one check that is noise on a long-lived brief: a context document edited more
+recently than the brief pointing at it. The vocabulary is specified in
+[docs/design/provenance-schema.md](docs/design/provenance-schema.md).
+
 `emit xml` exists for one reason: a Markdown heading ends only when the next
 heading appears, so a briefing concatenated with untrusted or bulky content (a
 diff, a file bundle, tool output) inside a CI prompt has no section terminus.

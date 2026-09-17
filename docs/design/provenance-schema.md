@@ -1,6 +1,6 @@
 # Brief Provenance Vocabulary v0.1
 
-**Status:** Draft for implementation
+**Status:** Implemented in 0.6.2 (`src/provenance.rs`, `src/provenance_check.rs`, `brief validate`)
 **Scope:** `brief` reads, validates, and conserves document provenance in YAML frontmatter. `brief` does not author provenance for documents it did not generate.
 **Companions:** [brief-format.md §2](../brief-format.md) and [schema/SPEC.md](../schema/SPEC.md) (the `.brief.md` `Frontmatter` schema), [frontmatter-additions.md](frontmatter-additions.md) (the YAGNI bar). §1.1 states how they fit together.
 
@@ -182,7 +182,7 @@ Canonical form wins on conflict. Top-level always beats `metadata.brief.*`. **Ne
 7. **`tags` is untouchable.** Read it if useful; never write, validate, reorder, or reflow it. Reordering it turns brief into diff noise in someone's vault.
 
 8. **Preserving round-trip.** Mutate only owned keys and splice text back. Do not deserialize-and-reemit a file a human owns — that eats foreign keys, comments, and key ordering.
-   - Implementation note: `serde-saphyr` replaces the archived `serde_yaml` as the single YAML parser for both `Frontmatter` and the provenance pass (one parser, one set of scalar-typing rules). Writes stay line splices, generalizing `set_brief_source` in `src/skill.rs`; `serde-saphyr`'s `Spanned<T>` is available if a write ever needs a span.
+   - Shipped: `serde-saphyr` replaced the archived `serde_yaml` as the single YAML parser for both `Frontmatter` and the provenance pass (one parser, one set of scalar-typing rules). Writes are line splices through `set_brief_metadata` in `src/skill.rs`; `serde-saphyr`'s `Spanned<T>` is available if a write ever needs a span. One behavior change came with the swap: a plain `null` inside a `Vec<String>` is now a parse error rather than the literal string `"null"`.
 
 ---
 

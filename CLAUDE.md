@@ -156,7 +156,7 @@ brief/
 
 Use minimal, well-maintained crates:
 - `clap` (derive) — CLI argument parsing
-- `serde`, `serde_yaml` — frontmatter parsing
+- `serde`, `serde-saphyr` — frontmatter parsing (`serde_yaml` is archived and comment-lossy)
 - `serde_json` — JSON emit
 - `glob` — Sacred path matching
 - `pulldown-cmark` — Markdown parsing (heading tree extraction)

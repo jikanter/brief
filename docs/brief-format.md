@@ -78,7 +78,9 @@ only when they clear the YAGNI bar in
 Document-provenance keys (`dateModified`, `isBasedOn`, `superseded_by`, …) are
 not fields of this table. They are a separate vocabulary that can sit in the
 frontmatter of any Markdown file brief reads, specified in
-[design/provenance-schema.md](design/provenance-schema.md) (draft).
+[design/provenance-schema.md](design/provenance-schema.md). `brief validate`
+reads them for the brief and its local `context:` docs and reports them as
+warnings, or as hints under `--hints`; none of them is an error.
 
 The machine form of this table is
 [schema/brief-frontmatter-v1.schema.json](schema/brief-frontmatter-v1.schema.json),
