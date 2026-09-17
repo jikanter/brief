@@ -18,22 +18,28 @@ pub fn scaffold_brief(dir: &Path) -> String {
     if !context.is_empty() {
         out.push_str(&format!("context: [{}]\n", context.join(", ")));
     }
+
+    // add author and version to the metadata section
+    
+    out.push_str("metadata: \n");
+    out.push_str("  author: \"<your name>\"\n");
+    out.push_str("  version: \"0.0.1\"\n");
     out.push_str("---\n\n");
 
     // Goal placeholder
     out.push_str("# <Describe your goal here>\n\n");
 
     // Constraints
-    out.push_str("## Constraints\n\n");
-    out.push_str("### Hard\n");
+    out.push_str("## Constraints\n\n\n");
+    out.push_str("### Hard\n\n");
     out.push_str("- <non-negotiable constraint>\n\n");
-    out.push_str("### Soft\n");
+    out.push_str("### Soft\n\n");
     out.push_str("- <preferred but flexible constraint>\n\n");
-    out.push_str("### Ask First\n");
+    out.push_str("### Ask First\n\n");
     out.push_str("- <requires human approval before proceeding>\n\n");
 
     // Sacred
-    out.push_str("## Sacred\n");
+    out.push_str("## Sacred\n\n");
     if sacred_candidates.is_empty() {
         out.push_str("- `<path/to/protected/code>` — <reason>\n");
     } else {
@@ -44,11 +50,11 @@ pub fn scaffold_brief(dir: &Path) -> String {
     out.push('\n');
 
     // Assumptions
-    out.push_str("## Assumptions\n");
+    out.push_str("## Assumptions\n\n");
     out.push_str("- [ ] <assumption to validate>\n\n");
 
     // Deliverable
-    out.push_str("## Deliverable\n");
+    out.push_str("## Deliverable\n\n");
     out.push_str("<Describe what \"done\" looks like>\n");
 
     out
@@ -131,10 +137,16 @@ fn extract_version_number(s: &str) -> Option<&str> {
 fn detect_context(dir: &Path) -> Vec<String> {
     let candidates = [
         "README.md",
+        "INDEX.md",
+        "docs/ROADMAP.md",
         "docs/architecture.md",
+        "docs/architecture.svg",
         "docs/ARCHITECTURE.md",
         "CONTRIBUTING.md",
+        "docs/design-decisions.md",
         "docs/design.md",
+        "roadmap/README.md",
+        "CHANGELOG"
     ];
 
     candidates
@@ -205,6 +217,9 @@ mod tests {
         let output = scaffold_brief(tmp.path());
         assert!(output.contains("---\n"));
         assert!(output.contains("stack:"));
+        assert!(output.contains("metadata:"));
+        assert!(output.contains("  author:"));
+        assert!(output.contains("  version:"));
         assert!(output.contains("# <Describe your goal here>"));
         assert!(output.contains("## Constraints"));
         assert!(output.contains("### Hard"));

@@ -1,6 +1,9 @@
 ---
 stack: [Python 3.12, PostgreSQL 16, Kafka 3.7, GCP/k8s]
 context: [./docs/current-architecture.md, ./benchmarks/performance-baseline.csv]
+metadata:
+  author: "Jordan Kanter <jikanter@gmail.com>"
+  version: "0.0.1"
 ---
 
 # Redesign event pipeline for 10M events/day
