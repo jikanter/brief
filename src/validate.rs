@@ -89,16 +89,14 @@ pub fn validate_with(
 
     // 5. Check sacred globs match at least one file
     for entry in &brief.sacred {
-        let pattern = base_dir.join(&entry.path).to_string_lossy().to_string();
-        match glob::glob(&pattern) {
-            Ok(paths) => {
-                if paths.count() == 0 {
-                    diagnostics.push(Diagnostic {
-                        severity: Severity::Warning,
-                        message: format!("Sacred path `{}` matches no files", entry.path),
-                    });
-                }
+        match crate::pathmatch::pattern_matches_any_file(base_dir, &entry.path) {
+            Ok(false) => {
+                diagnostics.push(Diagnostic {
+                    severity: Severity::Warning,
+                    message: format!("Sacred path `{}` matches no files", entry.path),
+                });
             }
+            Ok(true) => {}
             Err(e) => {
                 diagnostics.push(Diagnostic {
                     severity: Severity::Warning,
@@ -120,16 +118,14 @@ pub fn validate_with(
         .filter(|c| c.is_scoped());
     for constraint in scoped {
         for glob_pat in &constraint.scope {
-            let pattern = base_dir.join(glob_pat).to_string_lossy().to_string();
-            match glob::glob(&pattern) {
-                Ok(paths) => {
-                    if paths.count() == 0 && !directory_prefix_exists(base_dir, glob_pat) {
-                        diagnostics.push(Diagnostic {
-                            severity: Severity::Warning,
-                            message: format!("Constraint scope `{glob_pat}` matches no files"),
-                        });
-                    }
+            match crate::pathmatch::pattern_matches_any_file(base_dir, glob_pat) {
+                Ok(false) => {
+                    diagnostics.push(Diagnostic {
+                        severity: Severity::Warning,
+                        message: format!("Constraint scope `{glob_pat}` matches no files"),
+                    });
                 }
+                Ok(true) => {}
                 Err(e) => {
                     diagnostics.push(Diagnostic {
                         severity: Severity::Warning,
@@ -186,19 +182,6 @@ pub fn validate_with(
     ));
 
     diagnostics
-}
-
-/// For a directory-prefix scope (`src/ui/**`, `src/ui/`), the `glob` crate does
-/// not expand a trailing `/**` to the directory's direct children, so a literal
-/// glob count of zero is not proof the scope is dead. Fall back to checking that
-/// the prefix directory exists. Arbitrary globs (`**/*.test.ts`) have no such
-/// prefix and rely solely on the glob match.
-fn directory_prefix_exists(base_dir: &Path, glob_pat: &str) -> bool {
-    if !crate::model::Constraint::is_directory_prefix(glob_pat) {
-        return false;
-    }
-    let prefix = glob_pat.trim_end_matches("/**").trim_end_matches('/');
-    !prefix.is_empty() && base_dir.join(prefix).is_dir()
 }
 
 /// A constraint is vague when it is short *and* names nothing concrete — no
