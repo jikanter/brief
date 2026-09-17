@@ -1,0 +1,58 @@
+<brief>
+<goal>Build real-time collaborative document editor</goal>
+<stack>TypeScript 5.4, React 18, PostgreSQL 16, Redis 7, AWS ECS</stack>
+
+<context>
+<file>docs/architecture.md</file>
+<file>docs/api-spec.yaml</file>
+<file>README.md</file>
+</context>
+
+<constraints>
+<hard>
+<rule>MUST: WebSocket connections must support 10k concurrent users per node</rule>
+<rule>MUST: All data mutations go through event sourcing, no direct DB writes</rule>
+<rule>MUST: WCAG 2.1 AA compliance on all new UI components</rule>
+<rule>MUST: pass existing E2E test suite before merge</rule>
+<rule>MUST: pass CI (REQUIRED)</rule>
+</hard>
+<soft>
+<rule>PREFER: Yjs over Automerge for CRDT implementation</rule>
+<rule>PREFER: Keep bundle size under 200KB gzipped for editor module</rule>
+<rule>PREFER: Use server-sent events for read-only viewers when possible</rule>
+</soft>
+<ask-first>
+<rule>STOP and confirm with the user before: Changes to the shared state schema</rule>
+<rule>STOP and confirm with the user before: New npm dependencies over 50KB</rule>
+<rule>STOP and confirm with the user before: Modifications to the WebSocket gateway</rule>
+<rule>STOP and confirm with the user before: Any changes to authentication flow</rule>
+</ask-first>
+</constraints>
+
+<sacred>
+<region path="src/core/crdt-engine/**">Battle-tested CRDT implementation, 2 years of edge case fixes</region>
+<region path="src/auth/**">SOC2 audited authentication module</region>
+<region path="migrations/**">Historical migrations must never be altered</region>
+<region path="e2e/">End-to-end test suite, modify only by adding new tests</region>
+</sacred>
+
+<assumptions>
+<unvalidated>Redis pub/sub can handle cross-node message fanout at 10k users</unvalidated>
+<unvalidated>Yjs document size stays under 5MB for typical documents</unvalidated>
+<unvalidated>Browser IndexedDB is sufficient for offline draft storage</unvalidated>
+<validated>Existing REST API can coexist with WebSocket gateway</validated>
+</assumptions>
+
+<deliverable>Working collaborative editor with real-time cursor presence, conflict-free
+concurrent editing, offline support with sync-on-reconnect, and comprehensive
+test coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.</deliverable>
+
+<section name="Commands">- Build: `npm run build`
+- Test: `npm test`
+- Lint: `npm run lint`
+- Type Check: `tsc --noEmit`</section>
+
+<section name="Code Style">- Use TypeScript strict mode for all new files
+- Prefer functional components with hooks over class components
+- Use `zod` for runtime type validation at API boundaries</section>
+</brief>

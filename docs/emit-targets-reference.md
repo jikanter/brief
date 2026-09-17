@@ -44,6 +44,53 @@ The single most reusable cross-backend artifact. A compact catalog of the axes a
 
 ---
 
+## Stdout targets (no install surface)
+
+Four targets have no canonical on-disk location and are never installed —
+`brief emit <target> --install` fails and tells you so. They are written to
+stdout to be piped or redirected by the caller.
+
+| Target | Shape | Use |
+|---|---|---|
+| `prompt` | Plain text, section headers in caps | A system prompt for a raw API call. |
+| `anchor` | ≤5 lines, NEVER/MUST framed | Re-injection mid-session when the original briefing has aged out of attention. |
+| `json` | Canonical JSON ([SPEC.md](schema/SPEC.md)) | Tooling that consumes the parsed brief. |
+| `xml` | XML envelope, one element per section | A briefing concatenated with untrusted or bulky content. |
+
+### Why `xml`
+
+Not token efficiency — the wrapper costs about 1% of a context budget, and
+`--budget` / `--compact` are where savings live. XML earns its place because
+**an explicit closing tag gives every section a terminus.** A Markdown heading
+ends only when the next heading appears, so a diff, a file bundle, or tool
+output appended to a briefing inside a CI prompt can read as a continuation of
+its last section. `</sacred>` cannot be pushed open that way.
+
+Consequences, each load-bearing:
+
+- **Escaping, not CDATA.** Everything authored is escaped (`&`, `<`, `>`; plus
+  `"` in attributes), so `Record<T>`, `a && b`, and fenced code blocks survive
+  and cannot terminate a tag early. CDATA was rejected: a `]]>` in authored
+  content re-creates exactly the boundary problem this target removes, and CDATA
+  cannot nest.
+- **Fragment, not document.** No XML declaration, no namespaces; lowercase
+  semantic tags following Anthropic's documented prompt-structuring shape.
+- **Attributes for metadata, elements for prose.** `<rule scope="src/ui/**">`,
+  `<region path="src/auth/**">`, `<section name="Commands">`.
+- **Deterministic.** Byte-identical for identical input. Pinned by a golden file
+  plus a real-XML-parser test over every fixture
+  (`tests/emit_xml_tests.rs`); regenerate the golden with
+  `BLESS_GOLDEN=1 cargo test --test emit_xml_tests`.
+- **Sacred globs are normative**: emitted verbatim, never expanded against the
+  working tree.
+
+`--compact` and `--budget` behave as they do for every other target: `--compact`
+reduces the `Brief` IR before the emitter runs, so it strips reference prose but
+can never drop a Hard constraint or a Sacred path, and the output stays
+well-formed.
+
+---
+
 ## Action checklist when implementing a new backend
 
 For anyone sitting down to build a P4 emitter, this is the minimal pass before writing code:

@@ -40,6 +40,11 @@ brief emit prompt --compact     # strip reference prose; keep only the essential
 # Compact, re-injectable constraint anchor (NEVER/MUST framed, <=5 lines)
 brief emit anchor
 
+# Machine-readable stdout targets (no --install: pipe or redirect them)
+brief emit json                 # the parsed briefing as canonical JSON
+brief emit xml                  # XML envelope: every section has a closing tag
+brief emit xml > brief.xml      # ...so a payload appended after it cannot bleed in
+
 # Lint the briefing (flags vague constraints; --install warns on conflicts)
 brief validate
 
@@ -101,6 +106,14 @@ binary, with a test that fails if the committed copy drifts. The canonical JSON
 of a *parsed* brief (what `brief emit json` writes) is
 [docs/schema/brief-v1.schema.json](docs/schema/brief-v1.schema.json), specified
 in [docs/schema/SPEC.md](docs/schema/SPEC.md).
+
+`emit xml` exists for one reason: a Markdown heading ends only when the next
+heading appears, so a briefing concatenated with untrusted or bulky content (a
+diff, a file bundle, tool output) inside a CI prompt has no section terminus.
+`</sacred>` does. Every authored value is escaped, so `Record<T>`, `a && b`, and
+fenced code blocks survive intact and cannot close a tag early. It is not a
+token optimization — the wrapper costs more than it saves; `--budget` and
+`--compact` are where savings live.
 
 See [examples/sample.brief.md](examples/sample.brief.md) for a complete example. Also see [tests/fixtures](tests/fixtures/) for the tested examples of well-formed and malformed brief documents.
 

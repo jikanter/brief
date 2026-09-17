@@ -695,7 +695,21 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
                     println!("{} {}", "Installed".green().bold(), path.display());
                 }
             }
-            EmitTarget::Prompt | EmitTarget::Anchor | EmitTarget::Json | EmitTarget::Xml => {
+            // The XML envelope is a stdout/pipe target consumed by a CI step:
+            // there is no canonical on-disk location to install it to, and
+            // inventing a dotfile path would be worse than refusing. Say that,
+            // and point at the target that does install.
+            EmitTarget::Xml => {
+                anyhow::bail!(
+                    "--install is only supported for the claude, agents-md, cursor, copilot, \
+                     windsurf, and aider targets.\n\
+                     The xml target has no canonical on-disk location: it is a stdout/pipe \
+                     target meant to be consumed by the process you pipe it into. Redirect it \
+                     yourself (`brief emit xml > brief.xml`), or install a briefing an agent \
+                     reads with `brief emit claude --install`."
+                );
+            }
+            EmitTarget::Prompt | EmitTarget::Anchor | EmitTarget::Json => {
                 anyhow::bail!(
                     "--install is only supported for the claude, agents-md, cursor, copilot, windsurf, and aider targets"
                 );

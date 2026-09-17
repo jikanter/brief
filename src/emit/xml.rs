@@ -1,10 +1,35 @@
-//! XML emit target — Anthropic-style XML tags for system prompts.
+//! XML emit target — a hard-boundary envelope for injection-adjacent contexts.
 //!
-//! Anthropic's prompting docs recommend XML tags as the canonical structuring
-//! convention for instructions. This emitter renders a `Brief` into an
-//! XML-tagged form suitable for piping into a Claude API system prompt. It is
-//! intentionally not an XML document (no `<?xml ?>` declaration, no DTD): the
-//! output is prompt content for an LLM, not data for an XML parser.
+//! **Why this target exists.** It is not a token-efficiency play: the wrapper is
+//! worth roughly 1% of a context budget, and `--budget` / `--compact` are where
+//! savings actually live. XML earns its place for one reason — **an explicit
+//! closing tag gives every section a terminus.** A Markdown heading ends only
+//! when the next heading appears, which is a real failure mode when a briefing
+//! is concatenated with untrusted or bulky content (a diff, a file bundle, tool
+//! output) inside a CI prompt. `</sacred>` cannot be pushed open by a payload
+//! that happens to contain `## Sacred`. That is the whole rationale; please do
+//! not re-litigate this as a token optimization.
+//!
+//! Consequences of that goal, each load-bearing:
+//!
+//! - **Escaping, not CDATA.** Every authored value is escaped (`&`, `<`, `>` in
+//!   text; plus `"` in attributes), so `Record<T>`, `a && b`, and a fenced code
+//!   block survive intact and cannot terminate a tag early. CDATA was rejected:
+//!   it re-introduces exactly the boundary problem this target exists to remove
+//!   (a `]]>` inside authored content ends the section early), and it cannot
+//!   nest. Escaping has no such escape hatch — the output is always well-formed.
+//! - **No XML declaration and no namespaces.** The output is a fragment meant to
+//!   be embedded in a prompt, and the tag vocabulary is lowercase and semantic,
+//!   following Anthropic's documented prompt-structuring shape.
+//! - **Deterministic.** Byte-identical for identical input: no timestamps, no
+//!   paths, no map iteration. `tests/emit_xml_tests.rs` pins this, parses every
+//!   fixture's output with a real XML parser, and holds a golden file.
+//! - **No install surface.** There is no canonical on-disk location for an XML
+//!   envelope; it is a stdout/pipe target consumed by a CI step, so
+//!   `brief emit xml --install` fails rather than inventing a dotfile.
+//!
+//! Section ordering lives in `emit_xml` alone, so a future dialect variant could
+//! reuse it. That flag is deliberately not built.
 
 use crate::framing::{frame_ask_first, frame_hard, frame_soft};
 use crate::model::{Brief, Constraint};
@@ -27,6 +52,18 @@ pub fn emit_xml(brief: &Brief) -> String {
     out.push_str("<brief>\n");
 
     out.push_str(&format!("<goal>{}</goal>\n", escape_xml(&brief.goal)));
+
+    // Identity is authored prose about who the briefing is for; it is carried
+    // here rather than dropped, so the envelope stays lossless against the
+    // source. `--compact` removes it upstream, with the rest of the reference
+    // material.
+    if let Some(ref identity) = brief.identity {
+        out.push_str(&format!(
+            "<identity name=\"{}\">{}</identity>\n",
+            escape_xml_attr(&identity.heading),
+            escape_xml(identity.content.trim_end_matches('\n'))
+        ));
+    }
 
     if !brief.frontmatter.stack.is_empty() {
         out.push_str(&format!(

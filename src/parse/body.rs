@@ -132,6 +132,14 @@ pub fn parse_body(input: &str) -> ParsedBody {
                 heading_text.push_str(&text);
             }
 
+            // A span that looks like a tag (`<script>`, `Record<T>`) is reported
+            // as inline HTML, not text. It is authored content here, not markup
+            // to render, so it is carried through verbatim — dropping it lost
+            // the span from every emit target without a trace.
+            Event::InlineHtml(html) if in_heading => {
+                heading_text.push_str(&html);
+            }
+
             Event::Start(Tag::Item) if !matches!(current_section, Section::Unknown(_)) => {
                 in_item = true;
                 item_texts.clear();
@@ -148,6 +156,10 @@ pub fn parse_body(input: &str) -> ParsedBody {
 
             Event::Text(text) if in_item => {
                 item_texts.push(ItemSegment::Text(text.to_string()));
+            }
+
+            Event::InlineHtml(html) if in_item => {
+                item_texts.push(ItemSegment::Text(html.to_string()));
             }
 
             Event::SoftBreak if in_item => {
@@ -179,6 +191,12 @@ pub fn parse_body(input: &str) -> ParsedBody {
             Event::Text(text) if in_paragraph => {
                 if matches!(current_section, Section::Deliverable) {
                     state.deliverable_parts.push(text.to_string());
+                }
+            }
+
+            Event::InlineHtml(html) if in_paragraph => {
+                if matches!(current_section, Section::Deliverable) {
+                    state.deliverable_parts.push(html.to_string());
                 }
             }
 
@@ -403,6 +421,34 @@ mod tests {
     fn parse_h1_goal() {
         let body = parse_body("# Fix the login bug\n");
         assert_eq!(body.goal, Some("Fix the login bug".to_string()));
+    }
+
+    #[test]
+    fn heading_keeps_an_angle_bracket_span() {
+        // pulldown-cmark reports `<script>` as inline HTML, not text. Dropping
+        // those events silently ate authored content in every emit target.
+        let body = parse_body("# Harden against <script> tags\n");
+        assert_eq!(body.goal, Some("Harden against <script> tags".to_string()));
+    }
+
+    #[test]
+    fn constraint_item_keeps_an_angle_bracket_span() {
+        let md = "## Constraints\n\n### Hard\n- Keep Record<T> in error messages\n";
+        let body = parse_body(md);
+        assert_eq!(
+            body.constraints.hard,
+            vec!["Keep Record<T> in error messages"]
+        );
+    }
+
+    #[test]
+    fn deliverable_keeps_an_angle_bracket_span() {
+        let md = "## Deliverable\nEmit a <brief> envelope.\n";
+        let body = parse_body(md);
+        assert_eq!(
+            body.deliverable.as_deref(),
+            Some("Emit a <brief> envelope.")
+        );
     }
 
     #[test]
