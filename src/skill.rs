@@ -106,7 +106,7 @@ pub fn validate_skill_content(content: &str) -> Result<()> {
 
     let yaml_str = &after_opening[..end_pos];
     let fm: SkillFrontmatter =
-        serde_yaml::from_str(yaml_str).context("Failed to parse YAML frontmatter in SKILL.md")?;
+        serde_saphyr::from_str(yaml_str).context("Failed to parse YAML frontmatter in SKILL.md")?;
 
     validate_skill_name(&fm.name)?;
 

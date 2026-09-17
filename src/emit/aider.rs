@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use serde_yaml::{Mapping, Value};
+use serde_json::{Map, Value};
 
 use crate::emit::markers::{inject_section, wrap_with_markers};
 use crate::framing::with_scope;
@@ -110,43 +110,38 @@ pub fn emit_aider(brief: &Brief) -> String {
 ///   not already set it — a user's chosen model is never overwritten.
 ///
 /// Re-running on its own output is a no-op (both keys already satisfied).
-pub fn merge_aider_conf(
-    existing: Option<&str>,
-    model: Option<&str>,
-) -> Result<String, serde_yaml::Error> {
-    let mut map: Mapping = match existing {
-        Some(s) if !s.trim().is_empty() => serde_yaml::from_str(s)?,
-        _ => Mapping::new(),
+pub fn merge_aider_conf(existing: Option<&str>, model: Option<&str>) -> anyhow::Result<String> {
+    let mut map: Map<String, Value> = match existing {
+        Some(s) if !s.trim().is_empty() => serde_saphyr::from_str(s)?,
+        _ => Map::new(),
     };
 
     ensure_read_includes_conventions(&mut map);
 
-    if let Some(m) = model {
-        let model_key = Value::from("model");
-        if !map.contains_key(&model_key) {
-            map.insert(model_key, Value::from(m));
-        }
+    if let Some(m) = model
+        && !map.contains_key("model")
+    {
+        map.insert("model".to_string(), Value::from(m));
     }
 
-    serde_yaml::to_string(&Value::Mapping(map))
+    Ok(serde_saphyr::to_string(&Value::Object(map))?)
 }
 
-fn ensure_read_includes_conventions(map: &mut Mapping) {
-    let key = Value::from("read");
+fn ensure_read_includes_conventions(map: &mut Map<String, Value>) {
     let conv = Value::from(CONVENTIONS_FILE);
 
     // Compute the replacement (if any) under an immutable borrow, then insert.
-    let new_val = match map.get(&key) {
+    let new_val = match map.get("read") {
         None => Some(conv),
         Some(Value::String(s)) if s == CONVENTIONS_FILE => None,
-        Some(Value::String(s)) => Some(Value::Sequence(vec![Value::String(s.clone()), conv])),
-        Some(Value::Sequence(seq)) => {
+        Some(Value::String(s)) => Some(Value::Array(vec![Value::String(s.clone()), conv])),
+        Some(Value::Array(seq)) => {
             if seq.iter().any(|v| v.as_str() == Some(CONVENTIONS_FILE)) {
                 None
             } else {
                 let mut next = seq.clone();
                 next.push(conv);
-                Some(Value::Sequence(next))
+                Some(Value::Array(next))
             }
         }
         // Any other (unexpected) type: replace with the scalar conventions path.
@@ -154,7 +149,7 @@ fn ensure_read_includes_conventions(map: &mut Mapping) {
     };
 
     if let Some(v) = new_val {
-        map.insert(key, v);
+        map.insert("read".to_string(), v);
     }
 }
 
@@ -193,7 +188,7 @@ pub fn install_aider(
     let conf = base_dir.join(".aider.conf.yml");
     let existing = std::fs::read_to_string(&conf).ok();
     let merged = merge_aider_conf(existing.as_deref(), brief.frontmatter.model.as_deref())
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
     std::fs::write(&conf, merged)?;
     written.push(conf);
 
@@ -288,16 +283,42 @@ mod tests {
     #[test]
     fn merge_creates_read_and_model_when_empty() {
         let yaml = merge_aider_conf(None, Some("claude-opus-4-8")).unwrap();
-        let v: Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: Value = serde_saphyr::from_str(&yaml).unwrap();
         assert_eq!(v["read"].as_str(), Some("CONVENTIONS.md"));
         assert_eq!(v["model"].as_str(), Some("claude-opus-4-8"));
+    }
+
+    /// Known regression from the `serde_yaml` -> `serde-saphyr` swap, pinned
+    /// so it cannot drift further unnoticed.
+    ///
+    /// `serde_yaml`'s mapping preserved the author's key order. `serde_json`'s
+    /// does not unless its `preserve_order` feature is on, and that feature
+    /// also reorders the schema `schemars` derives, which would break the
+    /// byte-identical guarantee on `docs/schema/brief-frontmatter-v1.schema.json`.
+    /// The schema guarantee wins, so a merged `.aider.conf.yml` comes back
+    /// alphabetized.
+    ///
+    /// This only matters because the merge deserializes and re-emits a file
+    /// brief does not own -- the same reason it already drops comments (see
+    /// `docs/bugs.md`). Replacing the round-trip with a line splice fixes the
+    /// ordering and the comments together; until then, this test is the record.
+    #[test]
+    fn merge_alphabetizes_keys_pending_the_line_splice_fix() {
+        let existing = "zeta: 1\nalpha: 2\n";
+        let yaml = merge_aider_conf(Some(existing), None).unwrap();
+        let keys: Vec<&str> = yaml
+            .lines()
+            .filter(|l| !l.starts_with(['-', ' ']) && l.contains(':'))
+            .map(|l| l.split(':').next().unwrap())
+            .collect();
+        assert_eq!(keys, vec!["alpha", "read", "zeta"]);
     }
 
     #[test]
     fn merge_does_not_overwrite_existing_model() {
         let existing = "model: gpt-4o\n";
         let yaml = merge_aider_conf(Some(existing), Some("claude-opus-4-8")).unwrap();
-        let v: Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: Value = serde_saphyr::from_str(&yaml).unwrap();
         assert_eq!(v["model"].as_str(), Some("gpt-4o"));
         assert_eq!(v["read"].as_str(), Some("CONVENTIONS.md"));
     }
@@ -305,7 +326,7 @@ mod tests {
     #[test]
     fn merge_omits_model_when_brief_has_none() {
         let yaml = merge_aider_conf(None, None).unwrap();
-        let v: Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: Value = serde_saphyr::from_str(&yaml).unwrap();
         assert!(v.get("model").is_none());
         assert_eq!(v["read"].as_str(), Some("CONVENTIONS.md"));
     }
@@ -314,8 +335,8 @@ mod tests {
     fn merge_promotes_existing_scalar_read_to_list() {
         let existing = "read: OTHER.md\n";
         let yaml = merge_aider_conf(Some(existing), None).unwrap();
-        let v: Value = serde_yaml::from_str(&yaml).unwrap();
-        let list = v["read"].as_sequence().expect("read should be a list");
+        let v: Value = serde_saphyr::from_str(&yaml).unwrap();
+        let list = v["read"].as_array().expect("read should be a list");
         let items: Vec<&str> = list.iter().filter_map(|x| x.as_str()).collect();
         assert!(items.contains(&"OTHER.md"));
         assert!(items.contains(&"CONVENTIONS.md"));
@@ -325,9 +346,9 @@ mod tests {
     fn merge_extends_existing_read_list() {
         let existing = "read:\n  - OTHER.md\n";
         let yaml = merge_aider_conf(Some(existing), None).unwrap();
-        let v: Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: Value = serde_saphyr::from_str(&yaml).unwrap();
         let items: Vec<&str> = v["read"]
-            .as_sequence()
+            .as_array()
             .unwrap()
             .iter()
             .filter_map(|x| x.as_str())
@@ -347,7 +368,7 @@ mod tests {
     fn merge_idempotent_when_read_already_present() {
         let existing = "read: CONVENTIONS.md\n";
         let yaml = merge_aider_conf(Some(existing), None).unwrap();
-        let v: Value = serde_yaml::from_str(&yaml).unwrap();
+        let v: Value = serde_saphyr::from_str(&yaml).unwrap();
         // Still a scalar, not promoted to a one-element list.
         assert_eq!(v["read"].as_str(), Some("CONVENTIONS.md"));
     }

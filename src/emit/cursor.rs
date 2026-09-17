@@ -648,7 +648,7 @@ mod tests {
         let frontmatter_end = output.find("\n---\n").expect("frontmatter must close");
         let fm = &output[..frontmatter_end];
         // Whatever escaping we use, YAML must round-trip back to the goal.
-        let parsed: serde_yaml::Value = serde_yaml::from_str(fm.trim_start_matches("---\n"))
+        let parsed: serde_json::Value = serde_saphyr::from_str(fm.trim_start_matches("---\n"))
             .expect("frontmatter must be valid YAML");
         assert_eq!(
             parsed["description"].as_str(),
@@ -689,8 +689,8 @@ mod tests {
         assert!(content.contains("alwaysApply: false"), "got:\n{content}");
         assert!(content.contains("Use design tokens, not raw hex"));
         let fm_end = content.find("\n---\n").expect("frontmatter");
-        let parsed: serde_yaml::Value =
-            serde_yaml::from_str(content[..fm_end].trim_start_matches("---\n"))
+        let parsed: serde_json::Value =
+            serde_saphyr::from_str(content[..fm_end].trim_start_matches("---\n"))
                 .expect("scoped frontmatter must be valid YAML");
         assert_eq!(parsed["globs"].as_str(), Some("src/ui/**"));
         assert_eq!(parsed["alwaysApply"].as_bool(), Some(false));

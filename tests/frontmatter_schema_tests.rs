@@ -31,8 +31,8 @@ fn frontmatter_as_json(rel: &str) -> Value {
         .strip_prefix("---")
         .expect("fixture must open with `---`");
     let end = body.find("\n---").expect("fixture must close frontmatter");
-    let yaml: serde_yaml::Value =
-        serde_yaml::from_str(&body[..end]).expect("frontmatter must be valid YAML");
+    let yaml: serde_json::Value =
+        serde_saphyr::from_str(&body[..end]).expect("frontmatter must be valid YAML");
     serde_json::to_value(yaml).expect("YAML frontmatter must convert to JSON")
 }
 

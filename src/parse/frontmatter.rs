@@ -24,7 +24,7 @@ pub fn extract_frontmatter(input: &str) -> Result<(Frontmatter, &str)> {
     let rest = rest.strip_prefix('\n').unwrap_or(rest);
 
     let frontmatter: Frontmatter =
-        serde_yaml::from_str(yaml_str).context("Failed to parse YAML frontmatter")?;
+        serde_saphyr::from_str(yaml_str).context("Failed to parse YAML frontmatter")?;
 
     Ok((frontmatter, rest))
 }
