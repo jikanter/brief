@@ -105,7 +105,7 @@ fn emit_json_from_full_fixture_is_valid() {
     );
     assert_eq!(value["frontmatter"]["stack"][0], "TypeScript 5.4");
     assert_eq!(value["frontmatter"]["stack"].as_array().unwrap().len(), 5);
-    assert_eq!(value["constraints"]["hard"].as_array().unwrap().len(), 4);
+    assert_eq!(value["constraints"]["hard"].as_array().unwrap().len(), 5);
     assert_eq!(value["constraints"]["soft"].as_array().unwrap().len(), 3);
     assert_eq!(
         value["constraints"]["ask_first"].as_array().unwrap().len(),

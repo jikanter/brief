@@ -70,7 +70,7 @@ fn parse_full_fixture() {
     assert_eq!(brief.goal, "Build real-time collaborative document editor");
 
     // Hard constraints
-    assert_eq!(brief.constraints.hard.len(), 4);
+    assert_eq!(brief.constraints.hard.len(), 5);
     assert!(brief.constraints.hard[0].contains("WebSocket"));
     assert!(brief.constraints.hard[1].contains("event sourcing"));
     assert!(brief.constraints.hard[2].contains("WCAG"));
