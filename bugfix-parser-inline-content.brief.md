@@ -3,6 +3,8 @@ stack: [Rust, pulldown-cmark]
 context: [./CLAUDE.md, ./AGENTS.md, ./docs/bugs.md, ./docs/brief-format.md, ./docs/schema/SPEC.md, ./src/parse/body.rs, ./src/model.rs, ./src/emit, ./tests/fixtures, ./tests/parse_tests.rs, ./tests/emit_tests.rs]
 model: claude-opus-5
 brief_version: "1"
+skill_name: fix-parser-inline-content
+skill_description: "Stop the body parser silently dropping inline markdown from goals, constraints and the deliverable"
 ---
 
 # Stop the body parser silently dropping inline markdown from goals, constraints and the deliverable

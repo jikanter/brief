@@ -3,6 +3,8 @@ stack: [Rust, glob, clap]
 context: [./CLAUDE.md, ./AGENTS.md, ./docs/bugs.md, ./docs/brief-format.md, ./src/check.rs, ./src/validate.rs, ./src/emit/aider.rs, ./src/skill.rs, ./tests/validate_tests.rs]
 model: claude-opus-5
 brief_version: "1"
+skill_name: fix-sacred-glob-and-aider-merge
+skill_description: "Fix sacred-path false positives in `brief check`, a false \"matches no files\" in `brief validate`, and comment loss in the aider config merge"
 ---
 
 # Fix three bugs: sacred false positives in `brief check`, a false "matches no files" in `brief validate`, and comment loss in the aider config merge

@@ -3,6 +3,8 @@ stack: [Rust, serde, serde-saphyr, serde_json, schemars, clap]
 context: [./CLAUDE.md, ./AGENTS.md, ./docs/design/provenance-schema.md, ./docs/schema/SPEC.md, ./docs/brief-format.md, ./docs/reference/standards/agentskills/specification.md, ./src/validate.rs, ./src/skill.rs, ./src/parse/frontmatter.rs, ./src/emit/aider.rs, ./tests/fixtures]
 model: claude-opus-5
 brief_version: "1"
+skill_name: implement-document-provenance
+skill_description: "Implement the document provenance vocabulary v0.1 in `brief validate`, and replace the archived `serde_yaml` with `serde-saphyr`"
 ---
 
 # Implement the provenance vocabulary v0.1 in `brief validate`, and replace `serde_yaml` with `serde-saphyr`
