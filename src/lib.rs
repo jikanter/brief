@@ -8,6 +8,7 @@ pub mod hooks;
 pub mod init;
 pub mod model;
 pub mod parse;
+pub mod pathmatch;
 pub mod provenance;
 pub mod provenance_check;
 pub mod schema;
