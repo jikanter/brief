@@ -1,11 +1,14 @@
+---
+date: 2026-04-07
+author: "Jordan Kanter"
+metadata:
+  description: "Take the `brief` concept to its maximum theoretical distance. What would it mean to "compile" a `.brief.md` into something closer to how models actually consume instructions"
+  type: "Theoretical extrapolation / research synthesis"
+  scope: "embeddings, continuous vectors, latent representations"
+---
+
 # Compiled Intent: What If Brief Could Emit Directly Into Latent Space?
 
-**Date:** 2026-04-07
-**Author:** Claude Opus 4.6
-**Type:** Theoretical extrapolation / research synthesis
-**Scope:** Take the `brief` concept to its maximum theoretical distance. What would it mean to "compile" a `.brief.md` into something closer to how models actually consume instructions — embeddings, continuous vectors, latent representations?
-
----
 
 ## The Premise
 
