@@ -19,6 +19,7 @@ mod skill_validate;
 
 use crate::skill_init::init_skill;
 use crate::skill_validate::{validate_skill, validate_skill_content};
+use brief_cli::skill;
 
 #[derive(Parser)]
 #[command(name = "brief", about = "Structured briefings for AI coding agents")]
@@ -837,7 +838,25 @@ fn cmd_emit_skill_internal(file: &Path, install: bool) -> Result<()> {
         validate_skill_content(&output)
             .context("Emitted SKILL.md would not pass agentskills.io validation")?;
 
+        // Stamp when brief regenerated this file, but only when the content
+        // moved. Re-running on a later day must not produce a diff.
         let skill_path = skill_dir.join("SKILL.md");
+        let on_disk = std::fs::read_to_string(&skill_path).ok();
+        let stamp = if skill::stamp_is_due(on_disk.as_deref(), &output) {
+            skill::now_utc()
+        } else {
+            on_disk
+                .as_deref()
+                .and_then(|c| skill::get_brief_metadata(c, skill::BRIEF_DATE_MODIFIED_KEY))
+                .unwrap_or_else(skill::now_utc)
+        };
+        let output = skill::set_brief_metadata(&output, skill::BRIEF_DATE_MODIFIED_KEY, &stamp);
+
+        if on_disk.as_deref() == Some(output.as_str()) {
+            println!("{} {}", "Unchanged".green().bold(), skill_path.display());
+            return Ok(());
+        }
+
         std::fs::write(&skill_path, &output)
             .with_context(|| format!("Failed to write {}", skill_path.display()))?;
         println!("{} {}", "Installed".green().bold(), skill_path.display());

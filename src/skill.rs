@@ -32,6 +32,9 @@ use crate::parse::parse_brief;
 /// what `emit_skill` has always written.
 pub const BRIEF_SOURCE_KEY: &str = "brief.source";
 
+/// The flat `metadata:` key carrying when brief last regenerated this file.
+pub const BRIEF_DATE_MODIFIED_KEY: &str = "brief.dateModified";
+
 const MAX_NAME_LEN: usize = 64;
 const MAX_DESCRIPTION_LEN: usize = 1024;
 const MAX_LINES: usize = 500;
@@ -150,15 +153,21 @@ fn is_indented(line: &str) -> bool {
 
 /// Read `metadata.brief.source` from a SKILL.md, if present.
 pub fn get_brief_source(content: &str) -> Option<String> {
+    get_brief_metadata(content, BRIEF_SOURCE_KEY)
+}
+
+/// Read one `metadata.brief.*` key from a SKILL.md, if present.
+///
+/// `key` is the flat dotted spelling -- `brief.source`, `brief.dateModified`.
+/// Nothing outside brief's namespace is readable through here; the rest of
+/// `metadata` belongs to whoever wrote it.
+pub fn get_brief_metadata(content: &str, key: &str) -> Option<String> {
     let lines: Vec<String> = content.lines().map(String::from).collect();
     let (start, close) = frontmatter_bounds(&lines)?;
     let meta_idx = (start..close).find(|&i| lines[i].trim_start().starts_with("metadata:"))?;
     let mut i = meta_idx + 1;
     while i < close && is_indented(&lines[i]) {
-        if let Some(rest) = lines[i]
-            .trim_start()
-            .strip_prefix(&format!("{BRIEF_SOURCE_KEY}:"))
-        {
+        if let Some(rest) = lines[i].trim_start().strip_prefix(&format!("{key}:")) {
             return Some(unquote_yaml(rest.trim()));
         }
         i += 1;
@@ -174,9 +183,24 @@ pub fn is_brief_owned(content: &str) -> bool {
 /// Set (or insert) `metadata.brief.source`, preserving every other line of the
 /// document byte-for-byte. The brief-owned key is the only thing that moves.
 pub fn set_brief_source(content: &str, source: &str) -> String {
+    set_brief_metadata(content, BRIEF_SOURCE_KEY, source)
+}
+
+/// Set (or insert) one `metadata.brief.*` key, preserving every other line of
+/// the document byte-for-byte.
+///
+/// This is the single write site for brief-owned frontmatter. Brief writes
+/// provenance here and never at the top level, in any file: the Agent Skills
+/// spec has a closed top-level field list and sends tool-owned data to
+/// `metadata`, and keeping to one namespace keeps the enforcement in one place.
+///
+/// Values are written as quoted strings, because that spec describes `metadata`
+/// as a map from string keys to string *values* -- a bare YAML timestamp would
+/// not be one.
+pub fn set_brief_metadata(content: &str, key: &str, value: &str) -> String {
     let trailing_nl = content.ends_with('\n');
     let mut lines: Vec<String> = content.lines().map(String::from).collect();
-    let value = format!("{BRIEF_SOURCE_KEY}: {}", quote_yaml(source));
+    let value = format!("{key}: {}", quote_yaml(value));
 
     if let Some((start, close)) = frontmatter_bounds(&lines) {
         if let Some(meta_idx) =
@@ -186,10 +210,7 @@ pub fn set_brief_source(content: &str, source: &str) -> String {
             let mut i = meta_idx + 1;
             let mut existing = None;
             while i < close && is_indented(&lines[i]) {
-                if lines[i]
-                    .trim_start()
-                    .starts_with(&format!("{BRIEF_SOURCE_KEY}:"))
-                {
+                if lines[i].trim_start().starts_with(&format!("{key}:")) {
                     existing = Some(i);
                     break;
                 }
@@ -197,7 +218,15 @@ pub fn set_brief_source(content: &str, source: &str) -> String {
             }
             match existing {
                 Some(i) => lines[i] = format!("  {value}"),
-                None => lines.insert(meta_idx + 1, format!("  {value}")),
+                // Append at the end of the block rather than jumping the
+                // queue, so the author's existing key order is preserved.
+                None => {
+                    let mut end = meta_idx + 1;
+                    while end < close && is_indented(&lines[end]) {
+                        end += 1;
+                    }
+                    lines.insert(end, format!("  {value}"));
+                }
             }
         } else {
             // No metadata block yet — add one just before the closing `---`.
@@ -221,6 +250,79 @@ pub fn set_brief_source(content: &str, source: &str) -> String {
         out.push('\n');
     }
     out
+}
+
+/// Whether a regenerated SKILL.md earns a fresh `brief.dateModified`.
+///
+/// The stamp moves only when the *content* moved. Comparing calendar days is
+/// not enough on its own: without this check, re-running on a later day would
+/// rewrite the file for no reason, and an idempotent install would produce a
+/// diff every day. Both sides are compared with the stamp line removed, so the
+/// stamp never counts as its own reason to change.
+pub fn stamp_is_due(on_disk: Option<&str>, regenerated: &str) -> bool {
+    match on_disk {
+        None => true,
+        Some(existing) => without_stamp(existing) != without_stamp(regenerated),
+    }
+}
+
+/// The document with its `brief.dateModified` line removed.
+fn without_stamp(content: &str) -> String {
+    let trailing_nl = content.ends_with('\n');
+    let kept: Vec<&str> = content
+        .lines()
+        .filter(|l| {
+            !l.trim_start()
+                .starts_with(&format!("{BRIEF_DATE_MODIFIED_KEY}:"))
+        })
+        .collect();
+    let mut out = kept.join("\n");
+    if trailing_nl {
+        out.push('\n');
+    }
+    out
+}
+
+/// The current instant as ISO 8601 UTC, e.g. `2026-04-11T14:22:00Z`.
+///
+/// Brief writes an explicit offset even though every comparison it makes is by
+/// calendar day: it costs nothing now and avoids a retroactive migration if
+/// instants are ever needed.
+pub fn now_utc() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    format_utc(secs)
+}
+
+/// Format a Unix timestamp as ISO 8601 UTC. Split out from [`now_utc`] so the
+/// formatting is testable without a clock.
+pub fn format_utc(unix_secs: i64) -> String {
+    let days = unix_secs.div_euclid(86_400);
+    let secs_of_day = unix_secs.rem_euclid(86_400);
+    let (y, m, d) = civil_from_days(days);
+    let (h, min, sec) = (
+        secs_of_day / 3600,
+        (secs_of_day % 3600) / 60,
+        secs_of_day % 60,
+    );
+    format!("{y:04}-{m:02}-{d:02}T{h:02}:{min:02}:{sec:02}Z")
+}
+
+/// Days since the Unix epoch to a civil date. Howard Hinnant's `civil_from_days`,
+/// which is exact for the whole proleptic Gregorian range and needs no crate.
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 /// Replace (or insert) the `<brief:generated>` body fence with `body`, or strip
