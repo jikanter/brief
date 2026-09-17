@@ -11,6 +11,7 @@ pub mod readme;
 pub mod skill;
 pub mod windsurf;
 pub mod xml;
+pub mod yaml;
 
 pub use agents_md::{emit_agents_md, install_agents_md};
 pub use aider::{emit_aider, install_aider};

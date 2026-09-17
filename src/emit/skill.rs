@@ -57,7 +57,10 @@ pub fn emit_skill(brief: &Brief, source: Option<&str>) -> String {
     // YAML frontmatter
     out.push_str("---\n");
     out.push_str(&format!("name: {name}\n"));
-    out.push_str(&format!("description: {description}\n"));
+    out.push_str(&format!(
+        "description: {}\n",
+        crate::emit::yaml::yaml_scalar(description)
+    ));
     if let Some(src) = source {
         out.push_str("metadata:\n");
         out.push_str(&format!("  brief.source: {src}\n"));

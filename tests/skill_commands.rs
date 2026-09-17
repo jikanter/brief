@@ -362,3 +362,34 @@ fn test_skill_emit_fails_when_slugified_name_exceeds_limit() {
         .failure()
         .stderr(predicate::str::contains("would not pass"));
 }
+
+/// A goal is an English sentence and routinely carries a colon or a code span.
+/// Written into `description:` unquoted, it produced a SKILL.md whose own
+/// frontmatter would not parse -- `brief skill emit` emitted invalid YAML and
+/// then failed its own validation.
+#[test]
+fn test_skill_emit_quotes_a_description_with_yaml_special_characters() {
+    let dir = tempdir().unwrap();
+    let brief_path = dir.path().join("brief.md");
+    fs::write(
+        &brief_path,
+        concat!(
+            "---\nstack: [Rust]\nskill_name: fix-three-bugs\n---\n\n",
+            "# Fix three bugs: sacred false positives in `brief check`, and more\n\n",
+            "## Deliverable\nSomething.\n",
+        ),
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("brief").unwrap();
+    cmd.arg("--file").arg(&brief_path).arg("skill").arg("emit");
+    let out = cmd.assert().success().get_output().stdout.clone();
+    let emitted = String::from_utf8(out).unwrap();
+
+    assert!(
+        emitted.contains("description: \"Fix three bugs:"),
+        "the description must be quoted, got:\n{emitted}"
+    );
+    // The proof it is valid: brief's own validator parses the frontmatter.
+    brief_cli::skill::validate_skill_content(&emitted).expect("emitted SKILL.md should be valid");
+}

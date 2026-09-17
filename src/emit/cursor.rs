@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::emit::yaml::yaml_scalar;
 use crate::framing::{SACRED_PREAMBLE, with_scope};
 use crate::model::{Brief, Constraint};
 
@@ -125,39 +126,6 @@ fn globs_field(patterns: &[String]) -> String {
         yaml_scalar(&joined)
     } else {
         joined
-    }
-}
-
-/// Quote a YAML scalar if it contains characters that would confuse the parser.
-fn yaml_scalar(s: &str) -> String {
-    let needs_quoting = s.chars().any(|c| {
-        matches!(
-            c,
-            ':' | '#'
-                | '['
-                | ']'
-                | '{'
-                | '}'
-                | ','
-                | '&'
-                | '*'
-                | '!'
-                | '|'
-                | '>'
-                | '\''
-                | '"'
-                | '%'
-                | '@'
-                | '`'
-                | '\n'
-        )
-    });
-    if needs_quoting {
-        // Double-quoted form: escape backslashes and double quotes.
-        let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
-        format!("\"{escaped}\"")
-    } else {
-        s.to_string()
     }
 }
 
