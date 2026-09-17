@@ -2,10 +2,37 @@ use std::path::Path;
 
 use crate::model::{Brief, Diagnostic, SUPPORTED_BRIEF_VERSION, Severity};
 
+/// Knobs for a validation run.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ValidateOptions {
+    /// Report advisory hints as well as errors and warnings. Off by default: a
+    /// hint is informative on one brief and noise on the next.
+    pub hints: bool,
+}
+
 /// Validate a parsed `Brief` against the format spec and the filesystem.
 ///
 /// Returns a list of diagnostics. Exit 0 if no errors, exit 1 if any errors.
 pub fn validate(brief: &Brief, base_dir: &Path) -> Vec<Diagnostic> {
+    validate_with(
+        brief,
+        base_dir,
+        Path::new(".brief.md"),
+        ValidateOptions::default(),
+    )
+}
+
+/// [`validate`], plus the document-provenance pass over the brief and its local
+/// `context:` docs.
+///
+/// `brief_rel` is the brief's own path relative to `base_dir`, so its
+/// frontmatter is read like any other document's.
+pub fn validate_with(
+    brief: &Brief,
+    base_dir: &Path,
+    brief_rel: &Path,
+    options: ValidateOptions,
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
     // 1. Stack must be non-empty
@@ -148,6 +175,15 @@ pub fn validate(brief: &Brief, base_dir: &Path) -> Vec<Diagnostic> {
             });
         }
     }
+
+    // 8. Document provenance (docs/design/provenance-schema.md). Warnings and
+    //    hints only: these keys live in documents brief did not write.
+    diagnostics.extend(crate::provenance_check::check(
+        brief,
+        base_dir,
+        brief_rel,
+        options.hints,
+    ));
 
     diagnostics
 }

@@ -9,6 +9,7 @@ pub mod init;
 pub mod model;
 pub mod parse;
 pub mod provenance;
+pub mod provenance_check;
 pub mod schema;
 pub mod skill;
 pub mod validate;

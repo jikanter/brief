@@ -12,7 +12,7 @@ use brief_cli::emit;
 use brief_cli::init::scaffold_brief;
 use brief_cli::model::Severity;
 use brief_cli::parse::parse_brief;
-use brief_cli::validate::validate;
+use brief_cli::validate::{ValidateOptions, validate_with};
 
 mod skill_init;
 mod skill_validate;
@@ -38,7 +38,13 @@ enum Commands {
     Init,
 
     /// Validate the current .brief.md against the codebase
-    Validate,
+    Validate {
+        /// Also report advisory hints, such as a context document edited more
+        /// recently than the brief that points at it. Hints never affect the
+        /// exit code.
+        #[arg(long)]
+        hints: bool,
+    },
 
     /// Transform .brief.md into a target format
     Emit {
@@ -295,7 +301,7 @@ fn main() {
 fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Init => cmd_init(),
-        Commands::Validate => cmd_validate(&cli.file),
+        Commands::Validate { hints } => cmd_validate(&cli.file, hints),
         Commands::Emit {
             target,
             install,
@@ -431,7 +437,7 @@ fn cmd_init() -> Result<()> {
     Ok(())
 }
 
-fn cmd_validate(file: &PathBuf) -> Result<()> {
+fn cmd_validate(file: &PathBuf, hints: bool) -> Result<()> {
     let base_dir = file
         .parent()
         .map(|p| {
@@ -447,7 +453,11 @@ fn cmd_validate(file: &PathBuf) -> Result<()> {
         .with_context(|| format!("Failed to read {}", file.display()))?;
 
     let brief = parse_brief(&content).context("Failed to parse briefing")?;
-    let diagnostics = validate(&brief, &base_dir);
+    let brief_rel = file
+        .file_name()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| file.clone());
+    let diagnostics = validate_with(&brief, &base_dir, &brief_rel, ValidateOptions { hints });
 
     if diagnostics.is_empty() {
         println!("{} briefing is valid", "✓".green().bold());
@@ -463,6 +473,9 @@ fn cmd_validate(file: &PathBuf) -> Result<()> {
             }
             Severity::Warning => {
                 eprintln!("{} {}", "warning:".yellow().bold(), diag.message);
+            }
+            Severity::Hint => {
+                eprintln!("{} {}", "hint:".blue().bold(), diag.message);
             }
         }
     }

@@ -222,6 +222,10 @@ pub struct UnknownSection {
 pub enum Severity {
     Error,
     Warning,
+    /// Advisory only, and off unless asked for. A hint never affects the exit
+    /// code; it is for findings that are informative on one brief and noise on
+    /// the next, such as a context doc edited more recently than the brief.
+    Hint,
 }
 
 /// A single validation finding.
