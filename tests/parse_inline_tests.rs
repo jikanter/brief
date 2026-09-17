@@ -69,7 +69,10 @@ fn a_link_keeps_its_url_in_every_section() {
     );
     assert_eq!(b.sacred[0].reason, "see [the spec](./SPEC.md)");
     assert_eq!(b.assumptions[0].text, "[The gateway](./gw.md) scales");
-    assert_eq!(b.deliverable.as_deref(), Some("Ship [the thing](./thing.md)."));
+    assert_eq!(
+        b.deliverable.as_deref(),
+        Some("Ship [the thing](./thing.md).")
+    );
 }
 
 /// 4: emphasis markers were dropped, so a constraint lost the word it stressed.

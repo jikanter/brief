@@ -16,7 +16,7 @@ metadata:
 
 - WebSocket connections must support 10k concurrent users per node
 - All data mutations go through event sourcing, no direct DB writes
-- WCAG 2.1 AA compliance on all new UI components
+- WCAG 2.1 AA compliance on all new UI components, see [the checklist](./docs/a11y.md?level=AA&scope=ui)
 - Must pass existing E2E test suite before merge
 - Must pass CI **(REQUIRED)**
 

@@ -403,3 +403,25 @@ fn install_is_refused_with_an_explanation_and_writes_nothing() {
         .collect();
     assert_eq!(before, after, "a refused --install must write nothing");
 }
+
+/// Markdown that now survives into a constraint still has to be escaped for
+/// XML. A link URL carrying a query string is the case that matters: `&` is the
+/// one character an author is likely to write that would break the document.
+#[test]
+fn a_link_url_with_an_ampersand_is_escaped() {
+    let brief = brief_cli::parse::parse_brief(concat!(
+        "---\nstack: [Rust]\n---\n\n",
+        "# Goal\n\n## Constraints\n\n### Hard\n\n",
+        "- See [the checklist](./a11y.md?level=AA&scope=ui)\n",
+    ))
+    .unwrap();
+    let xml = brief_cli::emit::xml::emit_xml(&brief);
+    assert!(
+        xml.contains("[the checklist](./a11y.md?level=AA&amp;scope=ui)"),
+        "the ampersand must be escaped, got:\n{xml}"
+    );
+    assert!(
+        !xml.contains("?level=AA&scope=ui"),
+        "a raw ampersand escaped into the document:\n{xml}"
+    );
+}

@@ -12,9 +12,9 @@
 <hard>
 <rule>MUST: WebSocket connections must support 10k concurrent users per node</rule>
 <rule>MUST: All data mutations go through event sourcing, no direct DB writes</rule>
-<rule>MUST: WCAG 2.1 AA compliance on all new UI components</rule>
+<rule>MUST: WCAG 2.1 AA compliance on all new UI components, see [the checklist](./docs/a11y.md?level=AA&amp;scope=ui)</rule>
 <rule>MUST: pass existing E2E test suite before merge</rule>
-<rule>MUST: pass CI (REQUIRED)</rule>
+<rule>MUST: pass CI **(REQUIRED)**</rule>
 </hard>
 <soft>
 <rule>PREFER: Yjs over Automerge for CRDT implementation</rule>

@@ -52,24 +52,43 @@ pub fn parse_body(input: &str) -> ParsedBody {
 
     // Heading tracking
     let mut in_heading = false;
-    let mut heading_text = String::new();
 
     // List item tracking
     let mut in_item = false;
-    let mut item_texts: Vec<ItemSegment> = Vec::new();
     let mut task_marker: Option<bool> = None;
 
     // Content collection for deliverable paragraphs
     let mut in_paragraph = false;
 
+    // Inline spans for whichever of the three contexts is open. Headings, list
+    // items and paragraphs all collect through this one buffer, so they cannot
+    // drift apart again the way they had: an `Event::Code` arm existed for list
+    // items but not for headings, which deleted a code span in an H1 along with
+    // its contents.
+    let mut spans: Vec<ItemSegment> = Vec::new();
+
+    // Depth inside an inline container (a link, emphasis, an image) whose source
+    // text has already been taken whole. Its inner events would duplicate it.
+    let mut container_depth: usize = 0;
+
     // Raw Markdown capture for unknown sections: byte offset where content starts
     let mut unknown_section_start: Option<usize> = None;
 
     for (event, range) in parser {
+        // Everything inside an inline container was captured with the container.
+        if container_depth > 0 {
+            match event {
+                Event::Start(_) => container_depth += 1,
+                Event::End(_) => container_depth -= 1,
+                _ => {}
+            }
+            continue;
+        }
+
         match event {
             Event::Start(Tag::Heading { level, .. }) => {
                 in_heading = true;
-                heading_text.clear();
+                spans.clear();
 
                 // Finalize unknown section on new H1/H2
                 if level <= HeadingLevel::H2
@@ -89,7 +108,7 @@ pub fn parse_body(input: &str) -> ParsedBody {
 
             Event::End(TagEnd::Heading(level)) => {
                 in_heading = false;
-                let text = heading_text.trim().to_string();
+                let text = segments_to_source_text(&spans);
 
                 match level {
                     HeadingLevel::H1 => {
@@ -128,21 +147,9 @@ pub fn parse_body(input: &str) -> ParsedBody {
                 }
             }
 
-            Event::Text(text) if in_heading => {
-                heading_text.push_str(&text);
-            }
-
-            // A span that looks like a tag (`<script>`, `Record<T>`) is reported
-            // as inline HTML, not text. It is authored content here, not markup
-            // to render, so it is carried through verbatim — dropping it lost
-            // the span from every emit target without a trace.
-            Event::InlineHtml(html) if in_heading => {
-                heading_text.push_str(&html);
-            }
-
             Event::Start(Tag::Item) if !matches!(current_section, Section::Unknown(_)) => {
                 in_item = true;
-                item_texts.clear();
+                spans.clear();
                 task_marker = None;
             }
 
@@ -150,65 +157,78 @@ pub fn parse_body(input: &str) -> ParsedBody {
                 task_marker = Some(checked);
             }
 
-            Event::Code(code) if in_item => {
-                item_texts.push(ItemSegment::Code(code.to_string()));
-            }
-
-            Event::Text(text) if in_item => {
-                item_texts.push(ItemSegment::Text(text.to_string()));
-            }
-
-            Event::InlineHtml(html) if in_item => {
-                item_texts.push(ItemSegment::Text(html.to_string()));
-            }
-
-            Event::SoftBreak if in_item => {
-                item_texts.push(ItemSegment::Text(" ".to_string()));
-            }
-
             Event::End(TagEnd::Item) if in_item => {
                 in_item = false;
                 process_item(
                     &current_section,
                     &current_constraint_type,
-                    &item_texts,
+                    &spans,
                     task_marker,
                     &mut state,
                 );
             }
 
-            // Content outside list items (e.g., deliverable paragraphs)
+            // Content outside list items (e.g., deliverable paragraphs). A loose
+            // list wraps its items in paragraphs, so `!in_item` keeps the item
+            // context in charge there.
             Event::Start(Tag::Paragraph)
                 if !in_item && !in_heading && !matches!(current_section, Section::Unknown(_)) =>
             {
                 in_paragraph = true;
+                spans.clear();
             }
 
             Event::End(TagEnd::Paragraph) if in_paragraph => {
                 in_paragraph = false;
-            }
-
-            Event::Text(text) if in_paragraph => {
                 if matches!(current_section, Section::Deliverable) {
-                    state.deliverable_parts.push(text.to_string());
+                    state
+                        .deliverable_parts
+                        .push(segments_to_source_text(&spans));
+                    // Paragraphs in a prose section are joined by a blank line.
+                    // Concatenating them gave `Para one.Para two.`
+                    state.deliverable_parts.push("\n\n".to_string());
                 }
             }
 
-            Event::InlineHtml(html) if in_paragraph => {
-                if matches!(current_section, Section::Deliverable) {
-                    state.deliverable_parts.push(html.to_string());
-                }
+            // A soft break means different things in the two contexts, and both
+            // are today's behavior: a wrapped list item is one line, a wrapped
+            // paragraph keeps the author's line break.
+            Event::SoftBreak if in_item || in_heading => {
+                spans.push(ItemSegment::Text(" ".to_string()));
             }
-
-            Event::Code(code) if in_paragraph => {
-                if matches!(current_section, Section::Deliverable) {
-                    state.deliverable_parts.push(format!("`{code}`"));
-                }
-            }
-
             Event::SoftBreak if in_paragraph => {
-                if matches!(current_section, Section::Deliverable) {
-                    state.deliverable_parts.push("\n".to_string());
+                spans.push(ItemSegment::Text("\n".to_string()));
+            }
+            Event::HardBreak if in_item || in_paragraph => {
+                spans.push(ItemSegment::Text("\n".to_string()));
+            }
+
+            // Everything else that carries author text. The rule is that parsed
+            // text is the author's source markdown for the span, so an inline
+            // container is taken whole from the source rather than rebuilt from
+            // its events: a link keeps its URL, `**strong**` keeps its markers,
+            // and an autolink or reference link keeps the spelling it was
+            // written with. Rebuilding lost all of it silently.
+            other if in_heading || in_item || in_paragraph => {
+                match other {
+                    Event::Start(ref tag) if is_inline_container(tag) => {
+                        container_depth = 1;
+                        spans.push(ItemSegment::Text(input[range].to_string()));
+                    }
+                    // A code span is the one place the distinction survives
+                    // past this loop: a sacred entry finds its path by asking
+                    // whether the first span was code.
+                    Event::Code(code) => spans.push(ItemSegment::Code(code.to_string())),
+                    // A span that looks like a tag (`<script>`, `Record<T>`) is
+                    // reported as inline HTML, not text. It is authored content
+                    // here, not markup to render.
+                    Event::Text(text) | Event::InlineHtml(text) | Event::Html(text) => {
+                        spans.push(ItemSegment::Text(text.to_string()))
+                    }
+                    // Any event not named above still carries no text payload,
+                    // but say so where the next reader will look rather than
+                    // dropping it the way the old whitelist did.
+                    _ => {}
                 }
             }
 
@@ -270,7 +290,7 @@ fn process_item(
 ) {
     match section {
         Section::Constraints => {
-            let text = segments_to_plain_text(segments);
+            let text = segments_to_source_text(segments);
             if !text.is_empty() {
                 let constraint = parse_constraint(&text);
                 match constraint_type {
@@ -282,7 +302,7 @@ fn process_item(
             }
         }
         Section::Identity => {
-            let text = segments_to_plain_text(segments);
+            let text = segments_to_source_text(segments);
             if !text.is_empty() {
                 state.identity = Some(Identity {
                     heading: "Identity".to_string(),
@@ -295,7 +315,7 @@ fn process_item(
             parse_sacred_item(segments, &mut state.sacred);
         }
         Section::Assumptions => {
-            let text = segments_to_plain_text(segments);
+            let text = segments_to_source_text(segments);
             if !text.is_empty() {
                 state.assumptions.push(Assumption {
                     text,
@@ -307,7 +327,7 @@ fn process_item(
         Section::Deliverable => {
             state
                 .deliverable_parts
-                .push(segments_to_plain_text(segments));
+                .push(segments_to_source_text(segments));
         }
         // Unknown sections use raw Markdown capture, not event-based accumulation
         Section::Unknown(_) | Section::None => {}
@@ -341,7 +361,12 @@ fn parse_constraint(text: &str) -> Constraint {
     Constraint::new(trimmed)
 }
 
-fn segments_to_plain_text(segments: &[ItemSegment]) -> String {
+/// Join collected spans back into the author's source markdown.
+///
+/// Text spans are already source text — an inline container was captured whole
+/// — so only a code span needs its delimiters restored, `pulldown-cmark` having
+/// handed over the code's contents without them.
+fn segments_to_source_text(segments: &[ItemSegment]) -> String {
     let mut out = String::new();
     for seg in segments {
         match seg {
@@ -354,6 +379,15 @@ fn segments_to_plain_text(segments: &[ItemSegment]) -> String {
         }
     }
     out.trim().to_string()
+}
+
+/// True for an inline span whose source text is taken whole rather than rebuilt
+/// from the events inside it.
+fn is_inline_container(tag: &Tag) -> bool {
+    matches!(
+        tag,
+        Tag::Link { .. } | Tag::Image { .. } | Tag::Emphasis | Tag::Strong | Tag::Strikethrough
+    )
 }
 
 fn parse_sacred_item(segments: &[ItemSegment], sacred: &mut Vec<SacredEntry>) {
@@ -385,7 +419,7 @@ fn parse_sacred_item(segments: &[ItemSegment], sacred: &mut Vec<SacredEntry>) {
         });
     } else {
         // Malformed: no backtick-wrapped path. Try to split on separator.
-        let full = segments_to_plain_text(segments);
+        let full = segments_to_source_text(segments);
         let (path, reason) = split_on_separator(&full);
         sacred.push(SacredEntry {
             path,
