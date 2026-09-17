@@ -12,7 +12,7 @@ fn parse_minimal_fixture() {
     // Frontmatter
     assert_eq!(brief.frontmatter.stack, vec!["Rust"]);
     assert!(brief.frontmatter.context.is_empty());
-    assert_eq!(brief.frontmatter.version, "1");
+    assert_eq!(brief.frontmatter.brief_version, "1");
 
     // Goal
     assert_eq!(brief.goal, "Fix the login bug");
@@ -64,7 +64,7 @@ fn parse_full_fixture() {
         brief.frontmatter.model,
         Some("claude-sonnet-4-20250514".to_string())
     );
-    assert_eq!(brief.frontmatter.version, "1");
+    assert_eq!(brief.frontmatter.brief_version, "1");
 
     // Goal
     assert_eq!(brief.goal, "Build real-time collaborative document editor");

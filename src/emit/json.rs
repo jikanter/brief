@@ -17,7 +17,7 @@ mod tests {
                 stack: vec!["Rust".into()],
                 context: vec!["./README.md".into()],
                 model: Some("claude-sonnet-4-20250514".into()),
-                version: "1".into(),
+                brief_version: "1".into(),
                 skill_name: None,
                 skill_description: None,
             },

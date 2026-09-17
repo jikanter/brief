@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::model::{Brief, Diagnostic, Severity};
+use crate::model::{Brief, Diagnostic, SUPPORTED_BRIEF_VERSION, Severity};
 
 /// Validate a parsed `Brief` against the format spec and the filesystem.
 ///
@@ -13,6 +13,18 @@ pub fn validate(brief: &Brief, base_dir: &Path) -> Vec<Diagnostic> {
         diagnostics.push(Diagnostic {
             severity: Severity::Error,
             message: "Missing required `stack` field in frontmatter".to_string(),
+        });
+    }
+
+    // 1b. The format version must be one this build understands. Parsing stays
+    //     tolerant; a newer brief is rejected here rather than emitted wrongly.
+    if brief.frontmatter.brief_version != SUPPORTED_BRIEF_VERSION {
+        diagnostics.push(Diagnostic {
+            severity: Severity::Error,
+            message: format!(
+                "Unsupported `brief_version`: `{}` (this build understands `{SUPPORTED_BRIEF_VERSION}`)",
+                brief.frontmatter.brief_version
+            ),
         });
     }
 
@@ -198,7 +210,7 @@ mod tests {
                 stack: vec!["Rust".to_string()],
                 context: vec![],
                 model: None,
-                version: "1".to_string(),
+                brief_version: "1".to_string(),
                 skill_name: None,
                 skill_description: None,
             },
@@ -238,6 +250,35 @@ mod tests {
             .filter(|d| d.severity == Severity::Error)
             .collect();
         assert!(errors.is_empty(), "Expected no errors, got: {errors:?}");
+    }
+
+    #[test]
+    fn unknown_brief_version_is_error() {
+        let tmp = TempDir::new().unwrap();
+        let mut brief = make_valid_brief();
+        brief.frontmatter.brief_version = "2".to_string();
+        let diags = validate(&brief, tmp.path());
+        let errors: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("brief_version") && d.message.contains('2')),
+            "unknown brief_version should be an error, got: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn supported_brief_version_is_not_an_error() {
+        let tmp = TempDir::new().unwrap();
+        let brief = make_valid_brief();
+        let diags = validate(&brief, tmp.path());
+        assert!(
+            !diags.iter().any(|d| d.message.contains("brief_version")),
+            "version 1 must validate clean, got: {diags:?}"
+        );
     }
 
     #[test]

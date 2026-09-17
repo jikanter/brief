@@ -33,14 +33,20 @@ Machine-critical structured data that doesn't read well as prose:
 ---
 stack: [Python 3.12, PostgreSQL 16, Kafka 3.7, GCP/k8s]
 context: [./performance-baseline.csv, ./current-architecture.md]
+brief_version: "1"
 ---
 ```
+
+The machine schema for frontmatter is generated from the Rust types, never
+hand-written: `docs/schema/brief-frontmatter-v1.schema.json`, embedded via
+`include_str!` in `src/schema.rs`. Regenerate with
+`BLESS_SCHEMA=1 cargo test --test frontmatter_schema_tests`.
 
 Frontmatter fields:
 - `stack` (string[]): Technologies, languages, frameworks. Required.
 - `context` (string[]): File paths or URLs providing reference material. Optional.
 - `model` (string): Preferred model identifier. Optional.
-- `version` (string): Brief format version, currently "1". Optional, defaults to "1".
+- `brief_version` (string): `.brief.md` format version, currently "1". Optional, defaults to "1". An unknown value is a `brief validate` error. The legacy spelling `version` still parses.
 
 ### Markdown Body
 
@@ -156,6 +162,7 @@ Use minimal, well-maintained crates:
 - `pulldown-cmark` — Markdown parsing (heading tree extraction)
 - `colored` — Terminal output formatting
 - `thiserror` or `anyhow` — Error handling
+- `schemars` — Derives the frontmatter JSON Schema from the model types
 
 Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest` (no network calls in Phase 1).
 

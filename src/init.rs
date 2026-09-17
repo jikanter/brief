@@ -20,7 +20,7 @@ pub fn scaffold_brief(dir: &Path) -> String {
     }
 
     // add author and version to the metadata section
-    
+
     out.push_str("metadata: \n");
     out.push_str("  author: \"<your name>\"\n");
     out.push_str("  version: \"0.0.1\"\n");
@@ -146,7 +146,7 @@ fn detect_context(dir: &Path) -> Vec<String> {
         "docs/design-decisions.md",
         "docs/design.md",
         "roadmap/README.md",
-        "CHANGELOG"
+        "CHANGELOG",
     ];
 
     candidates

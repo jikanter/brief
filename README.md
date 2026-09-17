@@ -61,6 +61,7 @@ A `.brief.md` file is Markdown with YAML frontmatter:
 ---
 stack: [Python 3.12, PostgreSQL 16]
 context: [./docs/architecture.md]
+brief_version: "1"
 ---
 
 # Redesign event pipeline for 10M events/day
@@ -85,6 +86,21 @@ context: [./docs/architecture.md]
 ## Deliverable
 Architecture doc + implementation plan + working code
 ```
+
+Frontmatter keys: `stack` (required), `context`, `model`, `brief_version`,
+`skill_name`, `skill_description`. `brief_version` is the `.brief.md` format
+version — it defaults to `"1"`, and a version this build does not understand is
+a `brief validate` error. (It was spelled `version` through 0.6.x; that spelling
+still parses.) Unknown keys are ignored, so newer briefs stay readable by older
+tools.
+
+The machine contract for frontmatter is
+[docs/schema/brief-frontmatter-v1.schema.json](docs/schema/brief-frontmatter-v1.schema.json)
+— JSON Schema Draft 2020-12, generated from the Rust types and embedded in the
+binary, with a test that fails if the committed copy drifts. The canonical JSON
+of a *parsed* brief (what `brief emit json` writes) is
+[docs/schema/brief-v1.schema.json](docs/schema/brief-v1.schema.json), specified
+in [docs/schema/SPEC.md](docs/schema/SPEC.md).
 
 See [examples/sample.brief.md](examples/sample.brief.md) for a complete example. Also see [tests/fixtures](tests/fixtures/) for the tested examples of well-formed and malformed brief documents.
 

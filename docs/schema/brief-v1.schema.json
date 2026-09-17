@@ -97,7 +97,7 @@
         "stack",
         "context",
         "model",
-        "version",
+        "brief_version",
         "skill_name",
         "skill_description"
       ],
@@ -116,9 +116,10 @@
           "description": "Preferred model identifier (task-specific hint, not a session or runtime config).",
           "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
         },
-        "version": {
+        "brief_version": {
           "type": "string",
-          "description": "Brief format version. Defaults to `\"1\"` when omitted in YAML. Unknown versions are a later schema-versioning concern (E1-S2)."
+          "const": "1",
+          "description": "`.brief.md` format version. Authored as `brief_version:` (the legacy `version:` spelling still deserializes). Defaults to `\"1\"` when omitted in YAML. An unknown value is a `brief validate` error (E1-S2)."
         },
         "skill_name": {
           "description": "kebab-case name for an emitted Agent Skill.",
@@ -151,7 +152,11 @@
           "items": { "type": "string" }
         },
         "model": { "type": "string" },
-        "version": { "type": "string" },
+        "brief_version": { "type": "string" },
+        "version": {
+          "type": "string",
+          "description": "Deprecated spelling of `brief_version`, still accepted at parse time."
+        },
         "skill_name": { "type": "string" },
         "skill_description": { "type": "string" }
       }

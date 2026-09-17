@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The top-level briefing structure parsed from a `.brief.md` file.
@@ -14,24 +15,47 @@ pub struct Brief {
 }
 
 /// YAML frontmatter containing machine-critical structured data.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// This is the authoring shape of the `---` block at the top of a `.brief.md`.
+/// Every key is optional at parse time — the parser is tolerant, and validity
+/// (non-empty `stack`, a known `brief_version`) is `brief validate`'s job.
+/// Unrecognized keys are ignored, which keeps older tools reading newer briefs.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[schemars(
+    extend("$id" = FRONTMATTER_SCHEMA_ID),
+    extend("additionalProperties" = true)
+)]
 pub struct Frontmatter {
+    /// Technologies, languages, frameworks. Required and non-empty on a valid brief.
     #[serde(default)]
     pub stack: Vec<String>,
+    /// File paths or URLs of reference material. Optional.
     #[serde(default)]
     pub context: Vec<String>,
+    /// Preferred model identifier for the task. Not a session or runtime config.
     #[serde(default)]
     pub model: Option<String>,
-    #[serde(default = "default_version")]
-    pub version: String,
+    /// `.brief.md` format version. Authored as `brief_version:`; the legacy
+    /// `version:` spelling still deserializes (it collided with the project
+    /// version `brief init` writes under `metadata:`).
+    #[serde(default = "default_brief_version", alias = "version")]
+    pub brief_version: String,
+    /// kebab-case name for an emitted Agent Skill.
     #[serde(default)]
     pub skill_name: Option<String>,
+    /// One-line description for an emitted Agent Skill.
     #[serde(default)]
     pub skill_description: Option<String>,
 }
 
-fn default_version() -> String {
-    "1".to_string()
+/// `$id` of the derived frontmatter schema — the raw URL of the committed copy.
+pub const FRONTMATTER_SCHEMA_ID: &str = "https://raw.githubusercontent.com/jikanter/brief/main/docs/schema/brief-frontmatter-v1.schema.json";
+
+/// The only format version this build understands.
+pub const SUPPORTED_BRIEF_VERSION: &str = "1";
+
+fn default_brief_version() -> String {
+    SUPPORTED_BRIEF_VERSION.to_string()
 }
 
 impl Default for Frontmatter {
@@ -40,7 +64,7 @@ impl Default for Frontmatter {
             stack: Vec::new(),
             context: Vec::new(),
             model: None,
-            version: default_version(),
+            brief_version: default_brief_version(),
             skill_name: None,
             skill_description: None,
         }

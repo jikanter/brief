@@ -1,0 +1,55 @@
+{
+  "$id": "https://raw.githubusercontent.com/jikanter/brief/main/docs/schema/brief-frontmatter-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Frontmatter",
+  "description": "YAML frontmatter containing machine-critical structured data.\n\nThis is the authoring shape of the `---` block at the top of a `.brief.md`.\nEvery key is optional at parse time — the parser is tolerant, and validity\n(non-empty `stack`, a known `brief_version`) is `brief validate`'s job.\nUnrecognized keys are ignored, which keeps older tools reading newer briefs.",
+  "type": "object",
+  "properties": {
+    "brief_version": {
+      "description": "`.brief.md` format version. Authored as `brief_version:`; the legacy\n`version:` spelling still deserializes (it collided with the project\nversion `brief init` writes under `metadata:`).",
+      "type": "string",
+      "default": "1"
+    },
+    "context": {
+      "description": "File paths or URLs of reference material. Optional.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "model": {
+      "description": "Preferred model identifier for the task. Not a session or runtime config.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "skill_description": {
+      "description": "One-line description for an emitted Agent Skill.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "skill_name": {
+      "description": "kebab-case name for an emitted Agent Skill.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "stack": {
+      "description": "Technologies, languages, frameworks. Required and non-empty on a valid brief.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -2,7 +2,8 @@
 
 **Status:** Canonical companion to [brief-format.md](../brief-format.md).  
 **Format version:** `1`  
-**Machine schema:** [brief-v1.schema.json](brief-v1.schema.json) (JSON Schema Draft 2020-12)
+**Machine schema:** [brief-v1.schema.json](brief-v1.schema.json) (JSON Schema Draft 2020-12)  
+**Frontmatter schema:** [brief-frontmatter-v1.schema.json](brief-frontmatter-v1.schema.json) — *derived* from the Rust `Frontmatter` type (schemars), embedded in the binary, drift-tested
 
 The authoring format is Markdown with YAML frontmatter. This document specifies the **canonical JSON** that a parsed `.brief.md` occupies — the object `brief emit json` writes, and the contract emitters and other tools consume.
 
@@ -14,7 +15,7 @@ The authoring format is Markdown with YAML frontmatter. This document specifies 
 
 | Layer | What it is | Schema |
 |---|---|---|
-| **Authoring** | `.brief.md` file: `---` YAML `---` then Markdown headings | Frontmatter: `$defs.FrontmatterAuthoring`. Body: heading grammar in [brief-format.md](../brief-format.md) §3. |
+| **Authoring** | `.brief.md` file: `---` YAML `---` then Markdown headings | Frontmatter: [brief-frontmatter-v1.schema.json](brief-frontmatter-v1.schema.json) (generated; `$defs.FrontmatterAuthoring` here mirrors it for single-file consumers). Body: heading grammar in [brief-format.md](../brief-format.md) §3. |
 | **Canonical JSON** | Strongly-typed `Brief` after parse | Root of `brief-v1.schema.json` |
 
 The parser is **tolerant**: unrecognized H2s become `unknown_sections`; missing H1 or `stack` still parse. **Validity** is a second pass (`brief validate` and this schema's `ValidityConstraints`): a well-formed brief has a non-empty `stack`, a non-empty `goal`, well-formed sacred entries, and checkbox assumptions.
@@ -32,7 +33,7 @@ Root `$ref` composition:
 | `stack:` | `/frontmatter/stack` | `string[]`. Required, min length 1 when valid. |
 | `context:` | `/frontmatter/context` | Paths or URLs. Optional. |
 | `model:` | `/frontmatter/model` | Preferred model id. `null` if omitted. Not a session/runtime field. |
-| `version:` | `/frontmatter/version` | Defaults to `"1"`. |
+| `brief_version:` | `/frontmatter/brief_version` | Defaults to `"1"`. Legacy spelling `version:` still deserializes; canonical JSON only ever carries `brief_version`. |
 | `skill_name:` / `skill_description:` | `/frontmatter/skill_*` | Optional; used by skill emit. `skill_name` is kebab-case. |
 | `# …` (H1) | `/goal` | Exactly one. |
 | `## Identity` | `/identity` | Optional. `{ heading: "Identity", content }`. `null` if absent. |
@@ -90,4 +91,20 @@ The schema describes **task-specific structured intent**. It does not model exec
 
 ## 6. Versioning
 
-Current format version is `"1"`. Additive, backward-compatible JSON fields may appear in a later 1.x; breaking changes require a new schema id (`brief-v2.schema.json`) and a new `version` value. Rejecting unknown `version` values is tracked as E1-S2.
+The format version is the `brief_version:` frontmatter key. Current value: `"1"`; omitted means `"1"`.
+
+`brief validate` **errors** on a `brief_version` this build does not understand (`Unsupported \`brief_version\`: \`2\` (this build understands \`1\`)`), exit 1 — the E1-S2 error band. Parsing stays tolerant: a newer brief still parses, it just does not validate, so tooling can read it without emitting it wrongly.
+
+Additive, backward-compatible JSON fields may appear in a later 1.x; breaking changes require a new schema id (`brief-v2.schema.json`) and a new `brief_version` value.
+
+The key was spelled `version` through 0.6.x. It collided with the project version `brief init` writes under `metadata:`, so it was renamed; `version:` remains a deserialization alias and is listed in `$defs.FrontmatterAuthoring`.
+
+### 6.1 Regenerating the frontmatter schema
+
+`brief-frontmatter-v1.schema.json` is generated, never hand-edited:
+
+```sh
+BLESS_SCHEMA=1 cargo test --test frontmatter_schema_tests
+```
+
+`tests/frontmatter_schema_tests.rs` fails if the committed file differs from the schema derived from `Frontmatter`, or from the copy embedded via `include_str!`.

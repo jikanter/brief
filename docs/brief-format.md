@@ -66,13 +66,22 @@ A pipeline sustaining 10M events/day with no v2 API breakage.
 | `stack` | `string[]` | **yes** | Technologies, languages, frameworks. |
 | `context` | `string[]` | no | File paths or URLs of reference material. |
 | `model` | `string` | no | Preferred model identifier. |
-| `version` | `string` | no | Brief format version. Defaults to `"1"`. |
+| `brief_version` | `string` | no | `.brief.md` format version. Defaults to `"1"`. An unknown value is a `brief validate` error. Legacy spelling `version` is still accepted. |
 | `skill_name` | `string` | no | kebab-case name for an emitted Agent Skill. |
 | `skill_description` | `string` | no | One-line description for an emitted Agent Skill. |
 
 Unknown frontmatter keys are ignored (forward-compatible). New fields are added
 only when they clear the YAGNI bar in
 [design/frontmatter-additions.md](design/frontmatter-additions.md).
+
+The machine form of this table is
+[schema/brief-frontmatter-v1.schema.json](schema/brief-frontmatter-v1.schema.json),
+generated from the Rust `Frontmatter` type and embedded in the binary. It
+describes frontmatter only — body structure stays in §3 and the parser.
+
+`brief_version` was named `version` through 0.6.x. That spelling collided with
+the project `version` `brief init` writes under `metadata:`, so the format
+version now says what it versions. Briefs using `version:` keep parsing.
 
 ---
 

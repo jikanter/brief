@@ -40,18 +40,18 @@ mod tests {
         assert_eq!(fm.stack, vec!["Rust"]);
         assert!(fm.context.is_empty());
         assert_eq!(fm.model, None);
-        assert_eq!(fm.version, "1");
+        assert_eq!(fm.brief_version, "1");
         assert!(rest.contains("# Goal"));
     }
 
     #[test]
     fn parse_full_frontmatter() {
-        let input = "---\nstack: [TypeScript 5.4, React 18]\ncontext: [./docs/arch.md]\nmodel: claude-sonnet-4-20250514\nversion: \"1\"\n---\n\n# Goal\n";
+        let input = "---\nstack: [TypeScript 5.4, React 18]\ncontext: [./docs/arch.md]\nmodel: claude-sonnet-4-20250514\nbrief_version: \"1\"\n---\n\n# Goal\n";
         let (fm, rest) = extract_frontmatter(input).unwrap();
         assert_eq!(fm.stack, vec!["TypeScript 5.4", "React 18"]);
         assert_eq!(fm.context, vec!["./docs/arch.md"]);
         assert_eq!(fm.model, Some("claude-sonnet-4-20250514".to_string()));
-        assert_eq!(fm.version, "1");
+        assert_eq!(fm.brief_version, "1");
         assert!(rest.contains("# Goal"));
     }
 
@@ -69,6 +69,27 @@ mod tests {
         let (fm, _) = extract_frontmatter(input).unwrap();
         assert!(fm.stack.is_empty());
         assert_eq!(fm.context, vec!["./file.md"]);
+    }
+
+    #[test]
+    fn brief_version_key_parses() {
+        let input = "---\nstack: [Rust]\nbrief_version: \"1\"\n---\n\n# Goal\n";
+        let (fm, _) = extract_frontmatter(input).unwrap();
+        assert_eq!(fm.brief_version, "1");
+    }
+
+    #[test]
+    fn legacy_version_key_is_accepted_as_brief_version() {
+        let input = "---\nstack: [Rust]\nversion: \"1\"\n---\n\n# Goal\n";
+        let (fm, _) = extract_frontmatter(input).unwrap();
+        assert_eq!(fm.brief_version, "1");
+    }
+
+    #[test]
+    fn brief_version_defaults_to_one_when_absent() {
+        let input = "---\nstack: [Rust]\n---\n\n# Goal\n";
+        let (fm, _) = extract_frontmatter(input).unwrap();
+        assert_eq!(fm.brief_version, "1");
     }
 
     #[test]

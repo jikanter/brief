@@ -2,7 +2,7 @@
 stack: [TypeScript 5.4, React 18, PostgreSQL 16, Redis 7, AWS ECS]
 context: [./docs/architecture.md, ./docs/api-spec.yaml, ./README.md]
 model: claude-sonnet-4-20250514
-version: "1"
+brief_version: "1"
 metadata:
   author: "Jordan Kanter <admin@localhost>"
   version: "0.0.1"
