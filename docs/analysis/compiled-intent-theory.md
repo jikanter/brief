@@ -9,7 +9,6 @@ metadata:
 
 # Compiled Intent: What If Brief Could Emit Directly Into Latent Space?
 
-
 ## The Premise
 
 Brief currently operates at the **text layer**. A human writes structured intent in Markdown. An emitter translates it into a different text format (CLAUDE.md, XML tags, system prompt). The model tokenizes that text, embeds it, and processes it through attention layers to extract the intent.
