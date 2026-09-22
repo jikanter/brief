@@ -261,6 +261,12 @@ Three-pool convergence, stated plainly:
 - **Obsidian + static-site + ingest pipelines** → accepted aliases, all bare lowercase or snake_case
 - **OKF** → timestamp discipline, and the discipline of not specifying a content model
 
+### Graph consumers
+
+Turning `superseded_by` and `isBasedOn` into edges of a document graph (graphify, a knowledge graph, a traversal index) is out of scope for brief. It belongs in a corpus-wide consumer such as the ACE db. Brief reads only a brief and its `context:` docs, so it cannot own node identity across a corpus, and emitters stay pure (§6, §7).
+
+This document is the contract such a consumer reads: the field names, the closed alias list (§4), and the path rule (§3: relative to the carrying document's directory; a `scheme://` value is a URL). A consumer should also derive staleness the same way brief does. The `superseded_by` chain is directed from old to new, its end is the current document, and there is no authored `status`. `brief validate` remains the integrity check on the source side.
+
 ---
 
 ## 10. Open items
