@@ -172,6 +172,37 @@ pub fn validate_with(
         }
     }
 
+    // 7b. Cassette bindings (`cassettes:` / `## Fixtures`). A set name becomes
+    //     a directory under the consumer's `cassettes/`, so anything but a plain
+    //     name is an error. The rest are warnings: a malformed item binds
+    //     nothing, and `brief emit promptfoo` cannot name a provider without
+    //     a model.
+    for item in crate::fixtures::malformed_fixture_items(brief) {
+        diagnostics.push(Diagnostic {
+            severity: Severity::Warning,
+            message: format!(
+                "Malformed fixture entry (expected `cassette: <set> — <reason>`): \"{item}\""
+            ),
+        });
+    }
+    let bindings = crate::fixtures::cassette_bindings(brief);
+    for binding in &bindings {
+        if !crate::fixtures::is_valid_set_name(&binding.name) {
+            diagnostics.push(Diagnostic {
+                severity: Severity::Error,
+                message: crate::fixtures::invalid_set_name_message(&binding.name),
+            });
+        }
+    }
+    if !bindings.is_empty() && brief.frontmatter.model.is_none() {
+        diagnostics.push(Diagnostic {
+            severity: Severity::Warning,
+            message: "Cassettes are bound but frontmatter has no `model`; \
+                      `brief emit promptfoo` needs one to name the provider"
+                .to_string(),
+        });
+    }
+
     // 8. Document provenance (docs/design/provenance-schema.md). Warnings and
     //    hints only: these keys live in documents brief did not write.
     diagnostics.extend(crate::provenance_check::check(
@@ -232,6 +263,7 @@ mod tests {
                 brief_version: "1".to_string(),
                 skill_name: None,
                 skill_description: None,
+                cassettes: vec![],
             },
             goal: "Fix the bug".to_string(),
             identity: None,

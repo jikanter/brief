@@ -69,6 +69,7 @@ A pipeline sustaining 10M events/day with no v2 API breakage.
 | `brief_version` | `string` | no | `.brief.md` format version. Defaults to `"1"`. An unknown value is a `brief validate` error. Legacy spelling `version` is still accepted. |
 | `skill_name` | `string` | no | kebab-case name for an emitted Agent Skill. |
 | `skill_description` | `string` | no | One-line description for an emitted Agent Skill. |
+| `cassettes` | `string[]` | no | astrophage cassette sets this brief's eval replays. See §8.3. |
 
 Unknown frontmatter keys are ignored (forward-compatible) and conserved
 byte-identical by any command that rewrites the file. New fields are added
@@ -208,7 +209,7 @@ These are conventions, not parser primitives:
 
 ## 8. Format extensions
 
-§8.1 is **shipped in version 1**. §8.2 is still proposed in
+§8.1 and §8.3 are **shipped in version 1**. §8.2 is still proposed in
 [open-questions.md](open-questions.md) and **not** implemented — do not author
 against it yet.
 
@@ -279,6 +280,47 @@ A possible reserved section (`## Workflow` or `## Behavior`) for "how the agent
 should conduct itself" (e.g. "ask before proceeding on ambiguity", "prefer small
 commits") as distinct from constraints on the work product. Today these live as
 Soft constraints or unknown sections. Undecided.
+
+### 8.3 Cassette bindings `[format]` — shipped
+
+A brief can name the [astrophage](https://github.com/jikanter/astrophage)
+cassette sets its eval replays. A cassette set is a committed recording of
+model requests and responses; astrophage replays it offline, with no tokens
+spent. Name a set in the frontmatter, under `## Fixtures`, or in both:
+
+```markdown
+---
+stack: [Rust]
+model: gpt-4o-mini
+cassettes: [rust-reviewer-v1]
+---
+
+# Review Rust changes
+
+## Fixtures
+- cassette: rust-reviewer-v1 — pinned eval-replay set for the rust-reviewer role
+- cassette: `rust-reviewer-edge` -- edge cases the reviewer must flag
+```
+
+- A `## Fixtures` item is `cassette: <set>`, then an optional `—` or `--` and
+  a reason. The set may be backtick-wrapped.
+- A set named in both places is one binding. Frontmatter order comes first.
+- `## Fixtures` stays an unknown section (§5), so every other target passes it
+  through unchanged.
+- A set name is a directory under the consumer's `cassettes/`, so it must be
+  letters, digits, `.`, `_` and `-`, starting with a letter or digit.
+  `brief validate` reports any other name as an error. It warns on an item
+  without the `cassette:` prefix, and on bindings with no `model`.
+
+`brief emit promptfoo` compiles the bindings into promptfoo providers, one per
+set. Each points promptfoo's OpenAI provider at astrophage's default address
+and sends `x-aichat-cache-mode: cassette` and `x-aichat-cassette: <set>`.
+The emit needs `model`, because the model is part of every recorded request.
+Brief only prints the providers. It does not start astrophage or promptfoo, and
+it makes no network calls.
+
+Binding a set in the brief is optional. A cassette set can also be named
+directly in `promptfooconfig.yaml`.
 
 ---
 

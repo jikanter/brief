@@ -134,6 +134,11 @@
         "skill_description": {
           "description": "One-line description for an emitted Agent Skill.",
           "anyOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
+        },
+        "cassettes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "astrophage cassette set names bound in frontmatter. Omitted when empty. Bindings from a `## Fixtures` section stay in `unknown_sections`; `brief emit promptfoo` merges both."
         }
       }
     },
@@ -158,7 +163,11 @@
           "description": "Deprecated spelling of `brief_version`, still accepted at parse time."
         },
         "skill_name": { "type": "string" },
-        "skill_description": { "type": "string" }
+        "skill_description": { "type": "string" },
+        "cassettes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       }
     },
     "Constraints": {

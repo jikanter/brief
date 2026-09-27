@@ -35,6 +35,7 @@ Root `$ref` composition:
 | `model:` | `/frontmatter/model` | Preferred model id. `null` if omitted. Not a session/runtime field. |
 | `brief_version:` | `/frontmatter/brief_version` | Defaults to `"1"`. Legacy spelling `version:` still deserializes; canonical JSON only ever carries `brief_version`. |
 | `skill_name:` / `skill_description:` | `/frontmatter/skill_*` | Optional; used by skill emit. `skill_name` is kebab-case. |
+| `cassettes:` | `/frontmatter/cassettes` | Optional astrophage cassette set names. Omitted from JSON when empty. A `## Fixtures` section stays in `/unknown_sections[]`. |
 | `# …` (H1) | `/goal` | Exactly one. |
 | `## Identity` | `/identity` | Optional. `{ heading: "Identity", content }`. `null` if absent. |
 | `## Constraints` / `### Hard` | `/constraints/hard` | Array of `Constraint`. |
