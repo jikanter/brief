@@ -268,6 +268,8 @@ enum EmitTarget {
     Json,
     /// Emit Anthropic-style XML tags for API system prompts
     Xml,
+    /// Emit promptfoo providers that replay the brief's astrophage cassette sets
+    Promptfoo,
 }
 
 impl EmitTarget {
@@ -286,6 +288,7 @@ impl EmitTarget {
             EmitTarget::Anchor => budget::Target::Prompt,
             EmitTarget::Json => budget::Target::Json,
             EmitTarget::Xml => budget::Target::Xml,
+            EmitTarget::Promptfoo => budget::Target::Promptfoo,
         }
     }
 }
@@ -556,6 +559,11 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
     if uninstall && (install || full || hooks) {
         anyhow::bail!("--uninstall cannot be combined with --install, --full, or --hooks");
     }
+    // --compact drops the frontmatter and unknown sections, which is where the
+    // cassette bindings live, so it would always leave nothing to emit.
+    if compact && matches!(target, EmitTarget::Promptfoo) {
+        anyhow::bail!("--compact is not supported for the promptfoo target");
+    }
 
     let position = match &position {
         Some(p) => parse_position(p)?,
@@ -593,6 +601,10 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         EmitTarget::Anchor => emit::emit_anchor(&brief),
         EmitTarget::Json => emit::emit_json(&brief),
         EmitTarget::Xml => emit::emit_xml(&brief),
+        EmitTarget::Promptfoo => {
+            emit::promptfoo_preflight(&brief).map_err(anyhow::Error::msg)?;
+            emit::emit_promptfoo(&brief)
+        }
     };
 
     // Budget awareness (P3): measure the emitted section against the target's
@@ -723,7 +735,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
                      reads with `brief emit claude --install`."
                 );
             }
-            EmitTarget::Prompt | EmitTarget::Anchor | EmitTarget::Json => {
+            EmitTarget::Prompt | EmitTarget::Anchor | EmitTarget::Json | EmitTarget::Promptfoo => {
                 anyhow::bail!(
                     "--install is only supported for the claude, agents-md, cursor, copilot, windsurf, and aider targets"
                 );

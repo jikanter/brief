@@ -31,9 +31,9 @@ For in-conversation use, invoke the `frontmatter-yagni` skill ([.claude/skills/f
 | `brief_version` | ✅ added | Format version; renamed from `version` after 0.6.x |
 | provenance keys (`dateModified`, …) | Out of scope | Not `Frontmatter` fields; ignored by the brief parser, governed by [provenance-schema.md](provenance-schema.md) |
 | `commands:` | Deferred | 0/6 pass — see [../open-questions.md](../open-questions.md) `[format]` Frontmatter-Only Commands for the walkthrough |
-| `cassettes:` / `## Fixtures` | Deferred | 2/6 fail firmly, 3 soft — eval-replay binding for the astrophage tool; see [../open-questions.md](../open-questions.md) `[format]` Cassette / `## Fixtures` Field for the walkthrough. Companion to aichat `SPEC-astrophage.md`. |
+| `cassettes:` / `## Fixtures` | ✅ added (owner override) | Deferred at 2/6 firm fails; built 2026-09-27 at the owner's direction once astrophage shipped and `brief emit promptfoo` became its consumer. Check 6 still did not pass. See [../open-questions.md](../open-questions.md) `[format]` Cassette / `## Fixtures` Field. |
 
-The pattern holds: every accepted field passes all six; every rejection fails at least three. The bar isn't post-hoc rationalization — it's the implicit reasoning from [../analysis/archive/obsolete-features.md](../analysis/archive/obsolete-features.md) and [../analysis/phase2-synthesis.md](../analysis/phase2-synthesis.md) "What NOT To Do" organized into a checklist.
+The pattern holds with one recorded exception: every accepted field passes all six except `cassettes:`, which the owner added over the bar (see its row); every rejection fails at least three. The bar isn't post-hoc rationalization — it's the implicit reasoning from [../analysis/archive/obsolete-features.md](../analysis/archive/obsolete-features.md) and [../analysis/phase2-synthesis.md](../analysis/phase2-synthesis.md) "What NOT To Do" organized into a checklist.
 
 ## Using the bar
 

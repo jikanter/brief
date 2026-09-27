@@ -3,6 +3,7 @@ pub mod check;
 pub mod commands;
 pub mod conflict;
 pub mod emit;
+pub mod fixtures;
 pub mod framing;
 pub mod hooks;
 pub mod init;
