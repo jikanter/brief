@@ -198,6 +198,7 @@ mod tests {
             frontmatter: Frontmatter {
                 skill_name: Some("review".into()),
                 skill_description: Some("Review code".into()),
+                cassettes: vec![],
                 ..Default::default()
             },
             goal: "Review code".into(),
@@ -225,6 +226,7 @@ mod tests {
             frontmatter: Frontmatter {
                 skill_name: Some("review".into()),
                 skill_description: Some("Review code".into()),
+                cassettes: vec![],
                 ..Default::default()
             },
             goal: "Review code".into(),
@@ -253,6 +255,7 @@ mod tests {
                 stack: vec!["Rust".into()],
                 skill_name: Some("review".into()),
                 skill_description: Some("Review code following team standards".into()),
+                cassettes: vec![],
                 ..Default::default()
             },
             goal: "Perform thorough code review".into(),

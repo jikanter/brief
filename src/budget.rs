@@ -43,6 +43,7 @@ pub enum Target {
     Aider,
     Xml,
     Json,
+    Promptfoo,
 }
 
 impl Target {
@@ -59,6 +60,7 @@ impl Target {
             Target::Aider => "aider",
             Target::Xml => "xml",
             Target::Json => "json",
+            Target::Promptfoo => "promptfoo",
         }
     }
 
@@ -69,7 +71,8 @@ impl Target {
     /// is precious, so its budget is tight (500). The file-based targets
     /// (`claude`, `agents-md`, `cursor`, ...) live in a project instruction file
     /// a human also reads, where a little more prose is expected (2000). `json`
-    /// is consumed by tooling, not a model context window, so it has no budget.
+    /// and `promptfoo` are consumed by tooling, not a model context window, so
+    /// they have no budget.
     pub fn token_threshold(self) -> Option<usize> {
         match self {
             Target::Prompt => Some(500),
@@ -81,7 +84,7 @@ impl Target {
             | Target::Windsurf
             | Target::Aider
             | Target::Xml => Some(2000),
-            Target::Json => None,
+            Target::Json | Target::Promptfoo => None,
         }
     }
 

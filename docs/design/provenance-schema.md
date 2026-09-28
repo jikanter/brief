@@ -14,6 +14,7 @@ An LLM parses `**Last updated:** 2026-04-11` in a prose header perfectly well. W
 
 - be asserted on in CI
 - be diffed meaningfully
+
 - have its referenced paths checked for existence
 - order a set of documents by staleness without a model pass
 

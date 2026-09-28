@@ -10,6 +10,13 @@
       "type": "string",
       "default": "1"
     },
+    "cassettes": {
+      "description": "astrophage cassette sets this brief's eval replays, by set name (the\ndirectory under the consumer's `cassettes/`). Brief never runs them:\n`brief emit promptfoo` compiles them into replay providers.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "context": {
       "description": "File paths or URLs of reference material. Optional.",
       "type": "array",

@@ -46,6 +46,11 @@ pub struct Frontmatter {
     /// One-line description for an emitted Agent Skill.
     #[serde(default)]
     pub skill_description: Option<String>,
+    /// astrophage cassette sets this brief's eval replays, by set name (the
+    /// directory under the consumer's `cassettes/`). Brief never runs them:
+    /// `brief emit promptfoo` compiles them into replay providers.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cassettes: Vec<String>,
 }
 
 /// `$id` of the derived frontmatter schema — the raw URL of the committed copy.
@@ -67,6 +72,7 @@ impl Default for Frontmatter {
             brief_version: default_brief_version(),
             skill_name: None,
             skill_description: None,
+            cassettes: Vec::new(),
         }
     }
 }

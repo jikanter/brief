@@ -20,6 +20,7 @@ mod tests {
                 brief_version: "1".into(),
                 skill_name: None,
                 skill_description: None,
+                cassettes: vec![],
             },
             goal: "Build feature".into(),
             identity: None,

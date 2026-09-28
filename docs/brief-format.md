@@ -69,6 +69,7 @@ A pipeline sustaining 10M events/day with no v2 API breakage.
 | `brief_version` | `string` | no | `.brief.md` format version. Defaults to `"1"`. An unknown value is a `brief validate` error. Legacy spelling `version` is still accepted. |
 | `skill_name` | `string` | no | kebab-case name for an emitted Agent Skill. |
 | `skill_description` | `string` | no | One-line description for an emitted Agent Skill. |
+| `cassettes` | `string[]` | no | astrophage cassette sets this brief's eval replays. See §8.3. |
 
 Unknown frontmatter keys are ignored (forward-compatible) and conserved
 byte-identical by any command that rewrites the file. New fields are added
@@ -208,7 +209,7 @@ These are conventions, not parser primitives:
 
 ## 8. Format extensions
 
-§8.1 is **shipped in version 1**. §8.2 is still proposed in
+§8.1 and §8.3 are **shipped in version 1**. §8.2 is still proposed in
 [open-questions.md](open-questions.md) and **not** implemented — do not author
 against it yet.
 
@@ -279,6 +280,70 @@ A possible reserved section (`## Workflow` or `## Behavior`) for "how the agent
 should conduct itself" (e.g. "ask before proceeding on ambiguity", "prefer small
 commits") as distinct from constraints on the work product. Today these live as
 Soft constraints or unknown sections. Undecided.
+
+### 8.3 Cassette bindings `[format]` — shipped
+
+A brief can name the [astrophage](https://github.com/jikanter/astrophage)
+cassette sets its eval replays. A cassette set is a committed recording of
+model requests and responses; astrophage replays it offline, with no tokens
+spent. Name a set in the frontmatter, under `## Fixtures`, or in both:
+
+```markdown
+---
+stack: [Rust]
+model: gpt-4o-mini
+cassettes: [rust-reviewer-v1]
+---
+
+# Review Rust changes
+
+## Fixtures
+- cassette: rust-reviewer-v1 — pinned eval-replay set for the rust-reviewer role
+- cassette: `rust-reviewer-edge` -- edge cases the reviewer must flag
+```
+
+- A `## Fixtures` item is `cassette: <set>`, then an optional `—` or `--` and
+  a reason. The set may be backtick-wrapped.
+- A set named in both places is one binding. Frontmatter order comes first.
+- `## Fixtures` stays an unknown section (§5), so every other target passes it
+  through unchanged.
+- A set name is a directory under the consumer's `cassettes/`, so it must be
+  letters, digits, `.`, `_` and `-`, starting with a letter or digit.
+  `brief validate` reports any other name as an error. It warns on an item
+  without the `cassette:` prefix, and on bindings with no `model`.
+
+`brief emit promptfoo` compiles the bindings into promptfoo providers, one per
+set. Each points promptfoo's OpenAI provider at the astrophage gateway and
+sends `x-aichat-cache-mode: cassette` and `x-aichat-cassette: <set>`.
+The emit needs `model`, because the model is part of every recorded request.
+Brief only prints the providers. It does not start astrophage or promptfoo, and
+it makes no network calls.
+
+The gateway defaults to astrophage's own default, `127.0.0.1:8080`.
+`--gateway` points the providers somewhere else. It takes what
+`astrophage serve --listen` takes, or a URL (`--gateway 127.0.0.1:9090`,
+`--gateway https://gw.example.com`), and the `/v1` prefix is added for you.
+
+`--session-id` also sends `X-Eridian-Session-Id`, one ID per test case, which
+astrophage copies into its trace so its hits and misses can be told apart.
+promptfoo's `openai:chat` provider sends header values as written, so this
+mode emits promptfoo `http` providers instead, which fill in `{{sessionId}}`.
+Two things follow:
+
+- promptfoo creates the ID only when `promptfooconfig.yaml` has
+  `defaultTest.options.transformVars: "{ ...vars, sessionId: context.uuid }"`.
+  The output's header comment gives the exact lines.
+- The request body is built by hand from a plain-text prompt, sent as one user
+  message. Record and replay a set with the same mode: a set recorded through
+  one provider shape may not match requests from the other.
+
+The providers only replay. Recording a set is a separate, occasional job, run
+against a live provider and chosen when the gateway starts:
+`astrophage serve --mode cassette --cassette <set> --record --upstream <provider>`.
+Review the recorded set and commit it before CI replays it.
+
+Binding a set in the brief is optional. A cassette set can also be named
+directly in `promptfooconfig.yaml`.
 
 ---
 

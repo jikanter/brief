@@ -44,6 +44,9 @@ brief emit anchor
 brief emit json                 # the parsed briefing as canonical JSON
 brief emit xml                  # XML envelope: every section has a closing tag
 brief emit xml > brief.xml      # ...so a payload appended after it cannot bleed in
+brief emit promptfoo > brief-providers.yaml  # promptfoo providers that replay astrophage cassettes
+brief emit promptfoo --gateway 127.0.0.1:9090  # ...against a gateway not on the default 127.0.0.1:8080
+brief emit promptfoo --session-id  # ...sending X-Eridian-Session-Id, one ID per test case
 
 # Lint the briefing (flags vague constraints; --install warns on conflicts)
 brief validate
@@ -93,7 +96,7 @@ Architecture doc + implementation plan + working code
 ```
 
 Frontmatter keys: `stack` (required), `context`, `model`, `brief_version`,
-`skill_name`, `skill_description`. `brief_version` is the `.brief.md` format
+`skill_name`, `skill_description`, `cassettes`. `brief_version` is the `.brief.md` format
 version — it defaults to `"1"`, and a version this build does not understand is
 a `brief validate` error. (It was spelled `version` through 0.6.x; that spelling
 still parses.) Unknown keys are ignored, so newer briefs stay readable by older
