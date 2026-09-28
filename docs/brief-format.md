@@ -324,6 +324,19 @@ The gateway defaults to astrophage's own default, `127.0.0.1:8080`.
 `astrophage serve --listen` takes, or a URL (`--gateway 127.0.0.1:9090`,
 `--gateway https://gw.example.com`), and the `/v1` prefix is added for you.
 
+`--session-id` also sends `X-Eridian-Session-Id`, one ID per test case, which
+astrophage copies into its trace so its hits and misses can be told apart.
+promptfoo's `openai:chat` provider sends header values as written, so this
+mode emits promptfoo `http` providers instead, which fill in `{{sessionId}}`.
+Two things follow:
+
+- promptfoo creates the ID only when `promptfooconfig.yaml` has
+  `defaultTest.options.transformVars: "{ ...vars, sessionId: context.uuid }"`.
+  The output's header comment gives the exact lines.
+- The request body is built by hand from a plain-text prompt, sent as one user
+  message. Record and replay a set with the same mode: a set recorded through
+  one provider shape may not match requests from the other.
+
 The providers only replay. Recording a set is a separate, occasional job, run
 against a live provider and chosen when the gateway starts:
 `astrophage serve --mode cassette --cassette <set> --record --upstream <provider>`.

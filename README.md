@@ -46,6 +46,7 @@ brief emit xml                  # XML envelope: every section has a closing tag
 brief emit xml > brief.xml      # ...so a payload appended after it cannot bleed in
 brief emit promptfoo > brief-providers.yaml  # promptfoo providers that replay astrophage cassettes
 brief emit promptfoo --gateway 127.0.0.1:9090  # ...against a gateway not on the default 127.0.0.1:8080
+brief emit promptfoo --session-id  # ...sending X-Eridian-Session-Id, one ID per test case
 
 # Lint the briefing (flags vague constraints; --install warns on conflicts)
 brief validate
