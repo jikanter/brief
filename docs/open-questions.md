@@ -148,7 +148,7 @@ or in frontmatter:
 cassettes: [rust-reviewer-v1]
 ```
 
-`brief emit` would compile the binding into the eval harness's replay config — a promptfoo `providerconfig` snippet selecting `--cache-mode cassette --cassette rust-reviewer-v1 --cache-replay`. Brief only **parses and emits a string**; astrophage (invoked by the harness, with aichat as the client) records and replays. This preserves design decision 4 (format-first, no runtime) and the hard "no `tokio`, no `reqwest`" constraint — brief never gains network code.
+`brief emit` would compile the binding into the eval harness's replay config — a promptfoo `providerconfig` snippet selecting `--cache-mode cassette --cassette rust-reviewer-v1 --cache-replay`. *(Superseded: those aichat flags will not be built. What shipped selects the set with two request headers to the astrophage gateway; see Status below.)* Brief only **parses and emits a string**; astrophage (invoked by the harness, with aichat as the client) records and replays. This preserves design decision 4 (format-first, no runtime) and the hard "no `tokio`, no `reqwest`" constraint — brief never gains network code.
 
 **Applying the YAGNI bar ([design/frontmatter-additions.md](design/frontmatter-additions.md)):**
 
@@ -172,7 +172,7 @@ cassettes: [rust-reviewer-v1]
 
 **Status:** built 2026-09-27 at the owner's direction (aichat roadmap Phase 48, 48A + 48B), before all three triggers fired:
 
-1. Met. astrophage has shipped. It selects a set per request with the `x-aichat-cache-mode` and `x-aichat-cassette` headers, so the emitted shape is a base URL plus two headers. It is not the `aichat --cache-mode cassette --cassette … --cache-replay` command that `SPEC-astrophage.md` §4 sketched: aichat has no such flags.
+1. Met. astrophage has shipped. It selects a set per request with the `x-aichat-cache-mode` and `x-aichat-cassette` headers, so the emitted shape is a base URL plus two headers. It is not the `aichat --cache-mode cassette --cassette … --cache-replay` command that `SPEC-astrophage.md` §4 sketched. On 2026-09-27 the owner decided aichat gets no cassette flags: mode and set selection stay in astrophage (`astrophage serve --mode cassette [--record]` at launch, the two headers per request), and the aichat specs were rewritten to match.
 2. Met. `brief emit promptfoo` is the consumer.
 3. Not met. No user has reported the unknown-section round-trip as lossy.
 

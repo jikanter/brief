@@ -313,11 +313,21 @@ cassettes: [rust-reviewer-v1]
   without the `cassette:` prefix, and on bindings with no `model`.
 
 `brief emit promptfoo` compiles the bindings into promptfoo providers, one per
-set. Each points promptfoo's OpenAI provider at astrophage's default address
-and sends `x-aichat-cache-mode: cassette` and `x-aichat-cassette: <set>`.
+set. Each points promptfoo's OpenAI provider at the astrophage gateway and
+sends `x-aichat-cache-mode: cassette` and `x-aichat-cassette: <set>`.
 The emit needs `model`, because the model is part of every recorded request.
 Brief only prints the providers. It does not start astrophage or promptfoo, and
 it makes no network calls.
+
+The gateway defaults to astrophage's own default, `127.0.0.1:8080`.
+`--gateway` points the providers somewhere else. It takes what
+`astrophage serve --listen` takes, or a URL (`--gateway 127.0.0.1:9090`,
+`--gateway https://gw.example.com`), and the `/v1` prefix is added for you.
+
+The providers only replay. Recording a set is a separate, occasional job, run
+against a live provider and chosen when the gateway starts:
+`astrophage serve --mode cassette --cassette <set> --record --upstream <provider>`.
+Review the recorded set and commit it before CI replays it.
 
 Binding a set in the brief is optional. A cassette set can also be named
 directly in `promptfooconfig.yaml`.

@@ -17,7 +17,8 @@ use crate::model::Brief;
 
 /// Where `astrophage serve` listens by default (`--listen 127.0.0.1:8080`),
 /// plus the `/v1` prefix promptfoo's OpenAI provider expects on a base URL.
-pub const ASTROPHAGE_BASE_URL: &str = "http://127.0.0.1:8080/v1";
+/// `brief emit promptfoo --gateway <address>` points somewhere else.
+pub const DEFAULT_GATEWAY_BASE_URL: &str = "http://127.0.0.1:8080/v1";
 
 const HEADER: &str = "\
 # promptfoo providers that replay astrophage cassette sets.
@@ -30,8 +31,63 @@ const HEADER: &str = "\
 #
 # Start the gateway before `promptfoo eval`. It replays offline and fails any
 # request the cassette does not hold, so no call reaches a live provider:
-#   astrophage serve --mode cassette --cassettes-dir cassettes
-";
+#   astrophage serve --mode cassette --cassettes-dir cassettes";
+
+/// Turn a `--gateway` value into the base URL promptfoo calls. Accepts what
+/// `astrophage serve --listen` takes (`127.0.0.1:9090`) or a URL
+/// (`https://gw.example.com`), and appends the `/v1` prefix unless it is
+/// already there. Only `http` and `https` are accepted, with a non-empty host
+/// and no whitespace.
+pub fn gateway_base_url(input: &str) -> Result<String, String> {
+    let trimmed = input.trim();
+    let (scheme, rest) = match trimmed.split_once("://") {
+        Some((scheme @ ("http" | "https"), rest)) => (scheme, rest),
+        Some(_) => {
+            return Err(format!(
+                "--gateway `{input}` must be an http or https address"
+            ));
+        }
+        None => ("http", trimmed),
+    };
+    // Trailing slashes come off the part after the scheme, so `http://` stays
+    // hostless rather than collapsing to a host named `http:`.
+    let rest = rest.trim_end_matches('/');
+    let url = format!("{scheme}://{rest}");
+    let authority = rest.split('/').next().unwrap_or_default();
+    if authority.is_empty() || rest.chars().any(char::is_whitespace) {
+        return Err(format!(
+            "--gateway `{input}` needs a host, such as `127.0.0.1:8080` or `https://gw.example.com`"
+        ));
+    }
+    Ok(if url.ends_with("/v1") {
+        url
+    } else {
+        format!("{url}/v1")
+    })
+}
+
+/// The `host:port` part of a base URL, when it names a port: the value
+/// `astrophage serve --listen` would take.
+fn listen_address(base_url: &str) -> Option<&str> {
+    let rest = base_url.split_once("://")?.1;
+    let authority = rest.split('/').next()?;
+    authority.contains(':').then_some(authority)
+}
+
+/// The comment block at the top of the output. The `astrophage serve` line
+/// matches the gateway: `--listen` when the address names a port, or a note
+/// with the URL when it does not (a gateway behind a proxy on 443, say).
+fn header(base_url: &str) -> String {
+    let mut out = String::from(HEADER);
+    if base_url != DEFAULT_GATEWAY_BASE_URL {
+        match listen_address(base_url) {
+            Some(listen) => out.push_str(&format!(" --listen {listen}")),
+            None => out.push_str(&format!("\n# and reach it at {base_url}")),
+        }
+    }
+    out.push('\n');
+    out
+}
 
 /// Why the brief cannot be emitted as promptfoo providers, if it cannot: it
 /// binds no cassette, names no model, or binds a set name that is not a plain
@@ -57,14 +113,20 @@ pub fn promptfoo_preflight(brief: &Brief) -> Result<(), String> {
     Ok(())
 }
 
-/// Render one promptfoo provider per bound cassette set. Call
-/// [`promptfoo_preflight`] first: this assumes a model and valid set names.
+/// Render one promptfoo provider per bound cassette set, pointed at the
+/// default gateway address. Call [`promptfoo_preflight`] first: this assumes
+/// a model and valid set names.
 pub fn emit_promptfoo(brief: &Brief) -> String {
+    emit_promptfoo_at(brief, DEFAULT_GATEWAY_BASE_URL)
+}
+
+/// [`emit_promptfoo`], pointed at `base_url` (see [`gateway_base_url`]).
+pub fn emit_promptfoo_at(brief: &Brief, base_url: &str) -> String {
     let model = brief.frontmatter.model.as_deref().unwrap_or_default();
     let id = yaml_scalar(&format!("openai:chat:{model}"));
-    let base_url = yaml_scalar(ASTROPHAGE_BASE_URL);
+    let mut out = header(base_url);
+    let base_url = yaml_scalar(base_url);
 
-    let mut out = String::from(HEADER);
     for binding in cassette_bindings(brief) {
         let set = yaml_scalar(&binding.name);
         out.push('\n');

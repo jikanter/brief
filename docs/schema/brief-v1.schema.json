@@ -137,8 +137,11 @@
         },
         "cassettes": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "description": "astrophage cassette set names bound in frontmatter. Omitted when empty. Bindings from a `## Fixtures` section stay in `unknown_sections`; `brief emit promptfoo` merges both."
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "description": "astrophage cassette set names bound in frontmatter. Omitted when empty. Each is a plain directory name under the consumer's `cassettes/` (the `brief validate` rule). Bindings from a `## Fixtures` section stay in `unknown_sections`; `brief emit promptfoo` merges both."
         }
       }
     },

@@ -6,6 +6,7 @@
 
 use assert_cmd::prelude::*;
 use brief_cli::emit::emit_promptfoo;
+use brief_cli::emit::promptfoo::{DEFAULT_GATEWAY_BASE_URL, emit_promptfoo_at, gateway_base_url};
 use brief_cli::fixtures::{CassetteBinding, cassette_bindings, malformed_fixture_items};
 use brief_cli::model::Severity;
 use brief_cli::parse::parse_brief;
@@ -364,4 +365,118 @@ fn json_emit_of_a_bound_brief_matches_the_parsed_brief_schema() {
         .map(|e| format!("{}: {e}", e.instance_path))
         .collect();
     assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn parsed_brief_schema_carries_the_set_name_rule() {
+    // Same rule as `brief validate`, the way `skill_name` carries its pattern.
+    let schema_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/docs/schema/brief-v1.schema.json"
+    );
+    let schema: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(schema_path).unwrap()).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let json_for = |set: &str| -> serde_json::Value {
+        let src = format!("---\nstack: [Rust]\nmodel: m\ncassettes: [\"{set}\"]\n---\n\n# G\n");
+        serde_json::from_str(&brief_cli::emit::emit_json(&parse_brief(&src).unwrap())).unwrap()
+    };
+    assert!(validator.is_valid(&json_for("rust-reviewer-v1.2_x")));
+    for bad in ["../escape", "a/b", ".hidden", "has space"] {
+        assert!(!validator.is_valid(&json_for(bad)), "{bad}");
+    }
+}
+
+// -- gateway address --
+
+#[test]
+fn gateway_base_url_normalizes_what_astrophage_listens_on() {
+    for (input, want) in [
+        ("127.0.0.1:9090", "http://127.0.0.1:9090/v1"),
+        ("http://gw.internal:8080", "http://gw.internal:8080/v1"),
+        ("http://gw.internal:8080/", "http://gw.internal:8080/v1"),
+        ("https://gw.example.com/v1", "https://gw.example.com/v1"),
+        ("  localhost:8081  ", "http://localhost:8081/v1"),
+    ] {
+        assert_eq!(gateway_base_url(input).as_deref(), Ok(want), "{input}");
+    }
+}
+
+#[test]
+fn gateway_base_url_rejects_what_promptfoo_cannot_reach() {
+    for input in ["", "http://", "ftp://gw:21", "gw host:80", "https:///v1"] {
+        assert!(gateway_base_url(input).is_err(), "{input:?}");
+    }
+}
+
+#[test]
+fn emit_promptfoo_at_default_gateway_is_the_plain_emit() {
+    let brief = parse_brief(BOUND).unwrap();
+    assert_eq!(
+        emit_promptfoo_at(&brief, DEFAULT_GATEWAY_BASE_URL),
+        emit_promptfoo(&brief)
+    );
+}
+
+#[test]
+fn cli_emit_promptfoo_gateway_sets_base_url_and_listen_address() {
+    let dir = tempdir().unwrap();
+    let file = write_brief(dir.path(), BOUND);
+    let out = brief_cmd(&file)
+        .args(["emit", "promptfoo", "--gateway", "127.0.0.1:9090"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{out:?}");
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    assert_eq!(
+        stdout,
+        EXPECTED
+            .replace(
+                "--cassettes-dir cassettes\n",
+                "--cassettes-dir cassettes --listen 127.0.0.1:9090\n"
+            )
+            .replace("127.0.0.1:8080/v1", "127.0.0.1:9090/v1")
+    );
+}
+
+#[test]
+fn cli_emit_promptfoo_gateway_without_a_port_names_the_url() {
+    let dir = tempdir().unwrap();
+    let file = write_brief(dir.path(), BOUND);
+    brief_cmd(&file)
+        .args(["emit", "promptfoo", "--gateway", "https://gw.example.com"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "#   astrophage serve --mode cassette --cassettes-dir cassettes\n\
+             # and reach it at https://gw.example.com/v1\n",
+        ))
+        .stdout(predicate::str::contains(
+            "apiBaseUrl: \"https://gw.example.com/v1\"",
+        ));
+}
+
+#[test]
+fn cli_emit_promptfoo_rejects_a_bad_gateway() {
+    let dir = tempdir().unwrap();
+    let file = write_brief(dir.path(), BOUND);
+    brief_cmd(&file)
+        .args(["emit", "promptfoo", "--gateway", "ftp://gw:21"])
+        .assert()
+        .failure()
+        .stdout("")
+        .stderr(predicate::str::contains("--gateway"));
+}
+
+#[test]
+fn cli_gateway_is_promptfoo_only() {
+    let dir = tempdir().unwrap();
+    let file = write_brief(dir.path(), BOUND);
+    brief_cmd(&file)
+        .args(["emit", "json", "--gateway", "127.0.0.1:9090"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "--gateway is only supported for the promptfoo target",
+        ));
 }

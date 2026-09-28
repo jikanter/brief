@@ -85,6 +85,11 @@ enum Commands {
         /// Remove the brief section, hooks, and skill that brief installed (claude only)
         #[arg(long)]
         uninstall: bool,
+
+        /// astrophage gateway address, e.g. 127.0.0.1:9090 or
+        /// https://gw.example.com (promptfoo only; default 127.0.0.1:8080)
+        #[arg(long, value_name = "ADDRESS")]
+        gateway: Option<String>,
     },
 
     /// Check if a file path falls within a sacred region
@@ -316,6 +321,7 @@ fn run(cli: Cli) -> Result<()> {
             position,
             full,
             uninstall,
+            gateway,
         } => cmd_emit(EmitArgs {
             target,
             file: &cli.file,
@@ -327,6 +333,7 @@ fn run(cli: Cli) -> Result<()> {
             position,
             full,
             uninstall,
+            gateway,
         }),
         Commands::Check { path, hook } => cmd_check(path.as_deref(), &cli.file, hook),
         Commands::ValidateDiff { base, stdin, json } => {
@@ -509,6 +516,7 @@ struct EmitArgs<'a> {
     position: Option<String>,
     full: bool,
     uninstall: bool,
+    gateway: Option<String>,
 }
 
 /// Parse a `--position` value into a marker [`emit::Position`].
@@ -537,6 +545,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         position,
         full,
         uninstall,
+        gateway,
     } = args;
 
     // --full / --uninstall / --position are claude-only (they touch
@@ -564,6 +573,13 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
     if compact && matches!(target, EmitTarget::Promptfoo) {
         anyhow::bail!("--compact is not supported for the promptfoo target");
     }
+    if gateway.is_some() && !matches!(target, EmitTarget::Promptfoo) {
+        anyhow::bail!("--gateway is only supported for the promptfoo target");
+    }
+    let gateway = match &gateway {
+        Some(raw) => emit::promptfoo::gateway_base_url(raw).map_err(anyhow::Error::msg)?,
+        None => emit::promptfoo::DEFAULT_GATEWAY_BASE_URL.to_string(),
+    };
 
     let position = match &position {
         Some(p) => parse_position(p)?,
@@ -603,7 +619,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         EmitTarget::Xml => emit::emit_xml(&brief),
         EmitTarget::Promptfoo => {
             emit::promptfoo_preflight(&brief).map_err(anyhow::Error::msg)?;
-            emit::emit_promptfoo(&brief)
+            emit::promptfoo::emit_promptfoo_at(&brief, &gateway)
         }
     };
 
