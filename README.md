@@ -18,14 +18,15 @@ brief init
 # Validate against your codebase
 brief validate
 
-# Emit for Claude Code (idempotent install into CLAUDE.md)
+# Emit into AGENTS.md: the cross-vendor standard Codex, Cursor, Copilot and
+# Claude Code all read (Claude Code only when the repo has no CLAUDE.md)
+brief emit agents-md --install
+
+# Emit for Claude Code (idempotent install into CLAUDE.md, plus hooks and skills)
 brief emit claude --install
 brief emit claude --install --position top   # primacy placement + reconciliation preamble
 brief emit claude --full                     # section + skill + hooks + command permissions
 brief emit claude --uninstall                # reverse it all (section, hooks, skill)
-
-# Emit for OpenAI Codex / cross-vendor agents (idempotent install into AGENTS.md)
-brief emit agents-md --install
 
 # Emit for other ecosystems, each in its idiomatic register
 brief emit cursor --install     # .cursor/rules/brief.mdc
@@ -132,7 +133,9 @@ See [examples/sample.brief.md](examples/sample.brief.md) for a complete example.
 
 ## Why?
 
-As AI agents handle more technical execution, the human→agent interface becomes the bottleneck. Existing approaches are either too unstructured (prose CLAUDE.md files) or too programmatic (YAML prompt languages). `brief` sits in the gap: a format any developer can write in 60 seconds that any agent runtime can consume. If built correctly, brief should enhance the implementation of existing formats without impeding their inherent structure.
+As AI agents handle more technical execution, the human→agent interface becomes the bottleneck. Existing approaches are either too unstructured (prose `AGENTS.md` and `CLAUDE.md` files) or too programmatic (YAML prompt languages). `brief` sits in the gap: a format any developer can write in 60 seconds that any agent runtime can consume. If built correctly, brief should enhance the implementation of existing formats without impeding their inherent structure.
+
+brief is the source of record for that intent. An author writes it once; brief checks it, compiles it into each runtime's native artifact, installs those artifacts reversibly, and gates work against them. It never executes. Within the [Eridian](https://github.com/jikanter/aichat-private) stack it is the authoring layer: it emits the files aichat and astrophage consume and makes no calls to either. See [docs/architecture/README.md](docs/architecture/README.md).
 
 ## See Also
 

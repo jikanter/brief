@@ -28,9 +28,27 @@ pub fn wrap_with_markers(content: &str) -> String {
     format!("{MARKER_START}\n{content}{MARKER_END}\n")
 }
 
+/// The byte offset of `tok` at or after `from`, counting only a line that
+/// holds the token and nothing else (surrounding whitespace allowed). brief
+/// always writes a marker on its own line; a marker *mentioned* inside prose,
+/// a code span or a code block is text, not a section boundary. Matching it
+/// anywhere once let an install overwrite the hand-written content between a
+/// mention and the real closing marker.
+fn find_marker_line(text: &str, from: usize, tok: &str) -> Option<usize> {
+    let mut line_start = from;
+    for line in text[from..].split_inclusive('\n') {
+        if line.trim() == tok {
+            return Some(line_start + (line.len() - line.trim_start().len()));
+        }
+        line_start += line.len();
+    }
+    None
+}
+
 /// Find all brief marker pairs in the text. Recognizes both the current
 /// `<brief:generated>` flavor and the legacy `<!-- brief:start -->` pair so
-/// legacy installs can be migrated in place.
+/// legacy installs can be migrated in place. A marker counts only on a line of
+/// its own (see [`find_marker_line`]).
 pub fn find_marker_pairs(text: &str) -> Vec<MarkerPair> {
     let flavors: [(&str, &str); 2] = [
         (MARKER_START, MARKER_END),
@@ -43,9 +61,8 @@ pub fn find_marker_pairs(text: &str) -> Vec<MarkerPair> {
         let next = flavors
             .iter()
             .filter_map(|(start_tok, end_tok)| {
-                text[search_from..]
-                    .find(start_tok)
-                    .map(|off| (search_from + off, *start_tok, *end_tok))
+                find_marker_line(text, search_from, start_tok)
+                    .map(|pos| (pos, *start_tok, *end_tok))
             })
             .min_by_key(|&(pos, _, _)| pos);
 
@@ -55,8 +72,8 @@ pub fn find_marker_pairs(text: &str) -> Vec<MarkerPair> {
         };
 
         let content_start = pair_start + start_tok.len();
-        let content_end = match text[content_start..].find(end_tok) {
-            Some(offset) => content_start + offset,
+        let content_end = match find_marker_line(text, content_start, end_tok) {
+            Some(pos) => pos,
             None => break,
         };
         let mut pair_end = content_end + end_tok.len();
@@ -364,6 +381,46 @@ end\n";
         assert!(result.contains("between1"));
         assert!(result.contains("between2"));
         assert!(result.contains("end"));
+    }
+
+    #[test]
+    fn find_marker_pairs_ignores_a_marker_mentioned_mid_line() {
+        // A doc that talks about the marker, in prose or a code comment, is not
+        // a managed section. Only a marker alone on its line opens or closes one.
+        let text = "\
+Content lives inside `<brief:generated>` markers.\n\
+```\n\
+.brief.md  # generates the <brief:generated> section\n\
+```\n\
+<brief:generated>\n\
+body\n\
+</brief:generated>\n\
+tail\n";
+        let pairs = find_marker_pairs(text);
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(
+            text[pairs[0].content_start..pairs[0].content_end].trim(),
+            "body"
+        );
+    }
+
+    #[test]
+    fn find_marker_pairs_ignores_marker_mentions_inside_the_section() {
+        let text = "\
+<brief:generated>\n\
+- MUST: keep content inside `<brief:generated>` and `</brief:generated>` markers\n\
+</brief:generated>\n\
+after\n";
+        let pairs = find_marker_pairs(text);
+        assert_eq!(pairs.len(), 1);
+        assert!(text[pairs[0].content_start..pairs[0].content_end].contains("MUST: keep"));
+        assert_eq!(&text[pairs[0].pair_end..], "after\n");
+    }
+
+    #[test]
+    fn find_marker_pairs_accepts_an_indented_marker_line() {
+        let text = "  <brief:generated>  \nbody\n\t</brief:generated>\n";
+        assert_eq!(find_marker_pairs(text).len(), 1);
     }
 
     #[test]

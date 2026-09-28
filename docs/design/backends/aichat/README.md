@@ -1,10 +1,22 @@
 # aichat / eridian-ai Backend
 
-**Status:** Proposed. Not in the phase2-synthesis P4 roadmap; this is a new target. Audit conducted 2026-04-27 against `~/Developer/Projects/aichat` source and a production config dir at `~/Library/Application Support/aichat` (155 roles, 14 sessions, 18 prompts, 15 RAGs, several agents).
+**Status:** Planned: roles first (revised 2026-09-27, see below); agents deferred. Audit conducted 2026-04-27 against `~/Developer/Projects/aichat` source and a production config dir at `~/Library/Application Support/aichat` (155 roles, 14 sessions, 18 prompts, 15 RAGs, several agents).
 
 aichat (renamed `eridian-ai` in the user's fork) describes itself as a "make for AI tooling" — a CLI runtime that loads roles, agents, prompts, sessions, RAGs, and macros from a configuration directory. Its on-disk format is a natural emit target for `brief`: most artifacts are Markdown-with-YAML-frontmatter or pure YAML, and the format-first decision recorded in design-decisions.md applies cleanly.
 
-## Scope decision: agents-first
+## Scope decision, revised 2026-09-27: roles first
+
+The agents-first call below is **superseded**. Roles are the first aichat target; the agent emitter is deferred. Three things changed since the audit:
+
+1. **aichat now treats brief as its composition language.** Its roadmap says so, its seam table lists the brief connection as "emitted role files and fixtures", and its integration idea #7 has a brief "compile to a role file". The audit's reason to skip roles (an emitter "saves <60 seconds of typing") assumed roles were only hand-typed conveniences.
+2. **A role is now a versioned Entity.** aichat hashes a role into its Entity `lock_hash` (Phase 60), so a role emitted from a checked-in `.brief.md` gives that version a reviewable source. `tool_approval` rules in role frontmatter (Phase 59 G7) can also only tighten policy, which is where Sacred regions can become enforced rules.
+3. **An agent spans two repos.** `index.yaml` and `agents.txt` live in llm-functions, and the audit's multi-file scaffolding is still unbuilt. A role is one file in aichat's config dir.
+
+The agent format itself is also expected to change as industry agent formats settle, so the agent emitter waits for that. The agent analysis below is kept as reference: its mapping table, placeholder rules and model-id handling apply to roles too.
+
+Plan: [../../new-surfaces-design-doc.md](../../new-surfaces-design-doc.md) §7.1 (role emitter) and E2 in [../../new-surfaces-epics.md](../../new-surfaces-epics.md).
+
+## Scope decision (2026-04-27, superseded): agents-first
 
 Of the five aichat artifact types, only one is high-leverage for `brief`:
 

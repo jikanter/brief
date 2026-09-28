@@ -9,7 +9,7 @@ Scope: task fields of the `Frontmatter` type only. Document-provenance keys (`da
 
 ## The bar (all six must pass)
 
-1. **Task-specific.** Does the value change task-to-task within the same project? If it would be the same across every brief in this repo, it's standing context — belongs in CLAUDE.md, not `.brief.md`.
+1. **Intent-specific.** Does the value change from one brief to the next within the same project (per task, or per definition for a brief that is the source of an aichat role)? If it would be the same across every brief in this repo, it's standing context — belongs in `AGENTS.md` or `CLAUDE.md`, not `.brief.md`.
 
 2. **No existing carrier.** Can the data fit in any existing field — `stack`, `context`, `model`, `## Constraints`, `## Sacred`, `## Assumptions`, or an unknown `## <Heading>` section? Unknown sections preserve raw Markdown and pass through every emitter, including JSON (as `unknown_sections[].content`). The bar for "unknown sections aren't enough" is therefore high.
 
@@ -17,7 +17,7 @@ Scope: task fields of the `Frontmatter` type only. Document-provenance keys (`da
 
 4. **Shape is obvious.** Would three reasonable engineers propose the same shape? Disagreement (flat string map vs. map of objects vs. list of objects, singular vs. plural) means the underlying need isn't yet understood — wait for the consumer in check 3 to pin it down.
 
-5. **Stays inside brief's mission.** Brief is task-specific structured intent (goal, constraints, sacred regions, assumptions). Does this field move brief toward being an infrastructure manifest, package descriptor, or code-style guide? Wedge fields — where one acceptance invites neighbors like `environments`, `services`, `deployment_targets` — need extra justification.
+5. **Stays inside brief's mission.** Brief is the source of record for authored intent (goal, constraints, sacred regions, assumptions), and it never executes. Does this field move brief toward being an infrastructure manifest, package descriptor, or code-style guide? Wedge fields — where one acceptance invites neighbors like `environments`, `services`, `deployment_targets` — need extra justification.
 
 6. **At least one current user flow fails without it.** Can you complete this sentence? "Today, a user is trying to X with brief and cannot because field Y doesn't exist." Concrete pain, not anticipated convenience. If you can't fill it in, defer.
 

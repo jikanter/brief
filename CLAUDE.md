@@ -2,9 +2,13 @@
 
 ## Project Summary
 
-`brief` is a CLI tool that creates, validates, and emits structured briefing files (`.brief.md`) for AI coding agents. It solves the gap between unstructured `CLAUDE.md`/`AGENTS.md` prose and overly-programmatic prompt languages like PDL or LMQL.
+`brief` is a CLI tool that creates, validates, and emits structured briefing files (`.brief.md`) for AI coding agents. It solves the gap between unstructured `AGENTS.md`/`CLAUDE.md` prose and overly-programmatic prompt languages like PDL or LMQL.
+
+**Intent:** brief is the source of record for human intent to AI systems. An author writes the intent once, in 60 seconds. brief checks it, compiles it into each runtime's native artifact (briefings for coding agents, definitions for aichat), installs those artifacts reversibly, and gates work against them. It never executes. See `docs/design-decisions.md` "Intent".
 
 The core insight: as AI agents handle more technical execution, the human→agent interface becomes the bottleneck. `brief` provides a fast, familiar format (Markdown + YAML frontmatter) for humans to express intent, constraints, and sacred regions — and a CLI to validate, compose, and emit those briefings to multiple agent runtimes.
+
+brief serves two groups of consumers. The external agent runtimes (Claude Code, Codex via `AGENTS.md`, Cursor, Copilot, Windsurf, Aider) get their native instruction files. The integrated Eridian stack gets its artifacts: brief is one of six repos (aichat, llm-functions, brief, astrophage, rocky, pi), and aichat names it the stack's primary composition language. The brief → aichat seam is emitted files only; today that is promptfoo replay providers for astrophage, and next an aichat role file. An agent-directory emitter is deferred until agent formats settle. The system picture from brief's side is `docs/architecture/README.md`.
 
 ## Architecture Decisions (Already Made)
 
@@ -19,7 +23,9 @@ These decisions were reached through extensive design analysis. Do not revisit t
 4. **Format-first architecture.** The `.brief.md` format is the product. Runtime integrations (Claude Code, AGENTS.md, system prompts, MCP) are emit targets — plugins, not the core.
 
 5. **Extend, do not replace** The `.brief.md` should extend, but not replace, existing well established conventions for agentic coding. In particular, brief
-should be an asset to the Claude Code ecosystem.
+should be an asset to the `AGENTS.md` standard, which Claude Code now reads alongside the other agents, and to the Claude Code ecosystem (hooks, skills, permissions).
+
+6. **Authoring layer of the integrated stack (2026-09-27).** In the six-repo Eridian system, brief declares and emits; aichat executes; astrophage owns the wire; llm-functions owns tools; rocky reads traces; pi is the REPL. brief's seams are files it writes, never calls in either direction. Emitted output is byte-stable, because aichat hashes an Entity's definition into its `lock_hash`. A change a sibling repo needs is documented in this repo and applied in that one. Hermes is reached only through aichat's metadata refinery, never by a brief emit target.
 
 ## .brief.md Format Specification
 
@@ -88,7 +94,7 @@ Human-authored intent using a defined heading convention:
 - Assumption items use Markdown checkbox syntax: `- [ ]` unvalidated, `- [x]` validated.
 - Unknown H2 sections are preserved as-is (extensibility).
 
-## CLI Commands (Phase 1)
+## CLI Commands
 
 ### `brief init`
 Analyze the current directory and scaffold a `.brief.md` with sensible defaults.
@@ -111,7 +117,10 @@ Targets:
 - `claude` — Emit a `CLAUDE.md` section with constraints formatted as Claude Code conventions. This is the primary target.
 - `prompt` — Emit raw system prompt text suitable for API use.
 - `agents-md` — Emit an `AGENTS.md` compatible section.
+- `cursor`, `copilot`, `windsurf`, `aider`, `readme` — Each ecosystem's native file, in its own register (`docs/emit-targets-reference.md`).
+- `anchor` — A ≤5-line NEVER/MUST constraint anchor for mid-session re-injection.
 - `json` — Emit the parsed briefing as structured JSON (for tooling integration).
+- `xml` — An XML envelope with closing tags, for prompts that concatenate untrusted content.
 - `promptfoo` — Emit promptfoo providers that replay the brief's cassette sets through the astrophage gateway (base URL + `x-aichat-cache-mode`/`x-aichat-cassette` headers). `--gateway <address>` overrides the default `127.0.0.1:8080`. `--session-id` switches to promptfoo `http` providers that send `X-Eridian-Session-Id` per test case (`openai:chat` sends header values as written, without filling in `{{vars}}`). Stdout only; brief never runs astrophage or promptfoo. Mode selection is astrophage-side: aichat has no cassette flags, by decision.
 
 ### `brief check <path>`
@@ -124,34 +133,31 @@ Check if a file path falls within a sacred region.
 Show semantic differences between two briefing files.
 - Added/removed constraints, changed sacred regions, new assumptions.
 
+### `brief validate-diff`
+Gate a set of changed files (a git range or stdin) against the sacred regions. Exit non-zero on a violation; the CI form of `brief check`.
+
+### `brief skill <init|validate|emit|search|scaffold|install|uninstall>`
+Author and install Agent Skills. brief owns only `metadata.brief.source` inside a skill; the rest is hand-editable.
+
 ## Build & Project Structure
+
+The module map and data flow are in `docs/architecture/README.md` §3. In short:
 
 ```
 brief/
-├── Cargo.toml
-├── CLAUDE.md              # This file
+├── .brief.md              # The charter; generates the managed section at the end of this file
 ├── src/
 │   ├── main.rs            # CLI entry point (clap)
-│   ├── lib.rs             # Public API
-│   ├── parse/
-│   │   ├── mod.rs
-│   │   ├── frontmatter.rs # YAML frontmatter extraction
-│   │   └── body.rs        # Markdown heading tree parser
-│   ├── model.rs           # Brief data structures
-│   ├── validate.rs        # Validation logic
-│   ├── emit/
-│   │   ├── mod.rs
-│   │   ├── claude.rs      # CLAUDE.md emitter
-│   │   ├── prompt.rs      # Raw prompt emitter
-│   │   ├── agents_md.rs   # AGENTS.md emitter
-│   │   └── json.rs        # JSON emitter
-│   ├── init.rs            # Repo analyzer + scaffolder
-│   └── check.rs           # Sacred path checker
-├── tests/
-│   ├── fixtures/           # Sample .brief.md files
-│   └── integration/
-└── examples/
-    └── sample.brief.md
+│   ├── parse/             # frontmatter.rs (serde-saphyr) + body.rs (heading tree)
+│   ├── model.rs           # The Brief IR
+│   ├── validate.rs        # + provenance_check.rs, fixtures.rs
+│   ├── emit/              # One module per target, plus markers.rs (managed sections)
+│   ├── framing.rs         # Hard/Soft/Ask First → NEVER/PREFER/STOP register
+│   ├── budget.rs          # --budget, --compact
+│   ├── hooks.rs, skill.rs, commands.rs   # Install surfaces
+│   └── check.rs, validate_diff.rs, pathmatch.rs   # Sacred gates
+├── docs/                  # Format spec, schema, architecture, design
+└── tests/                 # One file per feature; fixtures/ holds sample briefs
 ```
 
 ## Dependencies
@@ -166,7 +172,7 @@ Use minimal, well-maintained crates:
 - `thiserror` or `anyhow` — Error handling
 - `schemars` — Derives the frontmatter JSON Schema from the model types
 
-Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest` (no network calls in Phase 1).
+Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest`, `hyper` or `ureq`: brief makes no network calls, ever (aichat's anti-roadmap holds brief to this too).
 
 ## Code Style
 
@@ -185,9 +191,47 @@ Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest` (no 
 - Format: `cargo fmt`
 
 <brief:generated>
-# Briefing: Brief, a best-in-class structured file format for agents
+# Briefing: Brief: the source of record for human intent to AI systems
 
 **Stack:** Rust
+
+## Constraints
+
+### Hard (Non-negotiable)
+
+<rules priority="required">
+- MUST: A new `.brief.md` takes under sixty seconds to author.
+- MUST: brief declares and emits files; it never executes. No model calls, sessions or tool loops, and no network crates (`tokio`, `reqwest`, `hyper`, `ureq`).
+- MUST: Distributed as a single binary, or a single binary plus configuration files.
+- MUST: Emitted files fit each target's existing conventions (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/`, aichat roles, promptfoo providers) and never replace hand-authored content.
+- MUST: Installs are non-destructive, idempotent and reversible: generated content lives inside `<brief:generated>` markers or in files brief owns, and `--uninstall` removes exactly that.
+- MUST: The same brief emits byte-identical output on every run: no timestamps or random values in emitted files. aichat hashes an Entity's definition into its `lock_hash`, so unstable output reads as a new version.
+- MUST: The seams with the sibling repos (aichat, astrophage, llm-functions, rocky, pi) are emitted files only. A change a sibling repo needs is documented in this repo and applied in that one.
+- MUST: The format extends through unknown `##` sections and new emit targets, without a grammar change.
+</rules>
+
+### Soft (Preferred)
+
+<rules priority="preferred">
+- PREFER: Keep the format low cognitive load, not merely lower burden than prose: an author should not need `docs/brief-format.md` open to write a valid brief.
+- PREFER: Dogfood brief: this file is its first use case, and `brief emit claude --install` generates this repo's `CLAUDE.md` section from it.
+- PREFER: A new frontmatter field clears the YAGNI bar in `docs/design/frontmatter-additions.md` before it is built.
+</rules>
+
+### Ask First (Requires approval)
+
+<rules priority="ask-first">
+- STOP and confirm with the user before: Adding an emit target for a runtime brief does not support yet
+- STOP and confirm with the user before: Changing the `.brief.md` grammar or bumping `brief_version`
+</rules>
+
+## Sacred Regions (Do Not Modify)
+
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+
+<protected_files>
+- `docs/schema/brief-frontmatter-v1.schema.json` — generated from the Rust Frontmatter type; regenerate with BLESS_SCHEMA=1 cargo test --test frontmatter_schema_tests, never edit by hand
+</protected_files>
 
 ## Reference Context
 
@@ -195,33 +239,12 @@ Read these files for background before starting work:
 
 <context>
 - @README.md
+- @docs/architecture/README.md
 </context>
-
-## Constraints
-
-### Hard (Non-negotiable)
-
-<rules priority="required">
-- **IMPORTANT:** Format takes less then sixty seconds to author
-- **IMPORTANT:** System reduces the human cognitive burden of interacting with agents
-- **IMPORTANT:** Distributed as a single binary, or single-binary plus configuration files.
-- **IMPORTANT:** Tooling interoprates and does not replace existing file formats (Claude.md, .cursorrules, etc.)
-- **IMPORTANT:** Brief should be non-destructive and easily extractable from where it is installed.
-- **IMPORTANT:** Example: Brief uses a an xml tag 'brief:generated' to encapsulate generated content for CLAUDE.md files.
-- **IMPORTANT:** System is extensible within its ecosystem
-</rules>
-
-### Soft (Preferred)
-
-<rules priority="preferred">
-- The format should not be high cognitive load, as there is much variance in complexity between "reducing the cognitive burden of humans", and "low cognitive load" formats.
-- The format should be dogfoodable. In other words, the .brief.md of the brief project should be the first use-case.
-</rules>
 
 ## Deliverable
 
 <deliverable>
-A human-authorable format with multiple outputs that can control different pieces of the runtime. Secondarily,
-the format should be extensible in order to support new use cases and new formats.
+A human-authorable format, and one CLI that checks it, compiles it, installs it reversibly and gates work against it, for every runtime that consumes intent: briefings for the coding agents (`AGENTS.md` for Codex, Cursor, Copilot and Claude Code; `CLAUDE.md` with hooks and skills; Windsurf; Aider) and definitions for the integrated stack (an aichat role, promptfoo replay against astrophage). Secondarily, the format and the target set stay extensible, so a new runtime is a new emitter rather than a new format.
 </deliverable>
 </brief:generated>

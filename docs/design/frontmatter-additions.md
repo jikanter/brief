@@ -8,7 +8,7 @@ For in-conversation use, invoke the `frontmatter-yagni` skill ([.claude/skills/f
 
 ## The bar
 
-1. **Task-specific.** The value changes task-to-task within the same project. If it would be the same across every brief in this repo, it's standing context — belongs in CLAUDE.md, not `.brief.md`. (See [../design-decisions.md](../design-decisions.md) "Augment, Not Replace.")
+1. **Intent-specific.** The value changes from one brief to the next within the same project: per task, or per definition for a brief that is the source of an aichat role. If it would be the same across every brief in this repo, it's standing context — belongs in `AGENTS.md` or `CLAUDE.md`, not `.brief.md`. (See [../design-decisions.md](../design-decisions.md) "Augment, Not Replace.")
 
 2. **No existing carrier.** None of `stack`, `context`, `model`, the constraint sections, sacred regions, or unknown sections can hold the data naturally. Unknown sections preserve raw Markdown and pass through every emitter — JSON includes them as `unknown_sections[].content`. The bar for "unknown sections aren't enough" is therefore high.
 
@@ -16,7 +16,7 @@ For in-conversation use, invoke the `frontmatter-yagni` skill ([.claude/skills/f
 
 4. **Shape is obvious.** Three reasonable engineers would propose the same shape. Disagreement (flat string map vs. map of objects vs. list of objects, singular vs. plural, etc.) means the underlying need isn't yet understood — wait for a consumer to pin it down.
 
-5. **Stays inside brief's mission.** Brief is task-specific structured intent. Fields that drift toward infrastructure manifest, package descriptor, or code-style guide fail this check. Wedge fields — where one acceptance invites neighbors like `environments`, `services`, `deployment_targets` — need extra justification.
+5. **Stays inside brief's mission.** Brief is the source of record for authored intent (see [../design-decisions.md](../design-decisions.md) "Intent"), and it never executes. Fields that drift toward infrastructure manifest, package descriptor, or code-style guide fail this check. Wedge fields — where one acceptance invites neighbors like `environments`, `services`, `deployment_targets` — need extra justification.
 
 6. **At least one current user flow fails without it.** Concrete pain, not anticipated convenience. Test: complete the sentence "Today, a user is trying to X and cannot because field Y doesn't exist." If you can't, defer.
 
