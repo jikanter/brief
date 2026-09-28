@@ -1,10 +1,12 @@
 # brief architecture
 
-brief is the intent-authoring layer of two groups of consumers: the external agent
-runtimes (Claude Code, Codex, Cursor, Copilot, Windsurf, Aider) and the integrated
-Eridian stack of six repos. It reads a `.brief.md`, validates it, and writes files. It
-never runs a model, holds a session, or calls the network, and nothing a consumer does
-flows back into brief.
+brief is the source of record for human intent to AI systems. It serves two groups of
+consumers: the coding agents (through `AGENTS.md`, `CLAUDE.md` and each tool's native
+files) and the integrated Eridian stack of six repos. It does three jobs: it compiles a
+`.brief.md` into each consumer's artifact, installs that artifact reversibly, and gates
+work against it. It never runs a model, holds a session, or calls the network, and
+nothing a consumer does flows back into brief. The ownership table and non-goals are in
+[design-decisions.md](../design-decisions.md) "Place in the integrated system".
 
 The integrated system is described from aichat's side in its
 [`architecture.svg`](https://github.com/jikanter/aichat-private/blob/main/docs/architecture.svg)
@@ -26,7 +28,7 @@ graph LR
   end
 
   subgraph stack["Integrated stack (sibling repos)"]
-    aichat["aichat<br/>Entity: role or agent"]
+    aichat["aichat<br/>roles/&lt;name&gt;.md"]
     promptfoo["promptfoo providers"]
     astrophage["astrophage gateway<br/>cassette replay"]
   end
@@ -36,7 +38,7 @@ graph LR
   brief --> claude
   brief --> agents
   brief --> others
-  brief -. "planned: aichat emit target" .-> aichat
+  brief -. "planned: role emitter" .-> aichat
   brief --> promptfoo
   promptfoo -- "base_url + x-aichat-* headers" --> astrophage
   brief --> ci
@@ -49,14 +51,16 @@ writes, and no consumer calls brief back.
 
 | Seam | Consumer | Contract | Status |
 |---|---|---|---|
+| Standing instructions (`AGENTS.md`, `CLAUDE.md`) | every coding agent | Augment only: brief writes inside its own `<brief:generated>` region and nothing else. Claude Code reads `AGENTS.md` only when the repo has no `CLAUDE.md` ([design-decisions.md](../design-decisions.md) "Which standing file Claude Code reads"). | Shipped |
 | `CLAUDE.md` section, skill, hooks, permissions | Claude Code | `<brief:generated>` markers; `.claude/skills/<name>/SKILL.md`; `PreToolUse` hook running `brief check`; `permissions.allow` from `## Commands` | Shipped |
 | `AGENTS.md`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.windsurf/rules/`, `CONVENTIONS.md` | the other external runtimes | One idiomatic file or managed section each; see [emit-targets-reference.md](../emit-targets-reference.md) | Shipped |
 | promptfoo providers | promptfoo, then astrophage | `openai:chat:<model>` (default) or `http` (`--session-id`) providers; `x-aichat-cache-mode: cassette`, `x-aichat-cassette: <set>`, optional `X-Eridian-Session-Id`; `--gateway` address | Shipped (aichat Phase 48A/B) |
-| aichat Entity | aichat | Either a role (`roles/<name>.md`, frontmatter plus prompt body, which aichat's seam table names) or an agent directory (`agents/<name>/`, which brief's [backend audit](../design/backends/aichat/README.md) chose). Either way the definition is hashed into the Entity `lock_hash`, and `tool_approval` rules in its frontmatter can only tighten policy. | Planned; role vs agent open |
+| aichat role | aichat | `roles/<name>.md`: YAML frontmatter plus prompt body. The file is hashed into the Entity `lock_hash`, and `tool_approval` rules in its frontmatter can only tighten policy. An agent-directory emitter (`agents/<name>/`, the 2026-04 [backend audit](../design/backends/aichat/README.md)) is deferred until agent formats settle. | Planned (decided 2026-09-27) |
 | Eval suite | aichat role evaluation or promptfoo | Undecided (aichat integration idea #7) | Open |
 | Parsed brief (JSON) | any tool | [`brief-v1.schema.json`](../schema/brief-v1.schema.json), [SPEC.md](../schema/SPEC.md) | Shipped |
 | CI gates | any CI | `brief validate`, `brief validate-diff`, `brief check` exit codes; `emit xml` for prompts that carry untrusted content | Shipped |
 | Hermes | none | aichat's metadata refinery owns the aichat ↔ Hermes boundary and moves only a role's description. brief reaches Hermes only through aichat. | By design |
+| ACE / ClaudeKb | none (brief points only) | A brief may point at ClaudeKb paths or `ace://` facts from `context:`; retrieval happens in aichat. brief never files, indexes or curates tags. Today `brief validate` warns on any `context:` entry that is not a local file, URLs included, and `emit claude` renders it as an `@` import. | Gap: URI-aware `context:` |
 
 brief has no seam with llm-functions, rocky or pi. Tools are declared in llm-functions and
 referenced by name from a role; rocky reads aichat's traces; pi is the REPL over aichat.

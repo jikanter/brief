@@ -1,172 +1,181 @@
-# Design Doc — `brief` as Intent Artifact with Eridian + Hermes Emit Targets
+# Design Doc — brief's integrated-stack targets
 
-**Status:** Draft v2 (corrected to the real `brief` model)
-**Author:** Jordan Kanter (Sr Mgr Data Eng, DCR/EDAA)
+**Status:** Draft v3
+**Author:** Jordan Kanter
 **Repo:** `https://github.com/jikanter/brief`
-**Related systems:** `golden-ai`/Eridian (aichat fork), Hermes (Nous Research agent), `personal-llm-functions`, `pi`
-**Last updated:** 2026-08-30
+**Related systems:** aichat ([jikanter/aichat-private](https://github.com/jikanter/aichat-private)), astrophage, llm-functions, rocky, pi; Hermes through aichat only
+**Last updated:** 2026-09-27
 
-> **What changed from v1:** v1 modeled `brief` as a `parse → plan → dispatch` tool that called aichat `/v1`. That was wrong. The real `brief` is an **emit** tool: `.brief.md` → idiomatic config for each runtime (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/brief.mdc`, `.github/copilot-instructions.md`, `.windsurf/rules/brief.md`, `CONVENTIONS.md`), installed **non-destructively and idempotently**, with a token **budget** reporter and **Sacred** path-scoping. This doc replaces "dispatch" with "emit" everywhere.
+> **What changed from v2 (2026-08-30).** v2 planned two new targets, `emit eridian` and `emit hermes`. Since then aichat has named brief its primary composition language, shipped a metadata refinery that owns the aichat ↔ Hermes boundary, versioned every Entity with a `lock_hash`, and added `tool_approval` rules to role frontmatter. v3 follows:
+> - **`emit hermes` is cut.** aichat's refinery moves a role's description into Hermes' `profile.yaml` and deliberately moves nothing else. A brief target would bypass that design.
+> - **`emit eridian` becomes the aichat role emitter.** Roles first; the agent-directory emitter is deferred until agent formats settle ([backends/aichat](backends/aichat/README.md)).
+> - **`emit promptfoo` shipped** (aichat Phase 48A/B, brief PRs #1–#3).
+> - **brief's own trace spans are dropped.** aichat's trace is the only telemetry source in the stack.
+> - **brief's intent is broader than a compiler:** it compiles, installs and gates, and a brief can be the source of a reusable definition, not only a task ([../design-decisions.md](../design-decisions.md) "Intent").
 
 ---
 
 ## 1. Problem statement
 
-`brief` is a structured briefing format for AI coding agents: a human-writable `.brief.md` (YAML frontmatter + Markdown body) plus a CLI that **validates, composes, and emits** the briefing into each agent runtime's native register — non-destructively and idempotently. It already emits to Claude Code, OpenAI Codex/`AGENTS.md`, Cursor, Copilot, Windsurf, and Aider.
+brief emits to every major coding agent, but the integrated stack consumes only one of its outputs. aichat's own architecture lists the brief seam as "emitted role files and fixtures"; today brief supplies the fixtures half (promptfoo providers for astrophage cassettes) and no role. aichat's integration idea #7, "one brief → three artifacts" (a role, an eval suite and cassette bindings), has one of its three parts.
 
-The temptation was to build a `brief` **runtime** (read a brief, call a model, run a tool loop). That would clone Hermes and add a fourth executor to a stack that already has Eridian (composer), Hermes (hub), and `personal-llm-functions` (tool single-source). 
-
-**The real gap is narrower and cleaner:** `brief` emits to six *external* ecosystems but not to *your own* stack. Eridian roles and Hermes registries are exactly the kind of idiomatic target `brief` already knows how to produce.
+There are also two gaps where brief's contracts don't yet reach the stack: Sacred regions cannot become enforced rules in aichat, and `context:` cannot point at anything but a local file.
 
 ## 2. Decision
 
-**`brief` stays a compiler-of-intent. We add two emit targets, not a runtime and not a dispatcher.**
+brief stays emit-only. For the integrated stack it has, in order:
 
-- **`brief emit eridian`** → an Eridian **role artifact** in its idiomatic register (composable role that Eridian's composer consumes).
-- **`brief emit hermes`** → a Hermes-consumable **registry/seed config** (the hub loads it; tools flow *into* Hermes).
+| Target | Consumer | Status |
+|---|---|---|
+| `emit promptfoo` | promptfoo, then astrophage | Shipped |
+| aichat role (§7.1) | aichat | Next |
+| Eval suite (§7.3) | aichat role evaluation or promptfoo | Waiting on aichat's #7 decision |
+| aichat agent (§7.4) | aichat, llm-functions | Deferred |
 
-`brief` never calls a model, never owns a session, never runs a tool loop. It produces the artifact; Eridian composes, Hermes orchestrates. This is the same "one declarative source → idiomatic outputs for many consumers" pattern `brief` already embodies and that `personal-llm-functions` uses (one header → `functions.json` **and** Hermes registry).
+brief never calls a model, owns a session, runs a tool loop, or calls the network. It writes files; aichat and astrophage do the work.
 
-## 3. Non-goals (explicit YAGNI list)
+## 3. Non-goals
 
-- ❌ No `brief` runtime / inference loop.
-- ❌ No `brief` dispatcher calling aichat `/v1` (that was the v1 mistake).
-- ❌ No `brief`-owned session/state store (Hermes owns sessions).
-- ❌ No MCP server inside `brief`.
-- ❌ No RAG (consistent with Eridian's "contextual engineering").
+The full list is in [../design-decisions.md](../design-decisions.md) "Non-goals". The ones this plan could drift into:
 
-Emit produces **static artifacts**; execution stays entirely in Eridian/Hermes.
+- ❌ A `brief` runtime, or dispatch to aichat's `/v1`.
+- ❌ A Hermes target of any kind.
+- ❌ ACE tag filing or curation.
+- ❌ brief-owned telemetry.
+- ❌ Test-case authoring as a new brief grammar before aichat picks an eval format.
 
 ## 4. Design principles
 
-1. **Emit, don't execute.** `brief`'s only job is `validate → compose → emit`.
-2. **Idiomatic register per target.** An Eridian role must look like a hand-written Eridian role; a Hermes registry like a hand-written Hermes registry. Same discipline as `emit cursor` producing `.cursor/rules/brief.mdc`.
-3. **Non-destructive + idempotent.** Re-emitting reconciles in place; `--uninstall` reverses cleanly. Matches existing `emit claude --install/--uninstall`.
-4. **Sacred is honored, not translated away.** Path-scoped Sacred regions (P8 format-level path scoping) must survive into Eridian/Hermes emissions as enforceable constraints, not prose.
-5. **Budget-aware.** Eridian/Hermes emissions must participate in `--budget` and `--compact`.
+1. **Emit, don't execute.** brief's jobs are compile, install and gate.
+2. **Idiomatic register per target.** An emitted role must look like a hand-written aichat role: short and conversational, not a CLAUDE.md rules block.
+3. **Non-destructive, idempotent, reversible.** Re-emitting reconciles in place; `--uninstall` removes only what brief wrote.
+4. **Deterministic.** The same brief gives byte-identical output. aichat hashes a role into its `lock_hash`, so any drift reads as a new Entity version.
+5. **Sacred is honored.** Where a consumer can enforce a path rule, brief emits one; where it cannot yet, brief says so rather than pretending prose is enforcement.
 6. **Single source of intent.** The `.brief.md` is canonical; every target is a projection of it.
 
 ## 5. Architecture
 
-```
-                         .brief.md  (YAML frontmatter + Markdown body)
-                         canonical intent · Sacred regions · constraints
-                                        │
-                                 brief  (validate → compose → emit)
-                                        │
-        ┌───────────────┬───────────────┼───────────────┬───────────────┐
-        ▼               ▼               ▼               ▼               ▼
-   emit claude     emit cursor     emit copilot     emit eridian     emit hermes
-   CLAUDE.md    .cursor/rules/… .github/copilot… Eridian role      Hermes registry
-   (existing)     (existing)      (existing)      (NEW)             (NEW)
-                                                      │                 │
-                                                      ▼                 ▼
-                                              Eridian composer     Hermes hub
-                                              (roles-call-roles)   (sessions, MCP,
-                                                                    tools flow in)
-```
+See [../architecture/README.md](../architecture/README.md): where brief sits, every seam, the internal pipeline, and the invariants.
 
-**Boundary contract (unchanged from your adopted plan):**
-- Eridian = pure composer/tool. `brief` writes a role file; nothing reaches back into `brief`.
-- Hermes = the hub. `brief` writes a registry/seed; Hermes owns the loop.
-- `brief` = the compiler. Owns the `.brief.md` format + emit projections only.
+## 6. The `.brief.md` format
 
-## 6. The `.brief.md` format (as it actually exists)
+Unchanged by this plan: [../brief-format.md](../brief-format.md), with the machine contract in [../schema/SPEC.md](../schema/SPEC.md). The role emitter needs no new frontmatter field (§7.1 names the role without one).
 
-Markdown with YAML frontmatter. Frontmatter carries machine facts; the body is the reviewable intent. Observed structure:
+## 7. The emit contract
 
-```markdown
----
-stack: [Python 3.12, PostgreSQL 16]
-context: [./docs/architecture.md]
----
+Every target meets six guarantees: idiomatic register, idempotent install, reversible, non-destructive, budget-reportable, and deterministic.
 
-# Redesign event pipeline for 10M events/day   # H1 = Goal
+### 7.1 The aichat role emitter (next)
 
-## Constraints
-### Hard
-- v2 API backward compatibility
-### Soft
-- Prefer async patterns
-### Ask First
-- Database schema changes
+**Output:** one file, `roles/<name>.md`: YAML frontmatter plus a prompt body, the Role preset of aichat's Entity model.
 
-## Sacred
-- `src/auth/**` — Proprietary tenant resolution   # P8 path-scoped, enforceable
+**Proposed CLI:** `brief emit aichat` prints the role; `--install` writes it into aichat's `roles/` directory; `--uninstall` removes it. A future agent emitter would be a flag on the same target, not a new one.
 
-## Assumptions
-- [ ] Bottleneck is synchronous DB writes
+**Naming the role without a new field:** `--name <slug>`, defaulting to the brief's file stem (`review.brief.md` → `review`), then to a slug of the goal. `skill_name` is not reused: it names a skill, not a role.
 
-## Deliverable
-Architecture doc + implementation plan + working code
-```
+**Mapping** (adapted from the [backend audit](backends/aichat/README.md) mapping table):
 
-**Formalizing this into a schema is E1** (you'll supply the informal schemas; I'll produce the formal one). Known elements to capture: frontmatter keys (`stack`, `context`, and any others in your fixtures), the H1-as-goal convention, the `Constraints{Hard,Soft,Ask First}` tiers, `Sacred` path globs, `Assumptions` checkboxes, `Deliverable`.
+| Brief | Role | Notes |
+|---|---|---|
+| H1 goal | `description:` and the body's opening line | `description` is what aichat's refinery carries to Hermes, so it should be contrastive, not a summary |
+| `model` | `model:` | Only when the value is `client:model`; otherwise omitted so aichat's default applies |
+| Hard / Soft / Ask First | Body, in the terse register (the skill emitter's voice) | Not the `NEVER:`/`MUST:` rules block |
+| Sacred | Body "Do not modify" lines; `tool_approval.deny` once aichat can match a path (§8) | |
+| `stack`, `context` | A short context preamble in the body | Roles have no `documents:` field |
+| Deliverable | The body's closing paragraph | |
+| Unknown sections | Passed through as body sections | Same as every target |
+| `cassettes` / `## Fixtures` | Not in the role | They belong to `emit promptfoo` |
 
-## 7. The emit contract (per target)
+**Must preserve** aichat's placeholders untouched: `__INPUT__`, `{{__tools__}}`, `{{__os__}}` and the other built-ins, `{{<var>}}`, `{{$AICHAT_*}}`, and `{{#if}}` / `{{#unless}}` blocks.
 
-Every emit target — including the two new ones — must satisfy the same five guarantees the existing targets already meet:
+**Must not** read the clock. `skill::now_utc` stamps skill install metadata and must never reach this emitter.
 
-1. **Idiomatic register.** Output looks native to the target ecosystem.
-2. **Idempotent install.** `--install` reconciles in place; repeated runs are no-ops.
-3. **Reversible.** `--uninstall` removes exactly what was installed (section/hooks/skill).
-4. **Non-destructive.** Never clobbers hand-authored content outside `brief`'s managed region.
-5. **Budget-reportable.** Participates in `--budget` (stderr token/char estimate) and `--compact`.
+**To settle in the first spike (E2-S1), against aichat's current source:**
+- How aichat resolves its config directory on each platform, and whether `$AICHAT_CONFIG_DIR` is still honored.
+- Whether role frontmatter tolerates an unknown key, so brief can mark the file as its own (as `metadata.brief.source` does for skills). If not, ownership is tracked by the file matching brief's output, and `--uninstall` refuses a file that has been edited.
+- Whether an emitted role and a hand-written one of the same content give the same `lock_hash`.
 
-### 7.1 `brief emit eridian` (NEW)
-- **Output:** a composable Eridian **role** in its idiomatic register.
-- **Mapping:** Goal (H1) → role objective; `Constraints.Hard/Soft/Ask First` → role guardrails; `Sacred` globs → enforceable no-touch constraints in the role; `stack`/`context` → role context block (contextual engineering, not RAG); `Deliverable` → role output contract.
-- **Idempotent install target:** the role file location Eridian loads from (reconcile in E2).
+### 7.2 `emit promptfoo` (shipped)
 
-### 7.2 `brief emit hermes` (NEW)
-- **Output:** a Hermes-consumable **registry/seed config** the hub loads.
-- **Mapping:** same intent projection, but framed for a session seed; `Sacred` → constraint the hub enforces on tool actions; `stack`/`context` → seed context.
-- **Trust boundary caveat:** if Hermes server mode transitively re-exports loaded tools (issue #342), an emitted registry may widen the tool surface — track and document (E3 spike).
+Cassette bindings (`cassettes:`, `## Fixtures`) compile to promptfoo providers aimed at astrophage, with `--gateway` and `--session-id`. Spec: [../brief-format.md](../brief-format.md) §8.3.
 
-## 8. Sacred / path-scoping across targets (P8)
+### 7.3 Eval suite (waiting)
 
-Sacred regions are the highest-value, hardest-to-fake constraint. In Claude/Cursor/Copilot emissions they're framed in the target's rule register; for Eridian/Hermes they must become **enforceable** constraints (no-touch globs the composer/hub respects), not just descriptive prose. `brief check <path>` must return consistent Sacred verdicts regardless of which target consumed the brief.
+The third artifact of aichat's idea #7. aichat has not chosen the format: its own role evaluation or promptfoo tests. brief should not grow a test-case grammar before that choice, and any new field still has to clear the [YAGNI bar](frontmatter-additions.md). Unknown `##` sections already carry draft test cases to any consumer through `emit json`.
+
+### 7.4 aichat agent (deferred)
+
+An agent is a directory whose definition lives in llm-functions, and it needs multi-file emit support brief does not have. It waits until agent formats settle across the industry. The audit in [backends/aichat](backends/aichat/README.md) stays as the reference.
+
+## 8. Sacred across targets
+
+`brief check <path>` is the one verdict every target must agree with. Enforcement today:
+
+| Target | Enforcement |
+|---|---|
+| Claude Code | `PreToolUse` hook running `brief check` (deterministic) |
+| Cursor | `preToolUse` hook |
+| CI | `brief validate-diff` |
+| Other coding agents | Text only |
+| aichat role | **Text only, until aichat changes.** A `tool_approval` rule's argument glob matches a tool's `command` argument or its only string argument. A file-writing tool takes a path *and* content, so no rule can say "deny writes under `src/auth/**`". aichat needs a way to name the argument, such as `fs_write(path=src/auth/**)`. |
 
 ## 9. Budget & compaction
 
-Eridian/Hermes emissions must:
-- Report estimated tokens/chars under `--budget` (to stderr), like existing targets.
-- Honor `--compact` (strip reference prose, keep essentials) and `emit anchor` (≤5-line NEVER/MUST constraint anchor) so a role/registry can be re-injected cheaply mid-session.
+The role emitter reports under `--budget` and honors `--compact`. A role is a system prompt, so it takes the tight `prompt` threshold (500 tokens), not the 2,000 of file-based targets.
 
-## 10. CI/CD positioning — differentiator vs raw connector
+## 10. CI/CD positioning
 
-A raw Claude/Codex connector step embeds an **imperative, invisible** prompt. A `.brief.md` is a **declarative, checked-in, diffable** intent artifact that emits identical constraints into *every* runtime your CI touches. The differentiator:
+A raw connector step embeds an invisible prompt; a `.brief.md` is a checked-in, diffable source that emits the same constraints into every runtime CI touches. With the role emitter, the same file also becomes a versioned aichat Entity: a PR shows the brief diff, and the Entity's `lock_hash` changes exactly when the emitted role does.
 
-- **One source, many runtimes.** CI can `brief emit claude`, `brief emit eridian`, `brief emit copilot` from the same file — no per-tool prompt drift.
-- **Reviewable intent.** A PR shows the `.brief.md` diff, not six divergent config edits.
-- **Enforceable Sacred.** `brief validate` + `brief check` gate the pipeline on constraint integrity before any agent runs.
-- **Budget gate.** `--budget` can fail CI if an emission blows the context window.
+## 11. Gaps
 
-You'd reach for a `brief`-emitted Eridian role in CI (vs raw connector) **when the same intent must stay consistent across multiple agent runtimes and honor Sacred path scoping** — that consistency is the thing a raw connector can't give you.
+**In brief:**
 
-## 11. Failure modes & mitigations
+| # | Gap | Where it's tracked |
+|---|---|---|
+| G1 | No aichat role target | E2 |
+| G2 | `context:` treats every entry as a local file: `validate` warns on URLs and `ace://` pointers, and `emit claude` renders them as `@` imports | E1-S6 |
+| G3 | No CI workflow in the repo: the schema drift test, format check and runtime guardrail run only locally | E5-S1 |
+| G4 | The runtime guardrail checks four crate names in `Cargo.toml`, not imports or a session store | E5-S5 |
+| G5 | Execution-type frontmatter keys are described as out of format but not rejected | E1-S5 |
+| G6 | An unknown `brief_version` fails with the generic exit code 1 | E1-S2 |
+| G7 | No shared conformance or golden idempotency harness across targets | E4 |
+| G8 | The Phase 48C round-trip demo (brief → record → commit → replay → drift) is unbuilt | E5-S2 |
+
+Fixed during this review: an install matched a `<brief:generated>` marker anywhere in the host file, including inside prose or a code block, and could delete hand-written content. A marker now counts only on its own line.
+
+**In sibling repos (documented here, applied there):**
+
+| # | Gap | Repo |
+|---|---|---|
+| A1 | `tool_approval` cannot match a named argument, so Sacred cannot become a path rule (§8) | aichat |
+| A2 | Idea #7's eval-suite format is undecided (§7.3) | aichat |
+| A3 | Phase 62's seam conformance kits do not include the brief → aichat role seam | aichat |
+| A4 | aichat's docs still describe brief's cassette field as deferred (integrated-architecture index) and PR #1 as unmerged (Phase 48, roadmap ledger) | aichat |
+| A5 | ACE / ClaudeKb is not in aichat's ownership table, although brief points at it | aichat |
+
+## 12. Failure modes & mitigations
 
 | Failure | Mitigation |
 |---|---|
-| Emit drifts into dispatch/runtime | Non-goals §3 lint-enforced; no model-call HTTP client in `brief` |
-| Eridian/Hermes emission not idempotent | Reuse existing install/reconcile/uninstall harness; golden idempotency tests |
-| Sacred degrades to prose in new targets | Sacred→enforceable-constraint conformance test per target |
-| Hermes transitively re-exports tools (#342) | Spike + documented trust boundary before relying on it |
-| Emission blows context budget | `--budget` participation required for new targets |
-| Format churn breaks emissions | Formal schema (E1) + schema-version gate |
+| Emit drifts into a runtime | Non-goals, plus the guardrail test (E5-S5) |
+| Emitted role is not byte-stable | Determinism test; a `lock_hash` conformance check against aichat (E2-S3) |
+| Role reads like a CLAUDE.md rules block | Terse register from the skill emitter; review against hand-written roles (E2-S1) |
+| Sacred presented as enforced when it is prose | §8 table stated in the emitted role's docs; `tool_approval` only after A1 |
+| aichat changes its role format | The E2-S1 spike pins the surface; a conformance fixture fails when it moves |
+| An install deletes hand-written content | Line-anchored markers (fixed); golden idempotency tests (E4-S2) |
 
-## 12. Rollout plan
+## 13. Rollout
 
-1. **Phase 0 — Formal schema.** Turn the real `.brief.md` into a formal, versioned schema (you supply informal schemas). Unblocks validation + emit mapping.
-2. **Phase 1 — `emit eridian`.** Produce an idiomatic, idempotent Eridian role; prove Sacred survives as enforceable constraint.
-3. **Phase 2 — `emit hermes`.** Produce a hub-consumable registry/seed; run the #342 spike.
-4. **Phase 3 — Budget/compact/anchor parity** for both new targets.
-5. **Phase 4 — CI/CD + docs.** GitHub Action, differentiator demo, `eridian-trace`, README/AGENTS.md updates.
+1. **Now:** URI-aware `context:` (G2), a CI workflow (G3), the wider guardrail (G4).
+2. **Role emitter:** the E2-S1 spike, then `emit aichat` with install, uninstall and a `lock_hash` check.
+3. **Sacred in aichat:** after A1 lands in aichat.
+4. **Eval suite:** after A2 is decided.
+5. **Deferred:** the agent emitter.
 
-## 13. Open questions
+## 14. Open questions
 
-1. Full frontmatter key set beyond `stack`/`context` (from your fixtures) → E1 schema.
-2. Eridian role file format/location `brief` should write to (idiomatic register + install path).
-3. Hermes registry/seed format the hub expects.
-4. Does Hermes server mode transitively re-export loaded tools (#342)? → trust boundary for `emit hermes`.
-5. How should Sacred globs be expressed as enforceable constraints in Eridian vs Hermes?
+1. The target's name: `emit aichat` (recommended, with an agent flag later) or `emit aichat-role`.
+2. How brief marks an installed role as its own, if role frontmatter rejects unknown keys (§7.1).
+3. The eval-suite format (A2).
+4. Whether ACE pointers need a typed form (`pin`, `retrieve`) or a plain `ace://` URI in `context:` is enough. Plain URIs first; a typed field has to clear the YAGNI bar.

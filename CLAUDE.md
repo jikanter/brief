@@ -2,11 +2,13 @@
 
 ## Project Summary
 
-`brief` is a CLI tool that creates, validates, and emits structured briefing files (`.brief.md`) for AI coding agents. It solves the gap between unstructured `CLAUDE.md`/`AGENTS.md` prose and overly-programmatic prompt languages like PDL or LMQL.
+`brief` is a CLI tool that creates, validates, and emits structured briefing files (`.brief.md`) for AI coding agents. It solves the gap between unstructured `AGENTS.md`/`CLAUDE.md` prose and overly-programmatic prompt languages like PDL or LMQL.
+
+**Intent:** brief is the source of record for human intent to AI systems. An author writes the intent once, in 60 seconds. brief checks it, compiles it into each runtime's native artifact (briefings for coding agents, definitions for aichat), installs those artifacts reversibly, and gates work against them. It never executes. See `docs/design-decisions.md` "Intent".
 
 The core insight: as AI agents handle more technical execution, the human→agent interface becomes the bottleneck. `brief` provides a fast, familiar format (Markdown + YAML frontmatter) for humans to express intent, constraints, and sacred regions — and a CLI to validate, compose, and emit those briefings to multiple agent runtimes.
 
-brief serves two groups of consumers. The external agent runtimes (Claude Code, Codex via `AGENTS.md`, Cursor, Copilot, Windsurf, Aider) get their native instruction files. The integrated Eridian stack gets its artifacts: brief is one of six repos (aichat, llm-functions, brief, astrophage, rocky, pi), and aichat names it the stack's primary composition language. The brief → aichat seam is emitted files only; today that is promptfoo replay providers for astrophage, and next an aichat Entity (a role file or an agent directory; which one is open). The system picture from brief's side is `docs/architecture/README.md`.
+brief serves two groups of consumers. The external agent runtimes (Claude Code, Codex via `AGENTS.md`, Cursor, Copilot, Windsurf, Aider) get their native instruction files. The integrated Eridian stack gets its artifacts: brief is one of six repos (aichat, llm-functions, brief, astrophage, rocky, pi), and aichat names it the stack's primary composition language. The brief → aichat seam is emitted files only; today that is promptfoo replay providers for astrophage, and next an aichat role file. An agent-directory emitter is deferred until agent formats settle. The system picture from brief's side is `docs/architecture/README.md`.
 
 ## Architecture Decisions (Already Made)
 
@@ -21,7 +23,7 @@ These decisions were reached through extensive design analysis. Do not revisit t
 4. **Format-first architecture.** The `.brief.md` format is the product. Runtime integrations (Claude Code, AGENTS.md, system prompts, MCP) are emit targets — plugins, not the core.
 
 5. **Extend, do not replace** The `.brief.md` should extend, but not replace, existing well established conventions for agentic coding. In particular, brief
-should be an asset to the Claude Code ecosystem.
+should be an asset to the `AGENTS.md` standard, which Claude Code now reads alongside the other agents, and to the Claude Code ecosystem (hooks, skills, permissions).
 
 6. **Authoring layer of the integrated stack (2026-09-27).** In the six-repo Eridian system, brief declares and emits; aichat executes; astrophage owns the wire; llm-functions owns tools; rocky reads traces; pi is the REPL. brief's seams are files it writes, never calls in either direction. Emitted output is byte-stable, because aichat hashes an Entity's definition into its `lock_hash`. A change a sibling repo needs is documented in this repo and applied in that one. Hermes is reached only through aichat's metadata refinery, never by a brief emit target.
 
@@ -189,7 +191,7 @@ Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest`, `hy
 - Format: `cargo fmt`
 
 <brief:generated>
-# Briefing: Brief: the intent-authoring layer for agent runtimes and the Eridian stack
+# Briefing: Brief: the source of record for human intent to AI systems
 
 **Stack:** Rust
 
@@ -201,7 +203,7 @@ Do NOT use heavy frameworks. No `tokio` (this is synchronous). No `reqwest`, `hy
 - MUST: A new `.brief.md` takes under sixty seconds to author.
 - MUST: brief declares and emits files; it never executes. No model calls, sessions or tool loops, and no network crates (`tokio`, `reqwest`, `hyper`, `ureq`).
 - MUST: Distributed as a single binary, or a single binary plus configuration files.
-- MUST: Emitted files fit each target's existing conventions (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`, aichat roles and agents, promptfoo providers) and never replace hand-authored content.
+- MUST: Emitted files fit each target's existing conventions (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/`, aichat roles, promptfoo providers) and never replace hand-authored content.
 - MUST: Installs are non-destructive, idempotent and reversible: generated content lives inside `<brief:generated>` markers or in files brief owns, and `--uninstall` removes exactly that.
 - MUST: The same brief emits byte-identical output on every run: no timestamps or random values in emitted files. aichat hashes an Entity's definition into its `lock_hash`, so unstable output reads as a new version.
 - MUST: The seams with the sibling repos (aichat, astrophage, llm-functions, rocky, pi) are emitted files only. A change a sibling repo needs is documented in this repo and applied in that one.
@@ -243,6 +245,6 @@ Read these files for background before starting work:
 ## Deliverable
 
 <deliverable>
-A human-authorable format, and one CLI that validates it and emits it to every runtime that consumes intent: the external agent runtimes (Claude Code, Codex via `AGENTS.md`, Cursor, Copilot, Windsurf, Aider) and the integrated stack (an aichat Entity, promptfoo replay against astrophage). Secondarily, the format and the target set stay extensible, so a new runtime is a new emitter rather than a new format.
+A human-authorable format, and one CLI that checks it, compiles it, installs it reversibly and gates work against it, for every runtime that consumes intent: briefings for the coding agents (`AGENTS.md` for Codex, Cursor, Copilot and Claude Code; `CLAUDE.md` with hooks and skills; Windsurf; Aider) and definitions for the integrated stack (an aichat role, promptfoo replay against astrophage). Secondarily, the format and the target set stay extensible, so a new runtime is a new emitter rather than a new format.
 </deliverable>
 </brief:generated>

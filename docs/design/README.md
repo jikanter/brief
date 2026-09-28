@@ -4,11 +4,11 @@
 |---|---|
 | [frontmatter-additions.md](frontmatter-additions.md) | Live. YAGNI bar for `Frontmatter` task fields. |
 | [provenance-schema.md](provenance-schema.md) | Draft v0.1, not implemented. Document-provenance keys; §1.1 relates it to the `Frontmatter` schema. |
-| [new-surfaces-design-doc.md](new-surfaces-design-doc.md) | Draft v2. Eridian + Hermes emit targets. |
-| [new-surfaces-epics.md](new-surfaces-epics.md) | Draft v2. Delivery plan for the above. |
-| [backends/](backends/README.md) | Live. Per-backend emit target facts. |
+| [new-surfaces-design-doc.md](new-surfaces-design-doc.md) | Draft v3 (2026-09-27). Integrated-stack targets: aichat role emitter next; Hermes target cut; gap list. |
+| [new-surfaces-epics.md](new-surfaces-epics.md) | Draft v3. Delivery plan for the above. |
+| [backends/](backends/README.md) | Live. Per-backend emit target facts; `aichat/` revised to roles first. |
 
-The shipped format lives outside this folder: [../brief-format.md](../brief-format.md), [../schema/SPEC.md](../schema/SPEC.md).
+The shipped format lives outside this folder: [../brief-format.md](../brief-format.md), [../schema/SPEC.md](../schema/SPEC.md). The system picture is [../architecture/README.md](../architecture/README.md); settled decisions, intent and non-goals are in [../design-decisions.md](../design-decisions.md).
 
 ## archive/
 
