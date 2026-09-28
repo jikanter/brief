@@ -90,6 +90,11 @@ enum Commands {
         /// https://gw.example.com (promptfoo only; default 127.0.0.1:8080)
         #[arg(long, value_name = "ADDRESS")]
         gateway: Option<String>,
+
+        /// Send X-Eridian-Session-Id, one ID per test case, using promptfoo's
+        /// http provider (promptfoo only)
+        #[arg(long)]
+        session_id: bool,
     },
 
     /// Check if a file path falls within a sacred region
@@ -322,6 +327,7 @@ fn run(cli: Cli) -> Result<()> {
             full,
             uninstall,
             gateway,
+            session_id,
         } => cmd_emit(EmitArgs {
             target,
             file: &cli.file,
@@ -334,6 +340,7 @@ fn run(cli: Cli) -> Result<()> {
             full,
             uninstall,
             gateway,
+            session_id,
         }),
         Commands::Check { path, hook } => cmd_check(path.as_deref(), &cli.file, hook),
         Commands::ValidateDiff { base, stdin, json } => {
@@ -517,6 +524,7 @@ struct EmitArgs<'a> {
     full: bool,
     uninstall: bool,
     gateway: Option<String>,
+    session_id: bool,
 }
 
 /// Parse a `--position` value into a marker [`emit::Position`].
@@ -546,6 +554,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         full,
         uninstall,
         gateway,
+        session_id,
     } = args;
 
     // --full / --uninstall / --position are claude-only (they touch
@@ -576,9 +585,15 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
     if gateway.is_some() && !matches!(target, EmitTarget::Promptfoo) {
         anyhow::bail!("--gateway is only supported for the promptfoo target");
     }
-    let gateway = match &gateway {
-        Some(raw) => emit::promptfoo::gateway_base_url(raw).map_err(anyhow::Error::msg)?,
-        None => emit::promptfoo::DEFAULT_GATEWAY_BASE_URL.to_string(),
+    if session_id && !matches!(target, EmitTarget::Promptfoo) {
+        anyhow::bail!("--session-id is only supported for the promptfoo target");
+    }
+    let promptfoo_options = emit::promptfoo::PromptfooOptions {
+        base_url: match &gateway {
+            Some(raw) => emit::promptfoo::gateway_base_url(raw).map_err(anyhow::Error::msg)?,
+            None => emit::promptfoo::DEFAULT_GATEWAY_BASE_URL.to_string(),
+        },
+        session_id,
     };
 
     let position = match &position {
@@ -619,7 +634,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         EmitTarget::Xml => emit::emit_xml(&brief),
         EmitTarget::Promptfoo => {
             emit::promptfoo_preflight(&brief).map_err(anyhow::Error::msg)?;
-            emit::promptfoo::emit_promptfoo_at(&brief, &gateway)
+            emit::promptfoo::emit_promptfoo_with(&brief, &promptfoo_options)
         }
     };
 

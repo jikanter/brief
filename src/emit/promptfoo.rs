@@ -7,6 +7,13 @@
 //! promptfoo `openai:chat` provider that points at the gateway and sends those
 //! headers. One running gateway then serves every set.
 //!
+//! `--session-id` also sends `X-Eridian-Session-Id`, one ID per test case, so
+//! astrophage's trace can tell test cases apart. `openai:chat` sends header
+//! values verbatim, so that mode switches to promptfoo's `http` provider,
+//! which renders `{{sessionId}}`. Both shapes were run for real: the `http`
+//! one recorded and replayed two test cases through astrophage, each with its
+//! own ID in the trace.
+//!
 //! The output is a bare YAML list, the shape promptfoo loads from
 //! `providers: [file://...]`. Brief prints it and stops: it does not start the
 //! gateway, run promptfoo, or make any request.
@@ -74,10 +81,47 @@ fn listen_address(base_url: &str) -> Option<&str> {
     authority.contains(':').then_some(authority)
 }
 
+/// Added to the header by `--session-id`. The ID is minted by promptfoo, not
+/// brief: `context.uuid` is unique per test case and only reaches a header
+/// through `transformVars`, which lives in promptfooconfig.yaml, not in this
+/// providers file.
+const SESSION_NOTE: &str = "\
+#
+# Every request carries X-Eridian-Session-Id, one ID per test case, which
+# astrophage copies into its trace. promptfoo mints the ID only when
+# promptfooconfig.yaml has:
+#   defaultTest:
+#     options:
+#       transformVars: \"{ ...vars, sessionId: context.uuid }\"
+# Record and replay a set with the same provider shape: these http providers
+# send a plain-text prompt as one user message.
+";
+
+/// How `brief emit promptfoo` renders its providers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PromptfooOptions {
+    /// The base URL promptfoo calls (see [`gateway_base_url`]).
+    pub base_url: String,
+    /// Send `X-Eridian-Session-Id` per test case. promptfoo's `openai:chat`
+    /// provider sends header values verbatim, so this switches to its `http`
+    /// provider, which renders `{{vars}}` in headers.
+    pub session_id: bool,
+}
+
+impl Default for PromptfooOptions {
+    fn default() -> Self {
+        Self {
+            base_url: DEFAULT_GATEWAY_BASE_URL.to_string(),
+            session_id: false,
+        }
+    }
+}
+
 /// The comment block at the top of the output. The `astrophage serve` line
 /// matches the gateway: `--listen` when the address names a port, or a note
 /// with the URL when it does not (a gateway behind a proxy on 443, say).
-fn header(base_url: &str) -> String {
+fn header(options: &PromptfooOptions) -> String {
+    let base_url = options.base_url.as_str();
     let mut out = String::from(HEADER);
     if base_url != DEFAULT_GATEWAY_BASE_URL {
         match listen_address(base_url) {
@@ -86,6 +130,9 @@ fn header(base_url: &str) -> String {
         }
     }
     out.push('\n');
+    if options.session_id {
+        out.push_str(SESSION_NOTE);
+    }
     out
 }
 
@@ -122,10 +169,19 @@ pub fn emit_promptfoo(brief: &Brief) -> String {
 
 /// [`emit_promptfoo`], pointed at `base_url` (see [`gateway_base_url`]).
 pub fn emit_promptfoo_at(brief: &Brief, base_url: &str) -> String {
+    emit_promptfoo_with(
+        brief,
+        &PromptfooOptions {
+            base_url: base_url.to_string(),
+            ..PromptfooOptions::default()
+        },
+    )
+}
+
+/// [`emit_promptfoo`] with every option.
+pub fn emit_promptfoo_with(brief: &Brief, options: &PromptfooOptions) -> String {
     let model = brief.frontmatter.model.as_deref().unwrap_or_default();
-    let id = yaml_scalar(&format!("openai:chat:{model}"));
-    let mut out = header(base_url);
-    let base_url = yaml_scalar(base_url);
+    let mut out = header(options);
 
     for binding in cassette_bindings(brief) {
         let set = yaml_scalar(&binding.name);
@@ -133,11 +189,42 @@ pub fn emit_promptfoo_at(brief: &Brief, base_url: &str) -> String {
         if let Some(reason) = &binding.reason {
             out.push_str(&format!("# {}\n", reason.replace('\n', " ")));
         }
-        out.push_str(&format!(
-            "- id: {id}\n  label: {set}\n  config:\n    apiBaseUrl: {base_url}\n    \
-             apiKeyRequired: false\n    headers:\n      x-aichat-cache-mode: cassette\n      \
-             x-aichat-cassette: {set}\n"
-        ));
+        if options.session_id {
+            out.push_str(&http_provider(model, &set, &options.base_url));
+        } else {
+            out.push_str(&openai_provider(model, &set, &options.base_url));
+        }
     }
     out
+}
+
+/// promptfoo's `openai:chat` provider: the default shape.
+fn openai_provider(model: &str, set: &str, base_url: &str) -> String {
+    let id = yaml_scalar(&format!("openai:chat:{model}"));
+    let base_url = yaml_scalar(base_url);
+    format!(
+        "- id: {id}\n  label: {set}\n  config:\n    apiBaseUrl: {base_url}\n    \
+         apiKeyRequired: false\n    headers:\n      x-aichat-cache-mode: cassette\n      \
+         x-aichat-cassette: {set}\n"
+    )
+}
+
+/// promptfoo's `http` provider, for `--session-id`: it renders `{{sessionId}}`
+/// in a header, which `openai:chat` does not. The body is a chat-completions
+/// request built from the plain-text prompt. `maxRetries: 0` because the
+/// provider retries a 5xx by default, and a cassette miss (502) fails the same
+/// way every time.
+fn http_provider(model: &str, set: &str, base_url: &str) -> String {
+    let url = yaml_scalar(&format!("{base_url}/chat/completions"));
+    let model = yaml_scalar(model);
+    format!(
+        "- id: http\n  label: {set}\n  config:\n    url: {url}\n    method: POST\n    \
+         headers:\n      content-type: application/json\n      \
+         x-aichat-cache-mode: cassette\n      x-aichat-cassette: {set}\n      \
+         x-eridian-session-id: \"{{{{sessionId}}}}\"\n    \
+         body:\n      model: {model}\n      messages:\n        - role: user\n          \
+         content: \"{{{{prompt}}}}\"\n    \
+         transformResponse: \"json.choices[0].message.content\"\n    \
+         maxRetries: 0\n"
+    )
 }

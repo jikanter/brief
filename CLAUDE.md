@@ -112,7 +112,7 @@ Targets:
 - `prompt` — Emit raw system prompt text suitable for API use.
 - `agents-md` — Emit an `AGENTS.md` compatible section.
 - `json` — Emit the parsed briefing as structured JSON (for tooling integration).
-- `promptfoo` — Emit promptfoo providers that replay the brief's cassette sets through the astrophage gateway (base URL + `x-aichat-cache-mode`/`x-aichat-cassette` headers). `--gateway <address>` overrides the default `127.0.0.1:8080`. Stdout only; brief never runs astrophage or promptfoo. Mode selection is astrophage-side: aichat has no cassette flags, by decision.
+- `promptfoo` — Emit promptfoo providers that replay the brief's cassette sets through the astrophage gateway (base URL + `x-aichat-cache-mode`/`x-aichat-cassette` headers). `--gateway <address>` overrides the default `127.0.0.1:8080`. `--session-id` switches to promptfoo `http` providers that send `X-Eridian-Session-Id` per test case (`openai:chat` sends header values as written, without filling in `{{vars}}`). Stdout only; brief never runs astrophage or promptfoo. Mode selection is astrophage-side: aichat has no cassette flags, by decision.
 
 ### `brief check <path>`
 Check if a file path falls within a sacred region.
