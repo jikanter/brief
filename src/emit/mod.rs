@@ -5,6 +5,7 @@ pub mod claude;
 pub mod copilot;
 pub mod cursor;
 pub mod json;
+pub mod jsonl;
 pub mod markers;
 pub mod prompt;
 pub mod promptfoo;
@@ -21,6 +22,7 @@ pub use claude::{emit_claude, install_claude, install_claude_at, uninstall_claud
 pub use copilot::{emit_copilot, install_copilot};
 pub use cursor::{emit_cursor, install_cursor};
 pub use json::emit_json;
+pub use jsonl::emit_jsonl;
 pub use markers::Position;
 pub use prompt::emit_prompt;
 pub use promptfoo::{emit_promptfoo, promptfoo_preflight};
