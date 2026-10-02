@@ -46,7 +46,7 @@ The single most reusable cross-backend artifact. A compact catalog of the axes a
 
 ## Stdout targets (no install surface)
 
-Five targets have no canonical on-disk location and are never installed —
+Six targets have no canonical on-disk location and are never installed —
 `brief emit <target> --install` fails and tells you so. They are written to
 stdout to be piped or redirected by the caller.
 
@@ -54,9 +54,10 @@ stdout to be piped or redirected by the caller.
 |---|---|---|
 | `prompt` | Plain text, section headers in caps | A system prompt for a raw API call. |
 | `anchor` | ≤5 lines, NEVER/MUST framed | Re-injection mid-session when the original briefing has aged out of attention. |
-| `json` | Canonical JSON ([SPEC.md](schema/SPEC.md)) | Tooling that consumes the parsed brief. |
+| `json` | Canonical JSON ([SPEC.md](schema/SPEC.md)), with the brief's `id` | Tooling that consumes the parsed brief. |
+| `jsonl` | One JSON line: `id`, `goal`, `deliverable`, `constraints` ([SPEC.md](schema/SPEC.md) §7) | A training-friendly stream. Append one line per brief (`brief emit jsonl >> briefs.jsonl`) and join aichat's trajectories or labels to it on `brief_id`. |
 | `xml` | XML envelope, one element per section | A briefing concatenated with untrusted or bulky content. |
-| `promptfoo` | YAML list of promptfoo providers, one per cassette set | Offline eval replay through astrophage ([brief-format.md](brief-format.md) §8.3). `--gateway <address>` sets the astrophage address (default `127.0.0.1:8080`). `--session-id` emits `http` providers that send `X-Eridian-Session-Id` per test case. Fails when the brief binds no cassette or has no `model`. |
+| `promptfoo` | YAML list of promptfoo providers, one per cassette set | Offline eval replay through astrophage ([brief-format.md](brief-format.md) §8.3). `--gateway <address>` sets the astrophage address (default `127.0.0.1:8080`). `--session-id` emits `http` providers that send `X-Eridian-Session-Id` per test case. Every provider sends `x-brief-id`, the brief's `id`. Fails when the brief binds no cassette or has no `model`. |
 
 ### Why `xml`
 

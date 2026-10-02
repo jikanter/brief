@@ -337,6 +337,14 @@ Two things follow:
   message. Record and replay a set with the same mode: a set recorded through
   one provider shape may not match requests from the other.
 
+Every provider also sends `x-brief-id`, the brief's id (`brief emit json`
+prints it; [schema/SPEC.md](schema/SPEC.md) §7). aichat records it on the
+session, which is what joins a trajectory back to the brief it ran under. The
+id is a hash of the goal, the deliverable and the constraints, so editing any
+of them changes the emitted providers. A CLI provider (`exec: aichat ...`) has
+no headers; brief emits none, and the output's header comment gives the
+equivalent: `AICHAT_BRIEF_ID=<id> promptfoo eval`.
+
 The providers only replay. Recording a set is a separate, occasional job, run
 against a live provider and chosen when the gateway starts:
 `astrophage serve --mode cassette --cassette <set> --record --upstream <provider>`.

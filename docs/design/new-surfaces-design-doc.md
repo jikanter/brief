@@ -4,7 +4,7 @@
 **Author:** Jordan Kanter
 **Repo:** `https://github.com/jikanter/brief`
 **Related systems:** aichat ([jikanter/aichat-private](https://github.com/jikanter/aichat-private)), astrophage, llm-functions, rocky, pi; Hermes through aichat only
-**Last updated:** 2026-09-27
+**Last updated:** 2026-10-02
 
 > **What changed from v2 (2026-08-30).** v2 planned two new targets, `emit eridian` and `emit hermes`. Since then aichat has named brief its primary composition language, shipped a metadata refinery that owns the aichat ↔ Hermes boundary, versioned every Entity with a `lock_hash`, and added `tool_approval` rules to role frontmatter. v3 follows:
 > - **`emit hermes` is cut.** aichat's refinery moves a role's description into Hermes' `profile.yaml` and deliberately moves nothing else. A brief target would bypass that design.
@@ -12,6 +12,7 @@
 > - **`emit promptfoo` shipped** (aichat Phase 48A/B, brief PRs #1–#3).
 > - **brief's own trace spans are dropped.** aichat's trace is the only telemetry source in the stack.
 > - **brief's intent is broader than a compiler:** it compiles, installs and gates, and a brief can be the source of a reusable definition, not only a task ([../design-decisions.md](../design-decisions.md) "Intent").
+> - **2026-10-02: brief mints an id.** `emit json` carries `id`, `emit jsonl` ships, and `emit promptfoo` forwards the id (§7.5, aichat Phase 77F). New rule: every emitter has a JSONL output for training (§4).
 
 ---
 
@@ -28,6 +29,7 @@ brief stays emit-only. For the integrated stack it has, in order:
 | Target | Consumer | Status |
 |---|---|---|
 | `emit promptfoo` | promptfoo, then astrophage | Shipped |
+| `brief.id`, `emit jsonl` (§7.5) | aichat's label table, rocky | Shipped |
 | aichat role (§7.1) | aichat | Next |
 | Eval suite (§7.3) | aichat role evaluation or promptfoo | Waiting on aichat's #7 decision |
 | aichat agent (§7.4) | aichat, llm-functions | Deferred |
@@ -52,6 +54,7 @@ The full list is in [../design-decisions.md](../design-decisions.md) "Non-goals"
 4. **Deterministic.** The same brief gives byte-identical output. aichat hashes a role into its `lock_hash`, so any drift reads as a new Entity version.
 5. **Sacred is honored.** Where a consumer can enforce a path rule, brief emits one; where it cannot yet, brief says so rather than pretending prose is enforcement.
 6. **Single source of intent.** The `.brief.md` is canonical; every target is a projection of it.
+7. **Every emitter has a JSONL output for training.** Owner rule, 2026-10-02, relayed with aichat's Phase 77F request. `emit jsonl` is the first instance. What the rule means for a target whose output is not the brief's objective (the role emitter, §7.1) is settled when that target is built (G9).
 
 ## 5. Architecture
 
@@ -107,6 +110,18 @@ The third artifact of aichat's idea #7. aichat has not chosen the format: its ow
 
 An agent is a directory whose definition lives in llm-functions, and it needs multi-file emit support brief does not have. It waits until agent formats settle across the industry. The audit in [backends/aichat](backends/aichat/README.md) stays as the reference.
 
+### 7.5 `brief.id` and `emit jsonl` (shipped)
+
+aichat exports agent trajectories for training (`aichat --trace-train atif`) and a label table keyed by id. brief supplies the objective those turns were working toward, so brief mints the key: a content hash of `goal`, `deliverable` and `constraints`. The contract, with a golden pair for aichat to mirror, is [../schema/SPEC.md](../schema/SPEC.md) §7.
+
+| Piece | What it does |
+|---|---|
+| `emit json` | Carries `id`. |
+| `emit jsonl` | One line per brief: `id` plus the objective. The stream aichat's label table and rocky join on `brief_id`. |
+| `emit promptfoo` | Sends `x-brief-id` on every provider, and names `AICHAT_BRIEF_ID` for CLI providers in its header comment. brief emits no CLI provider, so there is no provider to set the variable on. |
+
+aichat records the id (`session.start.brief_id`, ATIF `extra.brief.id`) and does not carry the goal; the goal is joined back by id. That half is aichat's (A6).
+
 ## 8. Sacred across targets
 
 `brief check <path>` is the one verdict every target must agree with. Enforcement today:
@@ -141,6 +156,8 @@ A raw connector step embeds an invisible prompt; a `.brief.md` is a checked-in, 
 | G6 | An unknown `brief_version` fails with the generic exit code 1 | E1-S2 |
 | G7 | No shared conformance or golden idempotency harness across targets | E4 |
 | G8 | The Phase 48C round-trip demo (brief → record → commit → replay → drift) is unbuilt | E5-S2 |
+| G9 | The JSONL rule (§4.7) has one instance, `emit jsonl`. The role emitter's JSONL form is undefined | E2 |
+| G10 | Providers carrying `x-brief-id` have not been run through a real `promptfoo eval`; the two shapes without it were | E5-S2 |
 
 Fixed during this review: an install matched a `<brief:generated>` marker anywhere in the host file, including inside prose or a code block, and could delete hand-written content. A marker now counts only on its own line.
 
@@ -153,6 +170,8 @@ Fixed during this review: an install matched a `<brief:generated>` marker anywhe
 | A3 | Phase 62's seam conformance kits do not include the brief → aichat role seam | aichat |
 | A4 | aichat's docs still describe brief's cassette field as deferred (integrated-architecture index) and PR #1 as unmerged (Phase 48, roadmap ledger) | aichat |
 | A5 | ACE / ClaudeKb is not in aichat's ownership table, although brief points at it | aichat |
+| A6 | Read `X-Brief-Id` (`--serve`) and `AICHAT_BRIEF_ID` (CLI), record `session.start.brief_id`, export ATIF `extra.brief.id`; mirror the golden pair in SPEC.md §7.4 (Phase 77F) | aichat |
+| A7 | Confirm the gateway ignores `x-brief-id` when matching a cassette, and decide whether it copies the header into its trace or forwards it upstream | astrophage |
 
 ## 12. Failure modes & mitigations
 

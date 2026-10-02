@@ -42,7 +42,8 @@ brief emit prompt --compact     # strip reference prose; keep only the essential
 brief emit anchor
 
 # Machine-readable stdout targets (no --install: pipe or redirect them)
-brief emit json                 # the parsed briefing as canonical JSON
+brief emit json                 # the parsed briefing as canonical JSON, with its content-hash id
+brief emit jsonl >> briefs.jsonl  # one line per brief (id + objective), to join training data on
 brief emit xml                  # XML envelope: every section has a closing tag
 brief emit xml > brief.xml      # ...so a payload appended after it cannot bleed in
 brief emit promptfoo > brief-providers.yaml  # promptfoo providers that replay astrophage cassettes
