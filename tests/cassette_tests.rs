@@ -195,6 +195,12 @@ const EXPECTED: &str = r#"# promptfoo providers that replay astrophage cassette 
 # Start the gateway before `promptfoo eval`. It replays offline and fails any
 # request the cassette does not hold, so no call reaches a live provider:
 #   astrophage serve --mode cassette --cassettes-dir cassettes
+#
+# Every request carries x-brief-id: the id of the brief these providers came
+# from (`brief emit json` prints it). aichat records it on the session, so the
+# session's trajectory can be joined back to the brief. A CLI provider
+# (`exec: aichat ...`) sends no headers; give it the id in the environment:
+#   AICHAT_BRIEF_ID=sha256:987f909732d93db36bfa1a23962b6cfc374ef045f5f7df8ec06e29472e78e82d promptfoo eval
 
 # pinned eval-replay set for the rust-reviewer role
 - id: "openai:chat:gpt-4o-mini"
@@ -205,6 +211,7 @@ const EXPECTED: &str = r#"# promptfoo providers that replay astrophage cassette 
     headers:
       x-aichat-cache-mode: cassette
       x-aichat-cassette: rust-reviewer-v1
+      x-brief-id: "sha256:987f909732d93db36bfa1a23962b6cfc374ef045f5f7df8ec06e29472e78e82d"
 
 # edge cases the reviewer must flag
 - id: "openai:chat:gpt-4o-mini"
@@ -215,6 +222,7 @@ const EXPECTED: &str = r#"# promptfoo providers that replay astrophage cassette 
     headers:
       x-aichat-cache-mode: cassette
       x-aichat-cassette: rust-reviewer-edge
+      x-brief-id: "sha256:987f909732d93db36bfa1a23962b6cfc374ef045f5f7df8ec06e29472e78e82d"
 "#;
 
 #[test]
@@ -241,6 +249,48 @@ fn emit_promptfoo_output_is_a_yaml_list_of_providers() {
         first["config"]["headers"]["x-aichat-cassette"],
         "rust-reviewer-v1"
     );
+}
+
+/// sha256 of the canonical objective of [`BOUND`], computed with `shasum -a 256`:
+/// `{"constraints":{"ask_first":[],"hard":[],"soft":[]},"deliverable":null,"goal":"Review Rust changes"}`
+const BOUND_ID: &str = "sha256:987f909732d93db36bfa1a23962b6cfc374ef045f5f7df8ec06e29472e78e82d";
+
+#[test]
+fn emit_promptfoo_sends_the_brief_id_on_every_provider() {
+    let brief = parse_brief(BOUND).unwrap();
+    assert_eq!(brief_cli::id::brief_id(&brief), BOUND_ID);
+    for options in [
+        PromptfooOptions::default(),
+        session_options(DEFAULT_GATEWAY_BASE_URL),
+    ] {
+        let out = emit_promptfoo_with(&brief, &options);
+        let value: serde_json::Value = serde_saphyr::from_str(&out).unwrap();
+        let providers = value.as_array().unwrap();
+        assert_eq!(providers.len(), 2);
+        for provider in providers {
+            assert_eq!(provider["config"]["headers"]["x-brief-id"], BOUND_ID);
+        }
+        // A CLI provider has no headers, so the header comment names the
+        // environment variable aichat's CLI reads.
+        assert!(
+            out.contains(&format!("#   AICHAT_BRIEF_ID={BOUND_ID} promptfoo eval\n")),
+            "{out}"
+        );
+    }
+}
+
+#[test]
+fn emit_promptfoo_brief_id_follows_the_objective() {
+    let edited = format!("{BOUND}\n## Constraints\n\n### Hard\n- Never approve `unsafe`\n");
+    let brief = parse_brief(&edited).unwrap();
+    let id = brief_cli::id::brief_id(&brief);
+    assert_ne!(id, BOUND_ID);
+    let out = emit_promptfoo(&brief);
+    assert!(
+        out.contains(&format!("      x-brief-id: \"{id}\"\n")),
+        "{out}"
+    );
+    assert!(!out.contains(BOUND_ID), "{out}");
 }
 
 #[test]
@@ -498,6 +548,12 @@ const EXPECTED_SESSION: &str = r#"# promptfoo providers that replay astrophage c
 # request the cassette does not hold, so no call reaches a live provider:
 #   astrophage serve --mode cassette --cassettes-dir cassettes
 #
+# Every request carries x-brief-id: the id of the brief these providers came
+# from (`brief emit json` prints it). aichat records it on the session, so the
+# session's trajectory can be joined back to the brief. A CLI provider
+# (`exec: aichat ...`) sends no headers; give it the id in the environment:
+#   AICHAT_BRIEF_ID=sha256:987f909732d93db36bfa1a23962b6cfc374ef045f5f7df8ec06e29472e78e82d promptfoo eval
+#
 # Every request carries X-Eridian-Session-Id, one ID per test case, which
 # astrophage copies into its trace. promptfoo mints the ID only when
 # promptfooconfig.yaml has:
@@ -517,6 +573,7 @@ const EXPECTED_SESSION: &str = r#"# promptfoo providers that replay astrophage c
       content-type: application/json
       x-aichat-cache-mode: cassette
       x-aichat-cassette: rust-reviewer-v1
+      x-brief-id: "sha256:987f909732d93db36bfa1a23962b6cfc374ef045f5f7df8ec06e29472e78e82d"
       x-eridian-session-id: "{{sessionId}}"
     body:
       model: gpt-4o-mini
@@ -536,6 +593,7 @@ const EXPECTED_SESSION: &str = r#"# promptfoo providers that replay astrophage c
       content-type: application/json
       x-aichat-cache-mode: cassette
       x-aichat-cassette: rust-reviewer-edge
+      x-brief-id: "sha256:987f909732d93db36bfa1a23962b6cfc374ef045f5f7df8ec06e29472e78e82d"
       x-eridian-session-id: "{{sessionId}}"
     body:
       model: gpt-4o-mini

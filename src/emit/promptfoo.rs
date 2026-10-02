@@ -14,12 +14,19 @@
 //! one recorded and replayed two test cases through astrophage, each with its
 //! own ID in the trace.
 //!
+//! Every provider also sends `x-brief-id`, the brief's id ([`crate::id`]).
+//! aichat records it on the session (`--serve` reads the header, the CLI
+//! reads `AICHAT_BRIEF_ID`), which is what joins a trajectory back to the
+//! brief it ran under. Brief emits no CLI provider, so the environment
+//! variable is given in the header comment rather than set on a provider.
+//!
 //! The output is a bare YAML list, the shape promptfoo loads from
 //! `providers: [file://...]`. Brief prints it and stops: it does not start the
 //! gateway, run promptfoo, or make any request.
 
 use crate::emit::yaml::yaml_scalar;
 use crate::fixtures::{cassette_bindings, invalid_set_name_message, is_valid_set_name};
+use crate::id::brief_id;
 use crate::model::Brief;
 
 /// Where `astrophage serve` listens by default (`--listen 127.0.0.1:8080`),
@@ -97,6 +104,21 @@ const SESSION_NOTE: &str = "\
 # send a plain-text prompt as one user message.
 ";
 
+/// Added to the header for every brief: what `x-brief-id` is, and how a CLI
+/// provider, which has no headers, carries the same id.
+fn brief_id_note(id: &str) -> String {
+    format!(
+        "\
+#
+# Every request carries x-brief-id: the id of the brief these providers came
+# from (`brief emit json` prints it). aichat records it on the session, so the
+# session's trajectory can be joined back to the brief. A CLI provider
+# (`exec: aichat ...`) sends no headers; give it the id in the environment:
+#   AICHAT_BRIEF_ID={id} promptfoo eval
+"
+    )
+}
+
 /// How `brief emit promptfoo` renders its providers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromptfooOptions {
@@ -120,7 +142,7 @@ impl Default for PromptfooOptions {
 /// The comment block at the top of the output. The `astrophage serve` line
 /// matches the gateway: `--listen` when the address names a port, or a note
 /// with the URL when it does not (a gateway behind a proxy on 443, say).
-fn header(options: &PromptfooOptions) -> String {
+fn header(options: &PromptfooOptions, id: &str) -> String {
     let base_url = options.base_url.as_str();
     let mut out = String::from(HEADER);
     if base_url != DEFAULT_GATEWAY_BASE_URL {
@@ -130,6 +152,7 @@ fn header(options: &PromptfooOptions) -> String {
         }
     }
     out.push('\n');
+    out.push_str(&brief_id_note(id));
     if options.session_id {
         out.push_str(SESSION_NOTE);
     }
@@ -181,7 +204,9 @@ pub fn emit_promptfoo_at(brief: &Brief, base_url: &str) -> String {
 /// [`emit_promptfoo`] with every option.
 pub fn emit_promptfoo_with(brief: &Brief, options: &PromptfooOptions) -> String {
     let model = brief.frontmatter.model.as_deref().unwrap_or_default();
-    let mut out = header(options);
+    let id = brief_id(brief);
+    let mut out = header(options, &id);
+    let id = yaml_scalar(&id);
 
     for binding in cassette_bindings(brief) {
         let set = yaml_scalar(&binding.name);
@@ -190,22 +215,22 @@ pub fn emit_promptfoo_with(brief: &Brief, options: &PromptfooOptions) -> String 
             out.push_str(&format!("# {}\n", reason.replace('\n', " ")));
         }
         if options.session_id {
-            out.push_str(&http_provider(model, &set, &options.base_url));
+            out.push_str(&http_provider(model, &set, &options.base_url, &id));
         } else {
-            out.push_str(&openai_provider(model, &set, &options.base_url));
+            out.push_str(&openai_provider(model, &set, &options.base_url, &id));
         }
     }
     out
 }
 
 /// promptfoo's `openai:chat` provider: the default shape.
-fn openai_provider(model: &str, set: &str, base_url: &str) -> String {
+fn openai_provider(model: &str, set: &str, base_url: &str, brief_id: &str) -> String {
     let id = yaml_scalar(&format!("openai:chat:{model}"));
     let base_url = yaml_scalar(base_url);
     format!(
         "- id: {id}\n  label: {set}\n  config:\n    apiBaseUrl: {base_url}\n    \
          apiKeyRequired: false\n    headers:\n      x-aichat-cache-mode: cassette\n      \
-         x-aichat-cassette: {set}\n"
+         x-aichat-cassette: {set}\n      x-brief-id: {brief_id}\n"
     )
 }
 
@@ -214,13 +239,14 @@ fn openai_provider(model: &str, set: &str, base_url: &str) -> String {
 /// request built from the plain-text prompt. `maxRetries: 0` because the
 /// provider retries a 5xx by default, and a cassette miss (502) fails the same
 /// way every time.
-fn http_provider(model: &str, set: &str, base_url: &str) -> String {
+fn http_provider(model: &str, set: &str, base_url: &str, brief_id: &str) -> String {
     let url = yaml_scalar(&format!("{base_url}/chat/completions"));
     let model = yaml_scalar(model);
     format!(
         "- id: http\n  label: {set}\n  config:\n    url: {url}\n    method: POST\n    \
          headers:\n      content-type: application/json\n      \
          x-aichat-cache-mode: cassette\n      x-aichat-cassette: {set}\n      \
+         x-brief-id: {brief_id}\n      \
          x-eridian-session-id: \"{{{{sessionId}}}}\"\n    \
          body:\n      model: {model}\n      messages:\n        - role: user\n          \
          content: \"{{{{prompt}}}}\"\n    \
