@@ -30,6 +30,7 @@ Root `$ref` composition:
 
 | Authoring | JSON path | Notes |
 |---|---|---|
+| *(derived, never authored)* | `/id` | `sha256:` plus 64 lowercase hex digits: a content hash of `goal`, `deliverable` and `constraints` (§7). |
 | `stack:` | `/frontmatter/stack` | `string[]`. Required, min length 1 when valid. |
 | `context:` | `/frontmatter/context` | Paths or URLs. Optional. |
 | `model:` | `/frontmatter/model` | Preferred model id. `null` if omitted. Not a session/runtime field. |
@@ -98,7 +99,7 @@ The format version is the `brief_version:` frontmatter key. Current value: `"1"`
 
 `brief validate` **errors** on a `brief_version` this build does not understand (`Unsupported \`brief_version\`: \`2\` (this build understands \`1\`)`), exit 1 — the E1-S2 error band. Parsing stays tolerant: a newer brief still parses, it just does not validate, so tooling can read it without emitting it wrongly.
 
-Additive, backward-compatible JSON fields may appear in a later 1.x; breaking changes require a new schema id (`brief-v2.schema.json`) and a new `brief_version` value.
+Additive, backward-compatible JSON fields may appear in a later 1.x (`/id` is the first, added 2026-10); breaking changes require a new schema id (`brief-v2.schema.json`) and a new `brief_version` value.
 
 The key was spelled `version` through 0.6.x. It collided with the project version `brief init` writes under `metadata:`, so it was renamed; `version:` remains a deserialization alias and is listed in `$defs.FrontmatterAuthoring`.
 
@@ -111,3 +112,74 @@ BLESS_SCHEMA=1 cargo test --test frontmatter_schema_tests
 ```
 
 `tests/frontmatter_schema_tests.rs` fails if the committed file differs from the schema derived from `Frontmatter`, or from the copy embedded via `include_str!`.
+
+## 7. The id
+
+`/id` is a content hash of the brief's **objective**. A consumer that runs work under a brief records the id, and the work can later be joined back to what was asked: aichat stores it as `session.start.brief_id` and exports it with a trajectory. The id is derived at emit time. It is never authored, and there is no `id:` frontmatter key.
+
+Because other repos recompute it, the id is defined over bytes, not over this crate's types.
+
+### 7.1 Objective
+
+Three fields of the canonical JSON, exactly as `brief emit json` prints them:
+
+```json
+{ "goal": …, "deliverable": …, "constraints": { "hard": […], "soft": […], "ask_first": […] } }
+```
+
+A constraint is `{ "text": … }`, with `"scope": […]` only when it is scoped (§3).
+
+All three are always present, in the parsed brief's own spelling of "missing":
+
+| Brief lacks | Objective carries | Why not `null` everywhere |
+|---|---|---|
+| `## Deliverable` | `"deliverable": null` | It is `null` in canonical JSON. |
+| `## Constraints`, or a tier | `"constraints"` with all three tiers, the missing ones `[]` | The parsed brief always has the three arrays. |
+| The H1 | `"goal": ""` | The parser stores `""`, and `brief validate` rejects the brief. It still hashes. |
+
+So the objective is a projection of `brief emit json`, and a mirror needs nothing else: pick the three fields, canonicalize, hash.
+
+### 7.2 Canonical form
+
+1. Object keys sorted by Unicode code point, at every depth. (Every key in the objective is ASCII.)
+2. No whitespace between tokens.
+3. Strings in UTF-8, escaped only where JSON requires it: `\"`, `\\`, the short forms `\b` `\f` `\n` `\r` `\t`, and lowercase `\u00xx` for the other characters below U+0020. Nothing else is escaped: non-ASCII characters, `/` and U+007F are written as themselves.
+4. Array order is kept. The order of constraints within a tier is part of the objective.
+5. No Unicode normalization: strings are hashed as parsed.
+
+The objective holds only strings, arrays, objects and `null`, and for those this is RFC 8785 (JCS). In Python it is `json.dumps(objective, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")`.
+
+The id is `sha256:` followed by the lowercase hex SHA-256 of those bytes.
+
+### 7.3 What moves the id
+
+| Changes the id | Does not |
+|---|---|
+| The goal or the deliverable text | Frontmatter (`stack`, `context`, `model`, `cassettes`, …) |
+| A constraint's text, scope, tier, or position within its tier | `## Identity`, `## Sacred`, `## Assumptions`, unknown sections |
+| | The order sections are written in, list-marker style, blank lines |
+| | `--compact` |
+
+### 7.4 Golden pair
+
+[`tests/fixtures/brief-id.brief.md`](../../tests/fixtures/brief-id.brief.md) has this objective, stored without a trailing newline in [`tests/fixtures/golden/brief-id.objective.json`](../../tests/fixtures/golden/brief-id.objective.json) (315 bytes):
+
+```json
+{"constraints":{"ask_first":[{"text":"Adding a dependency"}],"hard":[{"text":"Never touch `unsafe` blocks"},{"scope":["src/ui/**"],"text":"WCAG 2.1 AA"}],"soft":[{"text":"Prefer small diffs"}]},"deliverable":"A review comment per finding.\nEach names a file and a line.","goal":"Review Rust changes — \"safely\""}
+```
+
+and this id (`shasum -a 256` of that file):
+
+```
+sha256:2b939f8f5f0c3337e269db05822810adb2402b3d2405c43f161f9983f294851a
+```
+
+`tests/brief_id_tests.rs` pins both.
+
+### 7.5 Where the id travels
+
+| Carrier | Form |
+|---|---|
+| `brief emit json` | `/id` |
+| `brief emit jsonl` | One line per brief: the canonical JSON of the objective plus `id`. Drop `id` from a parsed line, write it back in canonical form, and you have the hashed bytes. |
+| `brief emit promptfoo` | Request header `x-brief-id` on every provider; `AICHAT_BRIEF_ID=<id>` for a CLI provider ([brief-format.md](../brief-format.md) §8.3). |

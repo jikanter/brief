@@ -276,6 +276,8 @@ enum EmitTarget {
     Anchor,
     /// Emit structured JSON
     Json,
+    /// Emit one JSON line: the brief's id and objective, for training joins
+    Jsonl,
     /// Emit Anthropic-style XML tags for API system prompts
     Xml,
     /// Emit promptfoo providers that replay the brief's astrophage cassette sets
@@ -297,6 +299,7 @@ impl EmitTarget {
             // The anchor is a system-prompt-style re-injection: tight budget.
             EmitTarget::Anchor => budget::Target::Prompt,
             EmitTarget::Json => budget::Target::Json,
+            EmitTarget::Jsonl => budget::Target::Jsonl,
             EmitTarget::Xml => budget::Target::Xml,
             EmitTarget::Promptfoo => budget::Target::Promptfoo,
         }
@@ -631,6 +634,7 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
         EmitTarget::Aider => emit::emit_aider(&brief),
         EmitTarget::Anchor => emit::emit_anchor(&brief),
         EmitTarget::Json => emit::emit_json(&brief),
+        EmitTarget::Jsonl => emit::emit_jsonl(&brief),
         EmitTarget::Xml => emit::emit_xml(&brief),
         EmitTarget::Promptfoo => {
             emit::promptfoo_preflight(&brief).map_err(anyhow::Error::msg)?;
@@ -766,7 +770,11 @@ fn cmd_emit(args: EmitArgs) -> Result<()> {
                      reads with `brief emit claude --install`."
                 );
             }
-            EmitTarget::Prompt | EmitTarget::Anchor | EmitTarget::Json | EmitTarget::Promptfoo => {
+            EmitTarget::Prompt
+            | EmitTarget::Anchor
+            | EmitTarget::Json
+            | EmitTarget::Jsonl
+            | EmitTarget::Promptfoo => {
                 anyhow::bail!(
                     "--install is only supported for the claude, agents-md, cursor, copilot, windsurf, and aider targets"
                 );

@@ -108,6 +108,7 @@ Distribution decision, not performance decision. The tool parses Markdown and em
 - **Phase 1**: Format spec, parser, CLI (init, validate, emit, check, diff). Complete.
 - **Phase 2**: Emit quality, enforcement, and integration depth. Complete: framing, `validate-diff`, hooks, budget and `--compact`, `--position`, `--full`, `--uninstall`.
 - **Phase 3**: Cross-ecosystem emit targets and extended tooling. External targets shipped (`cursor`, `copilot`, `windsurf`, `aider`, `xml`, `anchor`, skills), and the first integrated-stack target (`promptfoo`, 2026-09).
+- **Training join (2026-10-02, aichat Phase 77F)**: `emit json` carries a content-hash `id` of the brief's objective, `emit jsonl` writes one line per brief, and `emit promptfoo` forwards the id as `x-brief-id`. Owner rule from the same date: **every emitter brief builds has a JSONL output for training.**
 - **Next**: integrated-stack targets, starting with the aichat role emitter. Planned in [design/new-surfaces-design-doc.md](design/new-surfaces-design-doc.md).
 
 The Phase 2 priorities below are kept as the record of that phase.

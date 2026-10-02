@@ -43,6 +43,7 @@ pub enum Target {
     Aider,
     Xml,
     Json,
+    Jsonl,
     Promptfoo,
 }
 
@@ -60,6 +61,7 @@ impl Target {
             Target::Aider => "aider",
             Target::Xml => "xml",
             Target::Json => "json",
+            Target::Jsonl => "jsonl",
             Target::Promptfoo => "promptfoo",
         }
     }
@@ -84,7 +86,7 @@ impl Target {
             | Target::Windsurf
             | Target::Aider
             | Target::Xml => Some(2000),
-            Target::Json | Target::Promptfoo => None,
+            Target::Json | Target::Jsonl | Target::Promptfoo => None,
         }
     }
 

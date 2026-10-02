@@ -54,16 +54,18 @@ writes, and no consumer calls brief back.
 | Standing instructions (`AGENTS.md`, `CLAUDE.md`) | every coding agent | Augment only: brief writes inside its own `<brief:generated>` region and nothing else. Claude Code reads `AGENTS.md` only when the repo has no `CLAUDE.md` ([design-decisions.md](../design-decisions.md) "Which standing file Claude Code reads"). | Shipped |
 | `CLAUDE.md` section, skill, hooks, permissions | Claude Code | `<brief:generated>` markers; `.claude/skills/<name>/SKILL.md`; `PreToolUse` hook running `brief check`; `permissions.allow` from `## Commands` | Shipped |
 | `AGENTS.md`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.windsurf/rules/`, `CONVENTIONS.md` | the other external runtimes | One idiomatic file or managed section each; see [emit-targets-reference.md](../emit-targets-reference.md) | Shipped |
-| promptfoo providers | promptfoo, then astrophage | `openai:chat:<model>` (default) or `http` (`--session-id`) providers; `x-aichat-cache-mode: cassette`, `x-aichat-cassette: <set>`, optional `X-Eridian-Session-Id`; `--gateway` address | Shipped (aichat Phase 48A/B) |
+| promptfoo providers | promptfoo, then astrophage | `openai:chat:<model>` (default) or `http` (`--session-id`) providers; `x-aichat-cache-mode: cassette`, `x-aichat-cassette: <set>`, `x-brief-id: <id>`, optional `X-Eridian-Session-Id`; `--gateway` address | Shipped (aichat Phase 48A/B; `x-brief-id` Phase 77F) |
+| Brief id and objective line (`emit jsonl`) | aichat's label table, rocky | One JSON line per brief: `id` plus `goal`, `deliverable`, `constraints`. The id is `sha256:` + hex over the canonical JSON of those three ([SPEC.md](../schema/SPEC.md) §7); aichat records it as `session.start.brief_id` and never carries the goal itself. | Shipped (aichat Phase 77F) |
 | aichat role | aichat | `roles/<name>.md`: YAML frontmatter plus prompt body. The file is hashed into the Entity `lock_hash`, and `tool_approval` rules in its frontmatter can only tighten policy. An agent-directory emitter (`agents/<name>/`, the 2026-04 [backend audit](../design/backends/aichat/README.md)) is deferred until agent formats settle. | Planned (decided 2026-09-27) |
 | Eval suite | aichat role evaluation or promptfoo | Undecided (aichat integration idea #7) | Open |
-| Parsed brief (JSON) | any tool | [`brief-v1.schema.json`](../schema/brief-v1.schema.json), [SPEC.md](../schema/SPEC.md) | Shipped |
+| Parsed brief (JSON) | any tool | [`brief-v1.schema.json`](../schema/brief-v1.schema.json), [SPEC.md](../schema/SPEC.md); carries the brief's `id` | Shipped |
 | CI gates | any CI | `brief validate`, `brief validate-diff`, `brief check` exit codes; `emit xml` for prompts that carry untrusted content | Shipped |
 | Hermes | none | aichat's metadata refinery owns the aichat ↔ Hermes boundary and moves only a role's description. brief reaches Hermes only through aichat. | By design |
 | ACE / ClaudeKb | none (brief points only) | A brief may point at ClaudeKb paths or `ace://` facts from `context:`; retrieval happens in aichat. brief never files, indexes or curates tags. Today `brief validate` warns on any `context:` entry that is not a local file, URLs included, and `emit claude` renders it as an `@` import. | Gap: URI-aware `context:` |
 
-brief has no seam with llm-functions, rocky or pi. Tools are declared in llm-functions and
-referenced by name from a role; rocky reads aichat's traces; pi is the REPL over aichat.
+brief has no seam with llm-functions or pi. Tools are declared in llm-functions and
+referenced by name from a role; pi is the REPL over aichat. rocky reads aichat's traces,
+and joins them to `emit jsonl` lines on the brief id.
 
 ## 3. Inside brief
 
@@ -88,6 +90,7 @@ graph LR
 | `model.rs` | The `Brief` IR every other module reads. `Frontmatter` derives the committed JSON Schema (`schema.rs`). |
 | `validate.rs`, `provenance_check.rs` | Errors and warnings; provenance keys are advisory only. |
 | `fixtures.rs` | Cassette bindings from `cassettes:` and `## Fixtures`. |
+| `id.rs` | The brief's id: canonical JSON of the objective, hashed with SHA-256. |
 | `framing.rs` | The register pass: Hard → `NEVER:`/`MUST:`, Soft → `PREFER:`, Ask First → `STOP and confirm`. |
 | `budget.rs` | Token and character estimates per target; `--compact`. |
 | `emit/` | One module per target. Each takes `&Brief` and returns a `String`. |

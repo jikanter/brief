@@ -12,6 +12,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "id",
         "frontmatter",
         "goal",
         "identity",
@@ -22,6 +23,11 @@
         "unknown_sections"
       ],
       "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Content hash of the brief's objective: `sha256:` plus the lowercase hex SHA-256 of the canonical JSON of `goal`, `deliverable` and `constraints` (docs/schema/SPEC.md §7). Derived at emit time, never authored."
+        },
         "frontmatter": { "$ref": "#/$defs/Frontmatter" },
         "goal": {
           "type": "string",
