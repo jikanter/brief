@@ -113,15 +113,7 @@ Check the current `.brief.md` against the codebase.
 ### `brief emit <target>`
 Transform `.brief.md` into a target format.
 
-Targets:
-- `claude` — Emit a `CLAUDE.md` section with constraints formatted as Claude Code conventions. This is the primary target.
-- `prompt` — Emit raw system prompt text suitable for API use.
-- `agents-md` — Emit an `AGENTS.md` compatible section.
-- `cursor`, `copilot`, `windsurf`, `aider`, `readme` — Each ecosystem's native file, in its own register (`docs/emit-targets-reference.md`).
-- `anchor` — A ≤5-line NEVER/MUST constraint anchor for mid-session re-injection.
-- `json` — Emit the parsed briefing as structured JSON (for tooling integration).
-- `xml` — An XML envelope with closing tags, for prompts that concatenate untrusted content.
-- `promptfoo` — Emit promptfoo providers that replay the brief's cassette sets through the astrophage gateway (base URL + `x-aichat-cache-mode`/`x-aichat-cassette` headers). `--gateway <address>` overrides the default `127.0.0.1:8080`. `--session-id` switches to promptfoo `http` providers that send `X-Eridian-Session-Id` per test case (`openai:chat` sends header values as written, without filling in `{{vars}}`). Stdout only; brief never runs astrophage or promptfoo. Mode selection is astrophage-side: aichat has no cassette flags, by decision.
+The target list is authored in `.brief.md` (`## Emit Targets`) and generated into the managed section at the end of this file. Edit it there, then run `brief emit claude --install` and `brief emit agents-md --install`.
 
 ### `brief check <path>`
 Check if a file path falls within a sacred region.
@@ -247,4 +239,18 @@ Read these files for background before starting work:
 <deliverable>
 A human-authorable format, and one CLI that checks it, compiles it, installs it reversibly and gates work against it, for every runtime that consumes intent: briefings for the coding agents (`AGENTS.md` for Codex, Cursor, Copilot and Claude Code; `CLAUDE.md` with hooks and skills; Windsurf; Aider) and definitions for the integrated stack (an aichat role, promptfoo replay against astrophage). Secondarily, the format and the target set stay extensible, so a new runtime is a new emitter rather than a new format.
 </deliverable>
+
+## Emit Targets
+
+`brief emit <target>` compiles a `.brief.md` into one runtime's native artifact. The full reference is `docs/emit-targets-reference.md`.
+
+- `claude` — a `CLAUDE.md` section in Claude Code conventions. The primary target.
+- `agents-md` — an `AGENTS.md` section.
+- `cursor`, `copilot`, `windsurf`, `aider`, `readme` — each ecosystem's native file, in its own register.
+- `prompt` — raw system prompt text for API use.
+- `anchor` — a ≤5-line NEVER/MUST constraint anchor for mid-session re-injection.
+- `json` — the parsed briefing as structured JSON, with its content-hash `id` (`docs/schema/SPEC.md` §7).
+- `jsonl` — one JSON line per brief: the `id` plus the goal, deliverable and constraints it hashes. Lines append into a stream that training data joins on `brief_id`.
+- `xml` — an XML envelope with closing tags, for prompts that concatenate untrusted content.
+- `promptfoo` — promptfoo providers that replay the brief's cassette sets through the astrophage gateway (base URL plus `x-aichat-cache-mode` and `x-aichat-cassette` headers). Every provider also sends `x-brief-id`. `--gateway <address>` overrides the default `127.0.0.1:8080`. `--session-id` switches to promptfoo `http` providers that send `X-Eridian-Session-Id` per test case. Stdout only; brief never runs astrophage or promptfoo. Mode selection is astrophage-side: aichat has no cassette flags, by decision.
 </brief:generated>
