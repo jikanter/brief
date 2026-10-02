@@ -1,8 +1,23 @@
+use crate::id::brief_id;
 use crate::model::Brief;
+use serde::Serialize;
+
+/// The parsed brief with its id in front. The id is derived from three of the
+/// fields that follow it (see [`crate::id`]), not stored in the brief.
+#[derive(Serialize)]
+struct Identified<'a> {
+    id: String,
+    #[serde(flatten)]
+    brief: &'a Brief,
+}
 
 /// Emit the parsed briefing as structured JSON.
 pub fn emit_json(brief: &Brief) -> String {
-    serde_json::to_string_pretty(brief).expect("Brief serialization should never fail")
+    let identified = Identified {
+        id: brief_id(brief),
+        brief,
+    };
+    serde_json::to_string_pretty(&identified).expect("Brief serialization should never fail")
 }
 
 #[cfg(test)]

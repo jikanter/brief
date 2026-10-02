@@ -1,0 +1,1 @@
+{"constraints":{"ask_first":[{"text":"Adding a dependency"}],"hard":[{"text":"Never touch `unsafe` blocks"},{"scope":["src/ui/**"],"text":"WCAG 2.1 AA"}],"soft":[{"text":"Prefer small diffs"}]},"deliverable":"A review comment per finding.\nEach names a file and a line.","goal":"Review Rust changes — \"safely\""}

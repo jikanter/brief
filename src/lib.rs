@@ -6,6 +6,7 @@ pub mod emit;
 pub mod fixtures;
 pub mod framing;
 pub mod hooks;
+pub mod id;
 pub mod init;
 pub mod model;
 pub mod parse;
