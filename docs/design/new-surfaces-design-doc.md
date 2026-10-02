@@ -171,7 +171,7 @@ Fixed during this review: an install matched a `<brief:generated>` marker anywhe
 | A4 | aichat's docs still describe brief's cassette field as deferred (integrated-architecture index) and PR #1 as unmerged (Phase 48, roadmap ledger) | aichat |
 | A5 | ACE / ClaudeKb is not in aichat's ownership table, although brief points at it | aichat |
 | A6 | Read `X-Brief-Id` (`--serve`) and `AICHAT_BRIEF_ID` (CLI), record `session.start.brief_id`, export ATIF `extra.brief.id`; mirror the golden pair in SPEC.md §7.4 (Phase 77F) | aichat |
-| A7 | Confirm the gateway ignores `x-brief-id` when matching a cassette, and decide whether it copies the header into its trace or forwards it upstream | astrophage |
+| A7 | **Closed 2026-10-02** (astrophage PR #4, `4d3fc1f`). The gateway keys a request on its body alone, so `x-brief-id` never changes a cassette or cache match, and a set recorded before the header existed still replays. The header is stripped before forwarding upstream, and a well-formed value is recorded as `brief_id` on the entry and the trace. | astrophage |
 
 ## 12. Failure modes & mitigations
 
