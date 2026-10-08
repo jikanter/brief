@@ -1,0 +1,54 @@
+# Briefing: Review code following team standards
+
+**Stack:** Python 3.12, PostgreSQL 16
+
+## Constraints
+
+### Hard (Non-negotiable)
+
+<rules priority="required">
+- MUST: All SQL must target PostgreSQL 16
+- MUST: API backward compatibility must be maintained
+</rules>
+
+### Soft (Preferred)
+
+<rules priority="preferred">
+- PREFER: async patterns
+</rules>
+
+### Ask First (Requires approval)
+
+<rules priority="ask-first">
+- STOP and confirm with the user before: Database schema changes
+</rules>
+
+## Sacred Regions (Do Not Modify)
+
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+
+<protected_files>
+- `src/auth/**` — Authentication logic, SOC2 audited
+- `migrations/**` — Historical migrations, never alter
+</protected_files>
+
+## Reference Context
+
+Read these files for background before starting work:
+
+<context>
+- @docs/api-spec.yaml
+</context>
+
+## Assumptions
+
+<assumptions>
+- [ ] Current tests cover critical paths
+- [x] CI pipeline runs on every PR
+</assumptions>
+
+## Deliverable
+
+<deliverable>
+Clear review comments with specific file/line references and suggested fixes.
+</deliverable>

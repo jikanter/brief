@@ -1,0 +1,15 @@
+# Fix the login bug
+
+Built with Rust.
+
+## Ground rules
+
+### Must
+
+- Do not break existing tests
+
+## Protected paths
+
+These paths must not be modified:
+
+- `src/auth.rs` — Authentication logic, do not refactor

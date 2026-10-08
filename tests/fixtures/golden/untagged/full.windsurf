@@ -1,0 +1,66 @@
+---
+trigger: always_on
+---
+
+# Build real-time collaborative document editor
+
+**Stack:** TypeScript 5.4, React 18, PostgreSQL 16, Redis 7, AWS ECS
+
+## Context
+
+- `./docs/architecture.md`
+- `./docs/api-spec.yaml`
+- `./README.md`
+
+## Required
+
+- WebSocket connections must support 10k concurrent users per node
+- All data mutations go through event sourcing, no direct DB writes
+- WCAG 2.1 AA compliance on all new UI components, see [the checklist](./docs/a11y.md?level=AA&scope=ui)
+- Must pass existing E2E test suite before merge
+- Must pass CI **(REQUIRED)**
+
+## Preferred
+
+- Prefer Yjs over Automerge for CRDT implementation
+- Keep bundle size under 200KB gzipped for editor module
+- Use server-sent events for read-only viewers when possible
+
+## Ask First
+
+- Changes to the shared state schema
+- New npm dependencies over 50KB
+- Modifications to the WebSocket gateway
+- Any changes to authentication flow
+
+## Protected Files
+
+- `src/core/crdt-engine/**` — Battle-tested CRDT implementation, 2 years of edge case fixes
+- `src/auth/**` — SOC2 audited authentication module
+- `migrations/**` — Historical migrations must never be altered
+- `e2e/` — End-to-end test suite, modify only by adding new tests
+
+## Verify
+
+- Redis pub/sub can handle cross-node message fanout at 10k users
+- Yjs document size stays under 5MB for typical documents
+- Browser IndexedDB is sufficient for offline draft storage
+
+## Deliverable
+
+Working collaborative editor with real-time cursor presence, conflict-free
+concurrent editing, offline support with sync-on-reconnect, and comprehensive
+test coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.
+
+## Commands
+
+- Build: `npm run build`
+- Test: `npm test`
+- Lint: `npm run lint`
+- Type Check: `tsc --noEmit`
+
+## Code Style
+
+- Use TypeScript strict mode for all new files
+- Prefer functional components with hooks over class components
+- Use `zod` for runtime type validation at API boundaries

@@ -1,0 +1,38 @@
+# Review code following team standards
+
+Built with Python 3.12, PostgreSQL 16.
+
+## What done looks like
+
+Clear review comments with specific file/line references and suggested fixes.
+
+## Ground rules
+
+### Must
+
+- All SQL must target PostgreSQL 16
+- API backward compatibility must be maintained
+
+### Should
+
+- Prefer async patterns
+
+### Ask a maintainer first
+
+- Database schema changes
+
+## Protected paths
+
+These paths must not be modified:
+
+- `src/auth/**` — Authentication logic, SOC2 audited
+- `migrations/**` — Historical migrations, never alter
+
+## Assumptions
+
+- [ ] Current tests cover critical paths
+- [x] CI pipeline runs on every PR
+
+## Further reading
+
+- [docs/api-spec.yaml](./docs/api-spec.yaml)

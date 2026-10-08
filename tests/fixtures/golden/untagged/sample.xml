@@ -1,0 +1,41 @@
+<brief>
+<goal>Redesign event pipeline for 10M events/day</goal>
+<stack>Python 3.12, PostgreSQL 16, Kafka 3.7, GCP/k8s</stack>
+
+<context>
+<file>docs/current-architecture.md</file>
+<file>benchmarks/performance-baseline.csv</file>
+</context>
+
+<constraints>
+<hard>
+<rule>MUST: v2 API backward compatibility must be maintained</rule>
+<rule>MUST: All SQL must target PostgreSQL 16, not MySQL</rule>
+<rule>MUST: Infrastructure budget ceiling is $500/month</rule>
+</hard>
+<soft>
+<rule>PREFER: async write patterns where possible</rule>
+<rule>PREFER: Favor composition over inheritance in new code</rule>
+</soft>
+<ask-first>
+<rule>STOP and confirm with the user before: Database schema changes</rule>
+<rule>STOP and confirm with the user before: Adding new dependencies to requirements.txt</rule>
+<rule>STOP and confirm with the user before: Changes to the CI/CD pipeline</rule>
+</ask-first>
+</constraints>
+
+<sacred>
+<region path="src/auth/**">Proprietary tenant resolution logic, legally reviewed</region>
+<region path="src/compliance/**">GDPR audit trail, approved by legal</region>
+<region path="migrations/">Historical migration files must never be modified</region>
+</sacred>
+
+<assumptions>
+<unvalidated>Bottleneck is synchronous DB writes (validate against perf baseline)</unvalidated>
+<unvalidated>Kafka cluster can handle 10M events/day without partition rebalancing</unvalidated>
+<validated>Current v2 API consumers do not use deprecated endpoints</validated>
+</assumptions>
+
+<deliverable>Architecture doc with decision records, implementation plan with milestones,
+and working code with tests achieving &gt;80% coverage on new modules.</deliverable>
+</brief>

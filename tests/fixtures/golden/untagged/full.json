@@ -1,0 +1,122 @@
+{
+  "id": "sha256:a5fa032f449cfbbbdcb5d7cd41794efbce570d48d595f7660fd4366368b12311",
+  "frontmatter": {
+    "stack": [
+      "TypeScript 5.4",
+      "React 18",
+      "PostgreSQL 16",
+      "Redis 7",
+      "AWS ECS"
+    ],
+    "context": [
+      "./docs/architecture.md",
+      "./docs/api-spec.yaml",
+      "./README.md"
+    ],
+    "model": "claude-sonnet-4-20250514",
+    "brief_version": "1",
+    "skill_name": null,
+    "skill_description": null
+  },
+  "goal": "Build real-time collaborative document editor",
+  "identity": null,
+  "constraints": {
+    "hard": [
+      {
+        "text": "WebSocket connections must support 10k concurrent users per node"
+      },
+      {
+        "text": "All data mutations go through event sourcing, no direct DB writes"
+      },
+      {
+        "text": "WCAG 2.1 AA compliance on all new UI components, see [the checklist](./docs/a11y.md?level=AA&scope=ui)"
+      },
+      {
+        "text": "Must pass existing E2E test suite before merge"
+      },
+      {
+        "text": "Must pass CI **(REQUIRED)**"
+      }
+    ],
+    "soft": [
+      {
+        "text": "Prefer Yjs over Automerge for CRDT implementation"
+      },
+      {
+        "text": "Keep bundle size under 200KB gzipped for editor module"
+      },
+      {
+        "text": "Use server-sent events for read-only viewers when possible"
+      }
+    ],
+    "ask_first": [
+      {
+        "text": "Changes to the shared state schema"
+      },
+      {
+        "text": "New npm dependencies over 50KB"
+      },
+      {
+        "text": "Modifications to the WebSocket gateway"
+      },
+      {
+        "text": "Any changes to authentication flow"
+      }
+    ]
+  },
+  "sacred": [
+    {
+      "path": "src/core/crdt-engine/**",
+      "reason": "Battle-tested CRDT implementation, 2 years of edge case fixes",
+      "well_formed": true
+    },
+    {
+      "path": "src/auth/**",
+      "reason": "SOC2 audited authentication module",
+      "well_formed": true
+    },
+    {
+      "path": "migrations/**",
+      "reason": "Historical migrations must never be altered",
+      "well_formed": true
+    },
+    {
+      "path": "e2e/",
+      "reason": "End-to-end test suite, modify only by adding new tests",
+      "well_formed": true
+    }
+  ],
+  "assumptions": [
+    {
+      "text": "Redis pub/sub can handle cross-node message fanout at 10k users",
+      "validated": false,
+      "has_checkbox": true
+    },
+    {
+      "text": "Yjs document size stays under 5MB for typical documents",
+      "validated": false,
+      "has_checkbox": true
+    },
+    {
+      "text": "Existing REST API can coexist with WebSocket gateway",
+      "validated": true,
+      "has_checkbox": true
+    },
+    {
+      "text": "Browser IndexedDB is sufficient for offline draft storage",
+      "validated": false,
+      "has_checkbox": true
+    }
+  ],
+  "deliverable": "Working collaborative editor with real-time cursor presence, conflict-free\nconcurrent editing, offline support with sync-on-reconnect, and comprehensive\ntest coverage. Ship as a feature-flagged beta behind `ENABLE_COLLAB_EDITOR`.",
+  "unknown_sections": [
+    {
+      "heading": "Commands",
+      "content": "- Build: `npm run build`\n- Test: `npm test`\n- Lint: `npm run lint`\n- Type Check: `tsc --noEmit`"
+    },
+    {
+      "heading": "Code Style",
+      "content": "- Use TypeScript strict mode for all new files\n- Prefer functional components with hooks over class components\n- Use `zod` for runtime type validation at API boundaries"
+    }
+  ]
+}

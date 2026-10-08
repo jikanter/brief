@@ -1,0 +1,31 @@
+# Review Rust changes — "safely"
+
+Built with Rust.
+
+## Reference
+
+Keep these files in mind:
+
+- `./README.md`
+
+## Guidelines
+
+- Never touch `unsafe` blocks
+- When working in `src/ui/**`: WCAG 2.1 AA
+
+## Preferences
+
+- Prefer: Prefer small diffs
+
+## Ask first
+
+- Ask before: Adding a dependency
+
+## Files not to modify
+
+- `src/auth/**` — security reviewed
+
+## Done when
+
+A review comment per finding.
+Each names a file and a line.

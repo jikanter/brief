@@ -1,0 +1,4 @@
+<brief:anchor>
+NEVER: break backward compatibility with v2 API
+Sacred (do not modify): src/auth/**
+</brief:anchor>

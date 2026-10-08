@@ -1,0 +1,64 @@
+{
+  "id": "sha256:a935fcb999824a7903fdcdfccca3297b07d7d52908df084df3200a706c34607a",
+  "frontmatter": {
+    "stack": [
+      "Python 3.12",
+      "PostgreSQL 16"
+    ],
+    "context": [
+      "./docs/api-spec.yaml"
+    ],
+    "model": null,
+    "brief_version": "1",
+    "skill_name": "review",
+    "skill_description": "Review code changes following team standards"
+  },
+  "goal": "Review code following team standards",
+  "identity": null,
+  "constraints": {
+    "hard": [
+      {
+        "text": "All SQL must target PostgreSQL 16"
+      },
+      {
+        "text": "API backward compatibility must be maintained"
+      }
+    ],
+    "soft": [
+      {
+        "text": "Prefer async patterns"
+      }
+    ],
+    "ask_first": [
+      {
+        "text": "Database schema changes"
+      }
+    ]
+  },
+  "sacred": [
+    {
+      "path": "src/auth/**",
+      "reason": "Authentication logic, SOC2 audited",
+      "well_formed": true
+    },
+    {
+      "path": "migrations/**",
+      "reason": "Historical migrations, never alter",
+      "well_formed": true
+    }
+  ],
+  "assumptions": [
+    {
+      "text": "Current tests cover critical paths",
+      "validated": false,
+      "has_checkbox": true
+    },
+    {
+      "text": "CI pipeline runs on every PR",
+      "validated": true,
+      "has_checkbox": true
+    }
+  ],
+  "deliverable": "Clear review comments with specific file/line references and suggested fixes.",
+  "unknown_sections": []
+}

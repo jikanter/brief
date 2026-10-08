@@ -1,0 +1,45 @@
+# Redesign event pipeline for 10M events/day
+
+**Stack:** Python 3.12, PostgreSQL 16, Kafka 3.7, GCP/k8s
+
+## Reference
+
+For background, see:
+
+- `./docs/current-architecture.md`
+- `./benchmarks/performance-baseline.csv`
+
+## Requirements
+
+- v2 API backward compatibility must be maintained
+- All SQL must target PostgreSQL 16, not MySQL
+- Infrastructure budget ceiling is $500/month
+
+## Preferences
+
+- Prefer async write patterns where possible
+- Favor composition over inheritance in new code
+
+## Check before proceeding
+
+- Database schema changes
+- Adding new dependencies to requirements.txt
+- Changes to the CI/CD pipeline
+
+## Protected files
+
+Do not modify these files:
+
+- `src/auth/**` — Proprietary tenant resolution logic, legally reviewed
+- `src/compliance/**` — GDPR audit trail, approved by legal
+- `migrations/` — Historical migration files must never be modified
+
+## Assumptions to verify
+
+- Bottleneck is synchronous DB writes (validate against perf baseline)
+- Kafka cluster can handle 10M events/day without partition rebalancing
+
+## Definition of done
+
+Architecture doc with decision records, implementation plan with milestones,
+and working code with tests achieving >80% coverage on new modules.

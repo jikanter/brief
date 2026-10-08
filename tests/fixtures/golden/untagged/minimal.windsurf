@@ -1,0 +1,16 @@
+---
+trigger: always_on
+---
+
+# Fix the login bug
+
+**Stack:** Rust
+
+## Required
+
+- Do not break existing tests
+
+## Protected Files
+
+- `src/auth.rs` — Authentication logic, do not refactor
+

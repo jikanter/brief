@@ -1,0 +1,38 @@
+HARD CONSTRAINTS:
+- MUST: v2 API backward compatibility must be maintained
+- MUST: All SQL must target PostgreSQL 16, not MySQL
+- MUST: Infrastructure budget ceiling is $500/month
+
+SACRED REGIONS:
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+- src/auth/**: Proprietary tenant resolution logic, legally reviewed
+- src/compliance/**: GDPR audit trail, approved by legal
+- migrations/: Historical migration files must never be modified
+
+GOAL: Redesign event pipeline for 10M events/day
+
+STACK: Python 3.12, PostgreSQL 16, Kafka 3.7, GCP/k8s
+
+REFERENCE CONTEXT:
+- ./docs/current-architecture.md
+- ./benchmarks/performance-baseline.csv
+
+SOFT CONSTRAINTS:
+- PREFER: async write patterns where possible
+- PREFER: Favor composition over inheritance in new code
+
+ASK BEFORE PROCEEDING:
+- STOP and confirm with the user before: Database schema changes
+- STOP and confirm with the user before: Adding new dependencies to requirements.txt
+- STOP and confirm with the user before: Changes to the CI/CD pipeline
+
+ASSUMPTIONS (UNVALIDATED):
+- Bottleneck is synchronous DB writes (validate against perf baseline)
+- Kafka cluster can handle 10M events/day without partition rebalancing
+
+ASSUMPTIONS (VALIDATED):
+- Current v2 API consumers do not use deprecated endpoints
+
+DELIVERABLE:
+Architecture doc with decision records, implementation plan with milestones,
+and working code with tests achieving >80% coverage on new modules.

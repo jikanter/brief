@@ -1,0 +1,7 @@
+<brief:anchor>
+MUST: WebSocket connections must support 10k concurrent users per node
+MUST: All data mutations go through event sourcing, no direct DB writes
+MUST: WCAG 2.1 AA compliance on all new UI components, see [the checklist](./docs/a11y.md?level=AA&scope=ui)
+MUST: pass existing E2E test suite before merge
+Sacred (do not modify): src/core/crdt-engine/**, src/auth/**, migrations/**, …
+</brief:anchor>

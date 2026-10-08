@@ -1,0 +1,35 @@
+# Review code following team standards
+
+Built with Python 3.12, PostgreSQL 16.
+
+## Reference
+
+Keep these files in mind:
+
+- `./docs/api-spec.yaml`
+
+## Guidelines
+
+- All SQL must target PostgreSQL 16
+- API backward compatibility must be maintained
+
+## Preferences
+
+- Prefer: Prefer async patterns
+
+## Ask first
+
+- Ask before: Database schema changes
+
+## Files not to modify
+
+- `src/auth/**` — Authentication logic, SOC2 audited
+- `migrations/**` — Historical migrations, never alter
+
+## Open questions
+
+- Current tests cover critical paths
+
+## Done when
+
+Clear review comments with specific file/line references and suggested fixes.

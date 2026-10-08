@@ -1,0 +1,29 @@
+# Review Rust changes — "safely"
+
+**Stack:** Rust
+
+## Context
+
+Refer to these files for background:
+
+- `./README.md`
+
+## Instructions
+
+- Never touch `unsafe` blocks **(REQUIRED)**
+- When working in `src/ui/**`: WCAG 2.1 AA **(REQUIRED)**
+- Prefer small diffs *(preferred)*
+- Adding a dependency **(ASK FIRST)**
+
+## Protected Files
+
+- `src/auth/**`: security reviewed
+
+## Assumptions
+
+- [x] CI is green
+
+## Deliverable
+
+A review comment per finding.
+Each names a file and a line.

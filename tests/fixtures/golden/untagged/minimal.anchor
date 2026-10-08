@@ -1,0 +1,4 @@
+<brief:anchor>
+NEVER: break existing tests
+Sacred (do not modify): src/auth.rs
+</brief:anchor>

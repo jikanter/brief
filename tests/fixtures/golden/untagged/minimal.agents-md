@@ -1,0 +1,12 @@
+# Fix the login bug
+
+**Stack:** Rust
+
+## Instructions
+
+- Do not break existing tests **(REQUIRED)**
+
+## Protected Files
+
+- `src/auth.rs`: Authentication logic, do not refactor
+

@@ -1,0 +1,56 @@
+{
+  "id": "sha256:2b939f8f5f0c3337e269db05822810adb2402b3d2405c43f161f9983f294851a",
+  "frontmatter": {
+    "stack": [
+      "Rust"
+    ],
+    "context": [
+      "./README.md"
+    ],
+    "model": "gpt-4o-mini",
+    "brief_version": "1",
+    "skill_name": null,
+    "skill_description": null
+  },
+  "goal": "Review Rust changes — \"safely\"",
+  "identity": null,
+  "constraints": {
+    "hard": [
+      {
+        "text": "Never touch `unsafe` blocks"
+      },
+      {
+        "text": "WCAG 2.1 AA",
+        "scope": [
+          "src/ui/**"
+        ]
+      }
+    ],
+    "soft": [
+      {
+        "text": "Prefer small diffs"
+      }
+    ],
+    "ask_first": [
+      {
+        "text": "Adding a dependency"
+      }
+    ]
+  },
+  "sacred": [
+    {
+      "path": "src/auth/**",
+      "reason": "security reviewed",
+      "well_formed": true
+    }
+  ],
+  "assumptions": [
+    {
+      "text": "CI is green",
+      "validated": true,
+      "has_checkbox": true
+    }
+  ],
+  "deliverable": "A review comment per finding.\nEach names a file and a line.",
+  "unknown_sections": []
+}

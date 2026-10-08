@@ -3,6 +3,7 @@
 | Doc | Status |
 |---|---|
 | [frontmatter-additions.md](frontmatter-additions.md) | Live. YAGNI bar for `Frontmatter` task fields. |
+| [body-tags.md](body-tags.md) | Draft v0.1, not implemented. Declarative `<brief:*>` body tags; the byte-stability floor (`tests/body_tags_tests.rs`) is in place. |
 | [provenance-schema.md](provenance-schema.md) | Draft v0.1, not implemented. Document-provenance keys; §1.1 relates it to the `Frontmatter` schema. |
 | [new-surfaces-design-doc.md](new-surfaces-design-doc.md) | Draft v3 (2026-09-27). Integrated-stack targets: aichat role emitter next; Hermes target cut; gap list. |
 | [new-surfaces-epics.md](new-surfaces-epics.md) | Draft v3. Delivery plan for the above. |

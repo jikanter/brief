@@ -1,0 +1,33 @@
+<brief>
+<goal>Review code following team standards</goal>
+<stack>Python 3.12, PostgreSQL 16</stack>
+
+<context>
+<file>docs/api-spec.yaml</file>
+</context>
+
+<constraints>
+<hard>
+<rule>MUST: All SQL must target PostgreSQL 16</rule>
+<rule>MUST: API backward compatibility must be maintained</rule>
+</hard>
+<soft>
+<rule>PREFER: async patterns</rule>
+</soft>
+<ask-first>
+<rule>STOP and confirm with the user before: Database schema changes</rule>
+</ask-first>
+</constraints>
+
+<sacred>
+<region path="src/auth/**">Authentication logic, SOC2 audited</region>
+<region path="migrations/**">Historical migrations, never alter</region>
+</sacred>
+
+<assumptions>
+<unvalidated>Current tests cover critical paths</unvalidated>
+<validated>CI pipeline runs on every PR</validated>
+</assumptions>
+
+<deliverable>Clear review comments with specific file/line references and suggested fixes.</deliverable>
+</brief>

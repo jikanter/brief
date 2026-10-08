@@ -1,0 +1,30 @@
+HARD CONSTRAINTS:
+- MUST: All SQL must target PostgreSQL 16
+- MUST: API backward compatibility must be maintained
+
+SACRED REGIONS:
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+- src/auth/**: Authentication logic, SOC2 audited
+- migrations/**: Historical migrations, never alter
+
+GOAL: Review code following team standards
+
+STACK: Python 3.12, PostgreSQL 16
+
+REFERENCE CONTEXT:
+- ./docs/api-spec.yaml
+
+SOFT CONSTRAINTS:
+- PREFER: async patterns
+
+ASK BEFORE PROCEEDING:
+- STOP and confirm with the user before: Database schema changes
+
+ASSUMPTIONS (UNVALIDATED):
+- Current tests cover critical paths
+
+ASSUMPTIONS (VALIDATED):
+- CI pipeline runs on every PR
+
+DELIVERABLE:
+Clear review comments with specific file/line references and suggested fixes.

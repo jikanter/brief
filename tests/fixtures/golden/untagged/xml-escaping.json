@@ -1,0 +1,75 @@
+{
+  "id": "sha256:b2126561b6c88aea4deea0720e50d7b1991caf95fbdd2d56fd5ac48738148981",
+  "frontmatter": {
+    "stack": [
+      "Rust 1.98",
+      "serde & serde_yaml"
+    ],
+    "context": [
+      "./docs/a<b>.md"
+    ],
+    "model": null,
+    "brief_version": "1",
+    "skill_name": null,
+    "skill_description": null
+  },
+  "goal": "Harden the parser against <script> tags & \"quoted\" input",
+  "identity": {
+    "heading": "Identity",
+    "content": "The `<brief>` envelope team — owners of A & B."
+  },
+  "constraints": {
+    "hard": [
+      {
+        "text": "Reject input containing `<` or `&` unless it is escaped",
+        "scope": [
+          "src/**/*.rs"
+        ]
+      },
+      {
+        "text": "Keep `Record<T>` generics intact in error messages"
+      }
+    ],
+    "soft": [
+      {
+        "text": "Prefer `&str` over `String` in the \"hot\" paths"
+      }
+    ],
+    "ask_first": [
+      {
+        "text": "Changing the <envelope> tag vocabulary"
+      }
+    ]
+  },
+  "sacred": [
+    {
+      "path": "src/**/*.rs",
+      "reason": "Every Rust source file, including \"generated\" ones",
+      "well_formed": true
+    },
+    {
+      "path": "docs/a&b/**",
+      "reason": "Ampersand in a path",
+      "well_formed": true
+    }
+  ],
+  "assumptions": [
+    {
+      "text": "Input can carry a fenced code block with markup",
+      "validated": false,
+      "has_checkbox": true
+    },
+    {
+      "text": "Both `'` and `\"` survive the round-trip",
+      "validated": true,
+      "has_checkbox": true
+    }
+  ],
+  "deliverable": "Well-formed XML whose text keeps A & B < C > D and 'single' and \"double\" quotes intact.",
+  "unknown_sections": [
+    {
+      "heading": "Notes",
+      "content": "A fenced block with markup in it:\n\n```rust\nfn main() {\n    if a < b && c > d {\n        println!(\"{}\", \"<tag attr='v'>\");\n    }\n}\n```"
+    }
+  ]
+}

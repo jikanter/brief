@@ -1,0 +1,32 @@
+<brief>
+<goal>Review Rust changes — "safely"</goal>
+<stack>Rust</stack>
+
+<context>
+<file>README.md</file>
+</context>
+
+<constraints>
+<hard>
+<rule>NEVER: touch `unsafe` blocks</rule>
+<rule scope="src/ui/**">MUST: WCAG 2.1 AA</rule>
+</hard>
+<soft>
+<rule>PREFER: small diffs</rule>
+</soft>
+<ask-first>
+<rule>STOP and confirm with the user before: Adding a dependency</rule>
+</ask-first>
+</constraints>
+
+<sacred>
+<region path="src/auth/**">security reviewed</region>
+</sacred>
+
+<assumptions>
+<validated>CI is green</validated>
+</assumptions>
+
+<deliverable>A review comment per finding.
+Each names a file and a line.</deliverable>
+</brief>

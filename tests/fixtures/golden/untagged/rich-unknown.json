@@ -1,0 +1,46 @@
+{
+  "id": "sha256:539f92c8f295096e810535fd0866e5557f18146e8d7320b6b209bdbaf5ed5fdd",
+  "frontmatter": {
+    "stack": [
+      "Rust",
+      "PostgreSQL 16"
+    ],
+    "context": [
+      "./docs/architecture.md"
+    ],
+    "model": null,
+    "brief_version": "1",
+    "skill_name": null,
+    "skill_description": null
+  },
+  "goal": "Optimize database query layer",
+  "identity": null,
+  "constraints": {
+    "hard": [
+      {
+        "text": "Do not break backward compatibility with v2 API"
+      }
+    ],
+    "soft": [],
+    "ask_first": []
+  },
+  "sacred": [
+    {
+      "path": "src/auth/**",
+      "reason": "SOC2 audited authentication",
+      "well_formed": true
+    }
+  ],
+  "assumptions": [],
+  "deliverable": "Query response time under 50ms at p95 for the `/search` endpoint.",
+  "unknown_sections": [
+    {
+      "heading": "Architecture",
+      "content": "The query layer sits between the API handlers and the database pool.\n\n### Key Components\n\n- `src/db/pool.rs` — Connection pool management\n- `src/db/query.rs` — Query builder with **prepared statement** support\n- `src/db/cache.rs` — Result cache using `lru` crate\n\n### Data Flow\n\n```\nAPI Handler -> QueryBuilder -> ConnectionPool -> PostgreSQL\n                  |\n             ResultCache\n```"
+    },
+    {
+      "heading": "Workflow",
+      "content": "- Start with profiling: run `cargo bench --bench query_perf`\n- Make small, targeted changes — one query optimization per commit\n- Run the full test suite after each change"
+    }
+  ]
+}

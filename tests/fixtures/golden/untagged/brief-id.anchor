@@ -1,0 +1,6 @@
+<brief:anchor>
+NEVER: touch `unsafe` blocks
+MUST: WCAG 2.1 AA
+STOP before: Adding a dependency
+Sacred (do not modify): src/auth/**
+</brief:anchor>

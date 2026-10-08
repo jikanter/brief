@@ -1,0 +1,53 @@
+# Briefing: Review Rust changes — "safely"
+
+**Stack:** Rust
+
+## Constraints
+
+### Hard (Non-negotiable)
+
+<rules priority="required">
+- NEVER: touch `unsafe` blocks
+- When working in `src/ui/**`: MUST: WCAG 2.1 AA
+</rules>
+
+### Soft (Preferred)
+
+<rules priority="preferred">
+- PREFER: small diffs
+</rules>
+
+### Ask First (Requires approval)
+
+<rules priority="ask-first">
+- STOP and confirm with the user before: Adding a dependency
+</rules>
+
+## Sacred Regions (Do Not Modify)
+
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+
+<protected_files>
+- `src/auth/**` — security reviewed
+</protected_files>
+
+## Reference Context
+
+Read these files for background before starting work:
+
+<context>
+- @README.md
+</context>
+
+## Assumptions
+
+<assumptions>
+- [x] CI is green
+</assumptions>
+
+## Deliverable
+
+<deliverable>
+A review comment per finding.
+Each names a file and a line.
+</deliverable>

@@ -1,0 +1,1 @@
+{"constraints":{"ask_first":[],"hard":[{"text":"Do not break backward compatibility with v2 API"}],"soft":[]},"deliverable":"Query response time under 50ms at p95 for the `/search` endpoint.","goal":"Optimize database query layer","id":"sha256:539f92c8f295096e810535fd0866e5557f18146e8d7320b6b209bdbaf5ed5fdd"}

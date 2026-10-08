@@ -1,0 +1,14 @@
+<brief>
+<goal>Fix the login bug</goal>
+<stack>Rust</stack>
+
+<constraints>
+<hard>
+<rule>NEVER: break existing tests</rule>
+</hard>
+</constraints>
+
+<sacred>
+<region path="src/auth.rs">Authentication logic, do not refactor</region>
+</sacred>
+</brief>

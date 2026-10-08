@@ -1,0 +1,19 @@
+---
+description: Fix the login bug
+alwaysApply: true
+---
+
+# Fix the login bug
+
+**Stack:** Rust
+
+## Required
+
+- Do not break existing tests
+
+## Protected Files
+
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+
+- `src/auth.rs` — Authentication logic, do not refactor
+

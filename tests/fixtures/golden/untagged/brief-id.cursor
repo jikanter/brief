@@ -1,0 +1,36 @@
+---
+description: "Review Rust changes — \"safely\""
+alwaysApply: true
+---
+
+# Review Rust changes — "safely"
+
+**Stack:** Rust
+
+## Context
+
+- @README.md
+
+## Required
+
+- Never touch `unsafe` blocks
+- When working in `src/ui/**`: WCAG 2.1 AA
+
+## Preferred
+
+- Prefer small diffs
+
+## Ask First
+
+- Adding a dependency
+
+## Protected Files
+
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+
+- `src/auth/**` — security reviewed
+
+## Deliverable
+
+A review comment per finding.
+Each names a file and a line.

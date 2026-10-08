@@ -1,0 +1,6 @@
+<brief:anchor>
+MUST: All SQL must target PostgreSQL 16
+MUST: API backward compatibility must be maintained
+STOP before: Database schema changes
+Sacred (do not modify): src/auth/**, migrations/**
+</brief:anchor>

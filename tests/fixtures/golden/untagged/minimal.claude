@@ -1,0 +1,20 @@
+# Briefing: Fix the login bug
+
+**Stack:** Rust
+
+## Constraints
+
+### Hard (Non-negotiable)
+
+<rules priority="required">
+- NEVER: break existing tests
+</rules>
+
+## Sacred Regions (Do Not Modify)
+
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+
+<protected_files>
+- `src/auth.rs` — Authentication logic, do not refactor
+</protected_files>
+

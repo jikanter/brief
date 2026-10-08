@@ -1,0 +1,33 @@
+# Review Rust changes — "safely"
+
+**Stack:** Rust
+
+## Reference
+
+For background, see:
+
+- `./README.md`
+
+## Requirements
+
+- Never touch `unsafe` blocks
+- When working in `src/ui/**`: WCAG 2.1 AA
+
+## Preferences
+
+- Prefer small diffs
+
+## Check before proceeding
+
+- Adding a dependency
+
+## Protected files
+
+Do not modify these files:
+
+- `src/auth/**` — security reviewed
+
+## Definition of done
+
+A review comment per finding.
+Each names a file and a line.

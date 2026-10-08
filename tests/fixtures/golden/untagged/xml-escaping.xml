@@ -1,0 +1,44 @@
+<brief>
+<goal>Harden the parser against &lt;script&gt; tags &amp; "quoted" input</goal>
+<identity name="Identity">The `&lt;brief&gt;` envelope team — owners of A &amp; B.</identity>
+<stack>Rust 1.98, serde &amp; serde_yaml</stack>
+
+<context>
+<file>docs/a&lt;b&gt;.md</file>
+</context>
+
+<constraints>
+<hard>
+<rule scope="src/**/*.rs">MUST: Reject input containing `&lt;` or `&amp;` unless it is escaped</rule>
+<rule>Keep `Record&lt;T&gt;` generics intact in error messages</rule>
+</hard>
+<soft>
+<rule>PREFER: `&amp;str` over `String` in the "hot" paths</rule>
+</soft>
+<ask-first>
+<rule>STOP and confirm with the user before: Changing the &lt;envelope&gt; tag vocabulary</rule>
+</ask-first>
+</constraints>
+
+<sacred>
+<region path="src/**/*.rs">Every Rust source file, including "generated" ones</region>
+<region path="docs/a&amp;b/**">Ampersand in a path</region>
+</sacred>
+
+<assumptions>
+<unvalidated>Input can carry a fenced code block with markup</unvalidated>
+<validated>Both `'` and `"` survive the round-trip</validated>
+</assumptions>
+
+<deliverable>Well-formed XML whose text keeps A &amp; B &lt; C &gt; D and 'single' and "double" quotes intact.</deliverable>
+
+<section name="Notes">A fenced block with markup in it:
+
+```rust
+fn main() {
+    if a &lt; b &amp;&amp; c &gt; d {
+        println!("{}", "&lt;tag attr='v'&gt;");
+    }
+}
+```</section>
+</brief>

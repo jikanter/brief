@@ -1,0 +1,49 @@
+---
+trigger: always_on
+---
+
+# Harden the parser against <script> tags & "quoted" input
+
+**Stack:** Rust 1.98, serde & serde_yaml
+
+## Context
+
+- `./docs/a<b>.md`
+
+## Required
+
+- When working in `src/**/*.rs`: Reject input containing `<` or `&` unless it is escaped
+- Keep `Record<T>` generics intact in error messages
+
+## Preferred
+
+- Prefer `&str` over `String` in the "hot" paths
+
+## Ask First
+
+- Changing the <envelope> tag vocabulary
+
+## Protected Files
+
+- `src/**/*.rs` — Every Rust source file, including "generated" ones
+- `docs/a&b/**` — Ampersand in a path
+
+## Verify
+
+- Input can carry a fenced code block with markup
+
+## Deliverable
+
+Well-formed XML whose text keeps A & B < C > D and 'single' and "double" quotes intact.
+
+## Notes
+
+A fenced block with markup in it:
+
+```rust
+fn main() {
+    if a < b && c > d {
+        println!("{}", "<tag attr='v'>");
+    }
+}
+```

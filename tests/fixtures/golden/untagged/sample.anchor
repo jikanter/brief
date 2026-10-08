@@ -1,0 +1,7 @@
+<brief:anchor>
+MUST: v2 API backward compatibility must be maintained
+MUST: All SQL must target PostgreSQL 16, not MySQL
+MUST: Infrastructure budget ceiling is $500/month
+STOP before: Database schema changes
+Sacred (do not modify): src/auth/**, src/compliance/**, migrations/
+</brief:anchor>

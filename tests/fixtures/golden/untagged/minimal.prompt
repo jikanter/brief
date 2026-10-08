@@ -1,0 +1,11 @@
+HARD CONSTRAINTS:
+- NEVER: break existing tests
+
+SACRED REGIONS:
+The following files and directories must not be modified under any circumstances. If a task requires changes to these paths, STOP and report the conflict.
+- src/auth.rs: Authentication logic, do not refactor
+
+GOAL: Fix the login bug
+
+STACK: Rust
+

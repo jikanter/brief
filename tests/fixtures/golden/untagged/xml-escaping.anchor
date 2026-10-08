@@ -1,0 +1,6 @@
+<brief:anchor>
+MUST: Reject input containing `<` or `&` unless it is escaped
+Keep `Record<T>` generics intact in error messages
+STOP before: Changing the <envelope> tag vocabulary
+Sacred (do not modify): src/**/*.rs, docs/a&b/**
+</brief:anchor>

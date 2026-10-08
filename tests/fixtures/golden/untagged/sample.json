@@ -1,0 +1,89 @@
+{
+  "id": "sha256:6030c859ba5f3708ee9a260f9e9f3b421434362493b3f8d52590ee4559b7c216",
+  "frontmatter": {
+    "stack": [
+      "Python 3.12",
+      "PostgreSQL 16",
+      "Kafka 3.7",
+      "GCP/k8s"
+    ],
+    "context": [
+      "./docs/current-architecture.md",
+      "./benchmarks/performance-baseline.csv"
+    ],
+    "model": null,
+    "brief_version": "1",
+    "skill_name": null,
+    "skill_description": null
+  },
+  "goal": "Redesign event pipeline for 10M events/day",
+  "identity": null,
+  "constraints": {
+    "hard": [
+      {
+        "text": "v2 API backward compatibility must be maintained"
+      },
+      {
+        "text": "All SQL must target PostgreSQL 16, not MySQL"
+      },
+      {
+        "text": "Infrastructure budget ceiling is $500/month"
+      }
+    ],
+    "soft": [
+      {
+        "text": "Prefer async write patterns where possible"
+      },
+      {
+        "text": "Favor composition over inheritance in new code"
+      }
+    ],
+    "ask_first": [
+      {
+        "text": "Database schema changes"
+      },
+      {
+        "text": "Adding new dependencies to requirements.txt"
+      },
+      {
+        "text": "Changes to the CI/CD pipeline"
+      }
+    ]
+  },
+  "sacred": [
+    {
+      "path": "src/auth/**",
+      "reason": "Proprietary tenant resolution logic, legally reviewed",
+      "well_formed": true
+    },
+    {
+      "path": "src/compliance/**",
+      "reason": "GDPR audit trail, approved by legal",
+      "well_formed": true
+    },
+    {
+      "path": "migrations/",
+      "reason": "Historical migration files must never be modified",
+      "well_formed": true
+    }
+  ],
+  "assumptions": [
+    {
+      "text": "Bottleneck is synchronous DB writes (validate against perf baseline)",
+      "validated": false,
+      "has_checkbox": true
+    },
+    {
+      "text": "Kafka cluster can handle 10M events/day without partition rebalancing",
+      "validated": false,
+      "has_checkbox": true
+    },
+    {
+      "text": "Current v2 API consumers do not use deprecated endpoints",
+      "validated": true,
+      "has_checkbox": true
+    }
+  ],
+  "deliverable": "Architecture doc with decision records, implementation plan with milestones,\nand working code with tests achieving >80% coverage on new modules.",
+  "unknown_sections": []
+}
