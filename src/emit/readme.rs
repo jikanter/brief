@@ -4,62 +4,53 @@ use crate::emit::markers::{inject_section, wrap_with_markers};
 use crate::framing::with_scope;
 use crate::model::Brief;
 
-/// Emit a human-readable readme from a Brief.
+/// Emit a README section from a Brief.
 ///
-/// This function is designed to emit a human-readable readme from a .brief.md file.
-/// README.md is the typical, human-readable file that provides an overview of a project and its purpose.
-/// It is designed to be human-readable, concise, and informative, so it is a natural match for
+/// A README is read by people (contributors and reviewers), not by an agent
+/// runtime, so this target has its own register rather than the AGENTS.md one:
+/// purpose before rules, the three constraint tiers named in plain English
+/// with no agent markers, sacred paths with their reasons, and context as
+/// Markdown links a forge renders as clickable.
 pub fn emit_readme(brief: &Brief) -> String {
-    let mut out = String::new();
-
-    out.push_str(&format!("# {}\n\n", brief.goal));
+    let mut out = format!("# {}\n\n", brief.goal);
 
     if !brief.frontmatter.stack.is_empty() {
         out.push_str(&format!(
-            "**Stack:** {}\n\n",
+            "Built with {}.\n\n",
             brief.frontmatter.stack.join(", ")
         ));
     }
 
-    if !brief.frontmatter.context.is_empty() {
-        out.push_str("## Context\n\nRefer to these files for background:\n\n");
-        for ctx in &brief.frontmatter.context {
-            out.push_str(&format!("- `{ctx}`\n"));
-        }
-        out.push('\n');
+    if let Some(deliverable) = &brief.deliverable {
+        out.push_str(&format!(
+            "## What done looks like\n\n{}\n\n",
+            deliverable.trim_end()
+        ));
     }
 
-    let has_constraints = !brief.constraints.hard.is_empty()
-        || !brief.constraints.soft.is_empty()
-        || !brief.constraints.ask_first.is_empty();
-
-    if has_constraints {
-        out.push_str("## Instructions\n\n");
-        for constraint in &brief.constraints.hard {
-            out.push_str(&format!(
-                "- {} **(REQUIRED)**\n",
-                with_scope(constraint, constraint)
-            ));
+    let tiers = [
+        ("Must", &brief.constraints.hard),
+        ("Should", &brief.constraints.soft),
+        ("Ask a maintainer first", &brief.constraints.ask_first),
+    ];
+    if tiers.iter().any(|(_, cs)| !cs.is_empty()) {
+        out.push_str("## Ground rules\n\n");
+        for (heading, constraints) in tiers {
+            if constraints.is_empty() {
+                continue;
+            }
+            out.push_str(&format!("### {heading}\n\n"));
+            for c in constraints {
+                out.push_str(&format!("- {}\n", with_scope(c.as_ref(), c)));
+            }
+            out.push('\n');
         }
-        for constraint in &brief.constraints.soft {
-            out.push_str(&format!(
-                "- {} *(preferred)*\n",
-                with_scope(constraint, constraint)
-            ));
-        }
-        for constraint in &brief.constraints.ask_first {
-            out.push_str(&format!(
-                "- {} **(ASK FIRST)**\n",
-                with_scope(constraint, constraint)
-            ));
-        }
-        out.push('\n');
     }
 
     if !brief.sacred.is_empty() {
-        out.push_str("## Protected Files\n\n");
+        out.push_str("## Protected paths\n\nThese paths must not be modified:\n\n");
         for entry in &brief.sacred {
-            out.push_str(&format!("- `{}`: {}\n", entry.path, entry.reason));
+            out.push_str(&format!("- `{}` — {}\n", entry.path, entry.reason));
         }
         out.push('\n');
     }
@@ -73,19 +64,25 @@ pub fn emit_readme(brief: &Brief) -> String {
         out.push('\n');
     }
 
-    if let Some(deliverable) = &brief.deliverable {
-        out.push_str("## Deliverable\n\n");
-        out.push_str(deliverable);
+    if !brief.frontmatter.context.is_empty() {
+        out.push_str("## Further reading\n\n");
+        for ctx in &brief.frontmatter.context {
+            let label = ctx.strip_prefix("./").unwrap_or(ctx);
+            out.push_str(&format!("- [{label}]({ctx})\n"));
+        }
         out.push('\n');
     }
 
     for section in &brief.unknown_sections {
         out.push_str(&format!(
-            "\n## {}\n\n{}\n",
-            section.heading, section.content
+            "## {}\n\n{}\n\n",
+            section.heading,
+            section.content.trim_end()
         ));
     }
 
+    out.truncate(out.trim_end().len());
+    out.push('\n');
     out
 }
 
@@ -94,9 +91,8 @@ pub fn emit_readme(brief: &Brief) -> String {
 /// Behaves identically to `install_claude` for CLAUDE.md: wraps the emitted
 /// section in `<brief:generated>` markers, replaces the first existing pair
 /// in place (migrating the legacy `<!-- brief:start -->` flavor), strips
-/// empty extra pairs, and appends if no markers exist. Codex CLI consumes
-/// AGENTS.md without sanitizing the wrapped markers, so the encapsulation
-/// round-trip works the same way.
+/// empty extra pairs, and appends if no markers exist. Hand-written README
+/// prose outside the markers is never touched.
 pub fn install_readme(brief: &Brief, readme_path: &Path) -> Result<String, std::io::Error> {
     let section = emit_readme(brief);
     let wrapped = wrap_with_markers(&section);
@@ -122,11 +118,11 @@ pub fn install_readme(brief: &Brief, readme_path: &Path) -> Result<String, std::
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::emit::{emit_agents_md, install_agents_md};
+    use crate::emit::emit_agents_md;
     use crate::model::*;
 
     #[test]
-    fn readme_marks_hard_as_required() {
+    fn readme_groups_hard_rules_under_must() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Build feature".into(),
@@ -142,7 +138,8 @@ mod tests {
             unknown_sections: vec![],
         };
         let output = emit_readme(&brief);
-        assert!(output.contains("Must pass CI **(REQUIRED)**"));
+        assert!(output.contains("## Ground rules\n\n### Must\n\n- Must pass CI\n"));
+        assert!(!output.contains("(REQUIRED)"));
     }
 
     #[test]
@@ -166,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn readme_uses_protected_files_heading() {
+    fn readme_uses_protected_paths_heading() {
         let brief = Brief {
             frontmatter: Frontmatter::default(),
             goal: "Awesomely Project Goal".into(),
@@ -181,9 +178,98 @@ mod tests {
             deliverable: None,
             unknown_sections: vec![],
         };
-        let output = emit_agents_md(&brief);
-        assert!(output.contains("## Protected Files"));
-        assert!(output.contains("`src/auth/**`: Auth"));
+        let output = emit_readme(&brief);
+        assert!(output.contains("## Protected paths"));
+        assert!(output.contains("- `src/auth/**` — Auth\n"));
+    }
+
+    fn rich_brief() -> Brief {
+        Brief {
+            frontmatter: Frontmatter {
+                stack: vec!["Rust".into(), "SQLite".into()],
+                context: vec![
+                    "./docs/architecture.md".into(),
+                    "https://example.com/spec".into(),
+                ],
+                ..Frontmatter::default()
+            },
+            goal: "Ship the sync engine".into(),
+            identity: None,
+            constraints: Constraints {
+                hard: vec![Constraint {
+                    text: "No unsafe".into(),
+                    scope: vec!["src/core/**".into()],
+                }],
+                soft: vec!["Prefer small commits".into()],
+                ask_first: vec!["New dependencies".into()],
+            },
+            sacred: vec![],
+            assumptions: vec![
+                Assumption {
+                    text: "SQLite WAL is enough".into(),
+                    validated: false,
+                    has_checkbox: true,
+                },
+                Assumption {
+                    text: "Clients run Rust 1.80".into(),
+                    validated: true,
+                    has_checkbox: true,
+                },
+            ],
+            deliverable: Some("Two replicas converge offline.".into()),
+            unknown_sections: vec![],
+        }
+    }
+
+    #[test]
+    fn readme_is_not_the_agents_md_section() {
+        let brief = rich_brief();
+        assert_ne!(emit_readme(&brief), emit_agents_md(&brief));
+    }
+
+    #[test]
+    fn readme_states_stack_and_purpose_before_rules() {
+        let output = emit_readme(&rich_brief());
+        assert!(output.starts_with(
+            "# Ship the sync engine\n\nBuilt with Rust, SQLite.\n\n## What done looks like\n\nTwo replicas converge offline.\n\n## Ground rules\n"
+        ));
+    }
+
+    #[test]
+    fn readme_names_each_rule_tier_in_plain_english() {
+        let output = emit_readme(&rich_brief());
+        assert!(output.contains("### Must\n\n- When working in `src/core/**`: No unsafe\n"));
+        assert!(output.contains("### Should\n\n- Prefer small commits\n"));
+        assert!(output.contains("### Ask a maintainer first\n\n- New dependencies\n"));
+    }
+
+    #[test]
+    fn readme_omits_empty_rule_tiers() {
+        let mut brief = rich_brief();
+        brief.constraints.soft.clear();
+        assert!(!emit_readme(&brief).contains("### Should"));
+    }
+
+    #[test]
+    fn readme_links_context_as_markdown() {
+        let output = emit_readme(&rich_brief());
+        assert!(output.contains(
+            "## Further reading\n\n- [docs/architecture.md](./docs/architecture.md)\n- [https://example.com/spec](https://example.com/spec)\n"
+        ));
+    }
+
+    #[test]
+    fn readme_keeps_assumption_checkboxes() {
+        let output = emit_readme(&rich_brief());
+        assert!(output.contains(
+            "## Assumptions\n\n- [ ] SQLite WAL is enough\n- [x] Clients run Rust 1.80\n"
+        ));
+    }
+
+    #[test]
+    fn readme_ends_with_one_newline() {
+        let output = emit_readme(&rich_brief());
+        assert!(output.ends_with("\n") && !output.ends_with("\n\n"));
     }
 
     fn minimal_brief_for_readme_tests() -> Brief {
@@ -218,8 +304,8 @@ mod tests {
         let result = std::fs::read_to_string(&path).unwrap();
         assert!(result.starts_with("<brief:generated>"));
         assert!(result.contains("# Fix the login bug"));
-        assert!(result.contains("Do not break existing tests **(REQUIRED)**"));
-        assert!(result.contains("`src/auth.rs`: Tenant resolution"));
+        assert!(result.contains("- Do not break existing tests\n"));
+        assert!(result.contains("`src/auth.rs` — Tenant resolution"));
         assert!(result.trim_end().ends_with("</brief:generated>"));
     }
 
@@ -250,15 +336,15 @@ mod tests {
     #[test]
     fn install_readme_appends_when_no_markers() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("AGENTS.md");
-        std::fs::write(&path, "# My Project\n\nFreeform agent notes.\n").unwrap();
+        let path = dir.path().join("README.md");
+        std::fs::write(&path, "# My Project\n\nFreeform project notes.\n").unwrap();
         let brief = crate::emit::readme::tests::minimal_brief_for_readme_tests();
 
-        install_agents_md(&brief, &path).unwrap();
+        install_readme(&brief, &path).unwrap();
 
         let result = std::fs::read_to_string(&path).unwrap();
         assert!(result.starts_with("# My Project"));
-        assert!(result.contains("Freeform agent notes."));
+        assert!(result.contains("Freeform project notes."));
         assert!(result.contains("<brief:generated>"));
         assert!(result.contains("# Fix the login bug"));
         assert!(result.trim_end().ends_with("</brief:generated>"));
@@ -275,7 +361,7 @@ mod tests {
         .unwrap();
         let brief = crate::emit::readme::tests::minimal_brief_for_readme_tests();
 
-        install_agents_md(&brief, &path).unwrap();
+        install_readme(&brief, &path).unwrap();
 
         let result = std::fs::read_to_string(&path).unwrap();
         assert!(!result.contains("<!-- brief:start -->"));
